@@ -6,8 +6,137 @@ const role=r=>({resident:'Resident',observer:'Observer',assessor:'Assessor',owne
 function setup(){const p=S.p;$('#userCard').innerHTML=`<strong>${esc(p.display_name||p.username)}</strong><br><small>${role(p.role)}</small>`;$('#profileChip').textContent=p.display_name||p.username;$('#nav').innerHTML=nav[p.role].map(([r,n])=>`<button data-go="${r}">${esc(n)}</button>`).join('');$('#loading').hidden=true;$('#shell').hidden=false}
 async function routePage(){const [r='dashboard',id='']=location.hash.slice(1).split(':');document.querySelectorAll('[data-go]').forEach(x=>x.classList.toggle('active',x.dataset.go===r));C.innerHTML=empty('Loading…');try{await(routes[r]||dashboard)(id)}catch(e){console.error(e);C.innerHTML=empty(e.message||'Unable to load') }}
 const routes={dashboard,chapters,chapter,assessments,profile,reviews,residents,candidate,comments,users,progress,assignments,password:passwordPage};
-async function dashboard(){const p=S.p;$('#title').textContent='Dashboard';$('#crumb').textContent=role(p.role);if(p.role==='resident'){const[{data:ch},{count:logs},{count:k},{data:a}]=await Promise.all([sb.from('chapters').select('*').lte('year_from',p.residency_year).eq('is_active',true),sb.from('skill_logs').select('*',{head:true,count:'exact'}).eq('resident_id',p.id),sb.from('knowledge_progress').select('*',{head:true,count:'exact'}).eq('resident_id',p.id).eq('status','completed'),sb.from('assessments').select('*').eq('resident_id',p.id).order('assessment_date',{ascending:false}).limit(1)]);const last=a?.[0];C.innerHTML=lead(`Welcome, ${p.display_name||p.username}`,'Track the evidence behind your clinical development.')+`<div class="grid g4">${metric('Available chapters',ch?.length||0,'Cumulative access')}${metric('Skills recorded',logs||0,'Supervised performances')}${metric('Knowledge complete',k||0,'Self-recorded topics')}${metric('Latest result',last?`${last.total_score}/30`:'—',last?(last.overall_pass?'Passed':'Reassessment required'):'Not assessed')}</div>`+(p.progression_status==='reassessment_required'?`<div class="card warning" style="margin-top:18px"><b>Reassessment due ${date(p.reassessment_due)}</b><p>You remain at your current year until you pass.</p></div>`:p.progression_status==='eligible_for_upgrade'?`<div class="card success" style="margin-top:18px"><b>Congratulations—you passed.</b><p>The owner can now confirm your upgrade.</p></div>`:'')}return}if(p.role==='observer'){C.innerHTML=lead('Record a clinical observation','Find a resident, then write a signed knowledge, skill or attitude comment.')+`<section class="card"><div class="form-grid"><label>Search resident<input id="findResident" placeholder="Name or username"></label><label>Residency year<select id="findYear"><option value="">All years</option>${[1,2,3,4,5].map(y=>`<option>${y}</option>`)}</select></label></div><div id="results" style="margin-top:18px">${empty('Start typing to find a resident.')}</div></section>`;return}if(p.role==='assessor'){const{data}=await assignmentsMine();C.innerHTML=lead('Assessment workspace','Review evidence and previous results before scoring.')+assignmentTable(data||[]);return}const[{data:ps},{count:a},{count:r}]=await Promise.all([sb.from('profiles').select('role,progression_status'),sb.from('assessments').select('*',{head:true,count:'exact'}),sb.from('observer_reviews').select('*',{head:true,count:'exact'})]);C.innerHTML=lead('Training program at a glance','Controlled accounts, resident evidence and formal outcomes.',`<button class="btn" data-create>Create account</button>`)+`<div class="grid g4">${metric('Residents',ps?.filter(x=>x.role==='resident').length||0,'Active curriculum users')}${metric('All accounts',ps?.length||0,'Four protected roles')}${metric('Assessments',a||0,'Permanent history')}${metric('Observer reviews',r||0,'Signed comments')}</div>`}
-async function chapters(){if(S.p.role!=='resident')return go('dashboard');$('#title').textContent='My chapters';const{data}=await sb.from('chapters').select('*').lte('year_from',S.p.residency_year).eq('is_active',true).order('year_from').order('sort_order');C.innerHTML=lead('Your cardiology curriculum','Access is cumulative: current and preceding years remain open.')+`<div class="chapters">${(data||[]).map(x=>`<article class="card chapter" data-chapter="${x.id}"><span class="tag">Year ${x.year_from}${x.year_to>x.year_from?'–'+x.year_to:''}</span><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p></article>`).join('')}</div>`}
+async function dashboard(){
+  const p=S.p;
+  $('#title').textContent='Dashboard';
+  $('#crumb').textContent=role(p.role);
+
+  if(p.role==='resident'){
+    const[{data:ch},{count:logs},{count:k},{data:a}]=await Promise.all([
+      sb.from('chapters').select('*').lte('year_from',p.residency_year).eq('is_active',true),
+      sb.from('skill_logs').select('*',{head:true,count:'exact'}).eq('resident_id',p.id),
+      sb.from('knowledge_progress').select('*',{head:true,count:'exact'}).eq('resident_id',p.id).eq('status','completed'),
+      sb.from('assessments').select('*').eq('resident_id',p.id).order('assessment_date',{ascending:false}).limit(1)
+    ]);
+
+    const last=a?.[0];
+
+    C.innerHTML=
+      lead(
+        `Welcome, ${p.display_name||p.username}`,
+        'Track the evidence behind your clinical development.'
+      )+
+      `<div class="grid g4">
+        ${metric('Available chapters',ch?.length||0,'Cumulative access')}
+        ${metric('Skills recorded',logs||0,'Supervised performances')}
+        ${metric('Knowledge complete',k||0,'Self-recorded topics')}
+        ${metric(
+          'Latest result',
+          last?`${last.total_score}/30`:'—',
+          last
+            ?(last.overall_pass?'Passed':'Reassessment required')
+            :'Not assessed'
+        )}
+      </div>`+
+      (
+        p.progression_status==='reassessment_required'
+          ?`<div class="card warning" style="margin-top:18px">
+              <b>Reassessment due ${date(p.reassessment_due)}</b>
+              <p>You remain at your current year until you pass.</p>
+            </div>`
+          :p.progression_status==='eligible_for_upgrade'
+            ?`<div class="card success" style="margin-top:18px">
+                <b>Congratulations—you passed.</b>
+                <p>The owner can now confirm your upgrade.</p>
+              </div>`
+            :''
+      );
+
+    return;
+  }
+
+  if(p.role==='observer'){
+    C.innerHTML=
+      lead(
+        'Record a clinical observation',
+        'Find a resident, then write a signed knowledge, skill or attitude comment.'
+      )+
+      `<section class="card">
+        <div class="form-grid">
+          <label>
+            Search resident
+            <input id="findResident" placeholder="Name or username">
+          </label>
+
+          <label>
+            Residency year
+            <select id="findYear">
+              <option value="">All years</option>
+              ${[1,2,3,4,5].map(y=>`<option>${y}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+
+        <div id="results" style="margin-top:18px">
+          ${empty('Start typing to find a resident.')}
+        </div>
+      </section>`;
+
+    return;
+  }
+
+  if(p.role==='assessor'){
+    const{data}=await assignmentsMine();
+
+    C.innerHTML=
+      lead(
+        'Assessment workspace',
+        'Review evidence and previous results before scoring.'
+      )+
+      assignmentTable(data||[]);
+
+    return;
+  }
+
+  const[
+    {data:ps},
+    {count:a},
+    {count:r}
+  ]=await Promise.all([
+    sb.from('profiles').select('role,progression_status'),
+    sb.from('assessments').select('*',{head:true,count:'exact'}),
+    sb.from('observer_reviews').select('*',{head:true,count:'exact'})
+  ]);
+
+  C.innerHTML=
+    lead(
+      'Training program at a glance',
+      'Controlled accounts, resident evidence and formal outcomes.',
+      `<button class="btn" data-create>Create account</button>`
+    )+
+    `<div class="grid g4">
+      ${metric(
+        'Residents',
+        ps?.filter(x=>x.role==='resident').length||0,
+        'Active curriculum users'
+      )}
+      ${metric(
+        'All accounts',
+        ps?.length||0,
+        'Four protected roles'
+      )}
+      ${metric(
+        'Assessments',
+        a||0,
+        'Permanent history'
+      )}
+      ${metric(
+        'Observer reviews',
+        r||0,
+        'Signed comments'
+      )}
+    </div>`;
+}async function chapters(){if(S.p.role!=='resident')return go('dashboard');$('#title').textContent='My chapters';const{data}=await sb.from('chapters').select('*').lte('year_from',S.p.residency_year).eq('is_active',true).order('year_from').order('sort_order');C.innerHTML=lead('Your cardiology curriculum','Access is cumulative: current and preceding years remain open.')+`<div class="chapters">${(data||[]).map(x=>`<article class="card chapter" data-chapter="${x.id}"><span class="tag">Year ${x.year_from}${x.year_to>x.year_from?'–'+x.year_to:''}</span><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p></article>`).join('')}</div>`}
 async function chapter(id){const[{data:c},{data:k},{data:sk},{data:kp},{data:sl},{data:logs}]=await Promise.all([sb.from('chapters').select('*').eq('id',id).single(),sb.from('knowledge_items').select('*').eq('chapter_id',id).order('sort_order'),sb.from('skills').select('*').eq('chapter_id',id).order('sort_order'),sb.from('knowledge_progress').select('*').eq('resident_id',S.p.id),sb.from('skill_levels').select('*').eq('resident_id',S.p.id),sb.from('skill_logs').select('skill_id').eq('resident_id',S.p.id)]);$('#title').textContent=c.title;const km=new Map(kp?.map(x=>[x.knowledge_item_id,x.status])),lm=new Map(sl?.map(x=>[x.skill_id,x.level]));C.innerHTML=lead(c.title,c.description,`<button class="btn secondary" data-go="chapters">All chapters</button>`)+`<section class="card"><h3>Five levels of independence</h3><div class="scale">${['1 Observer','2 Direct supervision','3 Limited supervision','4 Independent','5 Expert / supervisor'].map(x=>`<div>${x}</div>`).join('')}</div></section><div class="grid g2" style="margin-top:17px"><section class="card"><h3>Knowledge</h3><div class="items">${k?.map(x=>`<label class="item"><input style="width:auto" type="checkbox" data-k="${x.id}" ${km.get(x.id)==='completed'?'checked':''}> <b>${esc(x.title)}</b><p>${esc(x.description)}</p></label>`).join('')}</div></section><section class="card"><h3>Skills and logbook</h3><div class="items">${sk?.map(x=>`<article class="item"><h4>${esc(x.title)} <span class="tag">${logs?.filter(l=>l.skill_id===x.id).length||0} logs</span></h4><p>${esc(x.description)}</p><div style="display:flex;gap:8px;margin-top:10px"><select data-level="${x.id}"><option value="">Level</option>${[1,2,3,4,5].map(n=>`<option ${lm.get(x.id)===n?'selected':''}>${n}</option>`)}</select><button class="btn" data-log="${x.id}" data-name="${esc(x.title)}">Add performance</button></div></article>`).join('')}</div></section></div>`}
 async function assessments(){if(S.p.role==='observer')return go('dashboard');$('#title').textContent=S.p.role==='resident'?'My assessments':'Assessments';let q=sb.from('assessments').select('*').order('assessment_date',{ascending:false});if(S.p.role==='resident')q=q.eq('resident_id',S.p.id);if(S.p.role==='assessor')q=q.eq('assessor_id',S.p.id);const{data}=await q;C.innerHTML=lead('Assessment history','Scores, justifications, outcome and reassessment remain permanent.')+`<div class="grid">${data?.map(assessmentCard).join('')||empty('No assessments recorded.')}</div>`}
 function assessmentCard(a){return`<article class="card"><div class="lead"><div><h2>Year ${a.assessed_year} ${a.assessment_type}</h2><p>${date(a.assessment_date)} · Assessor: ${esc(a.assessor_signature)}</p></div><span class="tag ${a.overall_pass?'success':'danger'}">${a.overall_pass?'Passed':'Failed'}</span></div><div class="score"><div><b>${a.knowledge_score}/10</b><small>Knowledge</small></div><div><b>${a.skills_score}/10</b><small>Skills</small></div><div><b>${a.attitude_score}/10</b><small>Attitude</small></div><div><b>${a.total_score}/30</b><small>Total</small></div></div>${['knowledge','skills','attitude'].map(d=>a[d+'_justification']?`<p><b>${d}:</b> ${esc(a[d+'_justification'])}</p>`:'').join('')}${!a.overall_pass?`<p class="warning">Reassessment due ${date(a.reassessment_due)}</p>`:''}</article>`}
