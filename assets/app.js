@@ -143,10 +143,71 @@ async function assessments(){if(S.p.role==='observer')return go('dashboard');$('
 function assessmentCard(a){return`<article class="card"><div class="lead"><div><h2>Year ${a.assessed_year} ${a.assessment_type}</h2><p>${date(a.assessment_date)} · Assessor: ${esc(a.assessor_signature)}</p></div><span class="tag ${a.overall_pass?'success':'danger'}">${a.overall_pass?'Passed':'Failed'}</span></div><div class="score"><div><b>${a.knowledge_score}/10</b><small>Knowledge</small></div><div><b>${a.skills_score}/10</b><small>Skills</small></div><div><b>${a.attitude_score}/10</b><small>Attitude</small></div><div><b>${a.total_score}/30</b><small>Total</small></div></div>${['knowledge','skills','attitude'].map(d=>a[d+'_justification']?`<p><b>${d}:</b> ${esc(a[d+'_justification'])}</p>`:'').join('')}${!a.overall_pass?`<p class="warning">Reassessment due ${date(a.reassessment_due)}</p>`:''}</article>`}
 async function reviews(){if(S.p.role!=='observer')return go('dashboard');$('#title').textContent='My reviews';const{data}=await sb.rpc('get_my_observer_reviews');C.innerHTML=lead('Comments written by you','No observer can see another observer’s private history.')+reviewTable(data||[],true)}
 function reviewTable(rows,own=false){return`<section class="card"><table class="table"><thead><tr><th>Resident</th><th>Category</th><th>Comment</th><th>Date / place</th>${own?'':'<th>Observer</th>'}</tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.resident_name||x.resident?.display_name||'Resident')}</td><td><span class="tag">${esc(x.category)}</span></td><td>${esc(x.comment)}</td><td>${date(x.observed_on)}<br>${esc(x.place)}</td>${own?'':`<td>${esc(x.observer_signature)}</td>`}</tr>`).join('')}</tbody></table></section>`}
-async function assignmentsMine(){return sb.from('assessor_assignments').select('*,resident:profiles!resident_id(id,display_name,username,residency_year,progression_status),chapter:chapters(id,title)').eq('assessor_id',S.p.id).eq('is_active',true)}
-function assignmentTable(rows){return`<section class="card"><table class="table"><thead><tr><th>Resident</th><th>Scope</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.resident?.display_name||x.resident?.username)}</td><td>${esc(x.chapter?.title||'Overall')}</td><td><button class="btn" data-candidate="${x.resident_id}~${x.chapter_id||''}">Open record</button></td></tr>`).join('')}</tbody></table></section>`}
-async function residents(){if(S.p.role!=='assessor')return go('dashboard');const{data}=await assignmentsMine();C.innerHTML=lead('Assigned residents','Access is limited to your owner-assigned scope.')+assignmentTable(data||[])}
-async function candidate(id){const[rid,cid]=id.split('~');const[{data:p},{data:rv},{data:logs},{data:kp},{data:a}]=await Promise.all([sb.from('profiles').select('*').eq('id',rid).single(),sb.from('observer_reviews').select('*').eq('resident_id',rid),sb.from('skill_logs').select('*').eq('resident_id',rid),sb.from('knowledge_progress').select('*').eq('resident_id',rid).eq('status','completed'),sb.from('assessments').select('*').eq('resident_id',rid).order('assessment_date',{ascending:false})]);C.innerHTML=lead(p.display_name||p.username,'Review all evidence before formal scoring.',`<button class="btn" data-assess="${rid}" data-cid="${cid}" data-name="${esc(p.display_name||p.username)}">Start assessment now</button>`)+`<div class="grid g3">${metric('Knowledge complete',kp?.length||0,'topics')}${metric('Skill logs',logs?.length||0,'performances')}${metric('Previous assessments',a?.length||0,'records')}</div><div style="margin-top:17px">${reviewTable(rv||[])}</div><div class="grid" style="margin-top:17px">${a?.map(assessmentCard).join('')||empty('No previous assessments.')}</div>`}
+async function assignmentsMine(){
+  const {data,error}=await sb.rpc('assessor_assigned_residents');
+
+  if(error){
+    throw error;
+  }
+
+  return {data};
+}
+
+function assignmentTable(rows){
+  if(!rows.length){
+    return empty(
+      `No active Year ${S.p.residency_year||''} residents are currently assigned.`
+    );
+  }
+
+  return`
+    <section class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Resident</th>
+            <th>Assigned cohort</th>
+            <th></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${rows.map(x=>`
+            <tr>
+              <td>${esc(x.resident_name||x.username)}</td>
+              <td>Year ${x.residency_year}</td>
+              <td>
+                <button
+                  class="btn"
+                  data-candidate="${x.resident_id}~"
+                >
+                  Open record
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+async function residents(){
+  if(S.p.role!=='assessor'){
+    return go('dashboard');
+  }
+
+  $('#title').textContent='Assigned residents';
+
+  const {data}=await assignmentsMine();
+
+  C.innerHTML=
+    lead(
+      'Assigned residents',
+      `All active Year ${S.p.residency_year} residents assigned to you.`
+    )+
+    assignmentTable(data||[]);
+}async function candidate(id){const[rid,cid]=id.split('~');const[{data:p},{data:rv},{data:logs},{data:kp},{data:a}]=await Promise.all([sb.from('profiles').select('*').eq('id',rid).single(),sb.from('observer_reviews').select('*').eq('resident_id',rid),sb.from('skill_logs').select('*').eq('resident_id',rid),sb.from('knowledge_progress').select('*').eq('resident_id',rid).eq('status','completed'),sb.from('assessments').select('*').eq('resident_id',rid).order('assessment_date',{ascending:false})]);C.innerHTML=lead(p.display_name||p.username,'Review all evidence before formal scoring.',`<button class="btn" data-assess="${rid}" data-cid="${cid}" data-name="${esc(p.display_name||p.username)}">Start assessment now</button>`)+`<div class="grid g3">${metric('Knowledge complete',kp?.length||0,'topics')}${metric('Skill logs',logs?.length||0,'performances')}${metric('Previous assessments',a?.length||0,'records')}</div><div style="margin-top:17px">${reviewTable(rv||[])}</div><div class="grid" style="margin-top:17px">${a?.map(assessmentCard).join('')||empty('No previous assessments.')}</div>`}
 async function comments(){if(!['owner','assessor'].includes(S.p.role))return go('dashboard');const{data}=await sb.from('observer_reviews').select('*').order('observed_on',{ascending:false});C.innerHTML=lead('Observer comments','Signed clinical observations in your permitted scope.')+reviewTable(data||[])}
 async function users(){if(S.p.role!=='owner')return go('dashboard');const{data}=await sb.from('profiles').select('*').order('created_at',{ascending:false});C.innerHTML=lead('Controlled accounts','Only the owner creates or suspends access.',`<button class="btn" data-create>Create account</button>`)+`<section class="card"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Year</th><th>Access</th></tr></thead><tbody>${data.map(p=>`<tr><td>${esc(p.display_name)}<br><small>@${esc(p.username)}</small></td><td>${esc(p.email)}</td><td>${role(p.role)}</td><td>${p.residency_year||'—'}</td><td>${p.role==='owner'?'Owner':`<button class="btn ${p.is_active?'danger':'success'}" data-status="${p.id}" data-active="${!p.is_active}">${p.is_active?'Suspend':'Activate'}</button>`}</td></tr>`).join('')}</tbody></table></section>`}
 async function progress(){if(S.p.role!=='owner')return go('dashboard');const{data}=await sb.rpc('owner_resident_progress');C.innerHTML=lead('Resident progress','Evidence, reassessment restrictions and eligible upgrades.')+`<section class="card"><table class="table"><thead><tr><th>Resident</th><th>Year</th><th>Knowledge</th><th>Logs</th><th>Status</th><th></th></tr></thead><tbody>${data.map(x=>`<tr><td>${esc(x.display_name)}</td><td>${x.residency_year}</td><td>${x.knowledge_completed}</td><td>${x.skill_log_count}</td><td><span class="tag ${x.progression_status==='eligible_for_upgrade'?'success':x.progression_status==='reassessment_required'?'warning':''}">${esc(x.progression_status.replaceAll('_',' '))}</span></td><td>${x.progression_status==='eligible_for_upgrade'&&x.residency_year<5?`<button class="btn" data-upgrade="${x.id}" data-name="${esc(x.display_name)}">Confirm upgrade</button>`:''}</td></tr>`).join('')}</tbody></table></section>`}
