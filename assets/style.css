@@ -1326,6 +1326,13 @@ dialog::backdrop {
 .message-row { display:flex; gap:12px; align-items:center; width:100%; padding:0 14px 0 0; border-bottom:1px solid var(--line); background:#fff; color:var(--ink); }
 .message-open { display:grid; grid-template-columns:minmax(110px,.7fr) minmax(160px,1.3fr) auto; gap:14px; align-items:center; flex:1; padding:16px 22px; border:0; border-radius:0; background:transparent; color:var(--ink); text-align:left; }
 .message-actions { flex:0 0 auto; }
+.approval-actions { display:flex; gap:8px; align-items:center; }
+.success-button { background:#15803d; border-color:#15803d; color:#fff; }
+.danger-button { background:#b91c1c; border-color:#b91c1c; color:#fff; }
+.decision-title { display:inline-flex; align-items:center; gap:9px; }
+.decision-icon { display:inline-grid; place-items:center; width:25px; height:25px; border-radius:50%; color:#fff; font-size:17px; font-weight:900; line-height:1; }
+.decision-icon.approved { background:#16a34a; }
+.decision-icon.rejected { background:#dc2626; }
 .message-row:hover { background:#f7f9fc; }
 .message-row.unread { background:#eef6ff; box-shadow:inset 4px 0 var(--blue); }
 .message-row small { color:var(--muted); white-space:nowrap; }
