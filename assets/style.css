@@ -1697,3 +1697,293 @@ dialog:has(.ai-guideline-modal) {
     width: 100%;
   }
 }
+
+/* Message management + mailbox fit — v1.0.35 */
+#content.mail-content {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding-inline: clamp(16px, 2vw, 30px);
+  overflow-x: hidden;
+}
+.wide-mailbox,
+.wide-mailbox .mail-panel,
+.wide-mailbox .message-list {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* The global input rule makes checkboxes 100% wide unless explicitly reset. */
+.message-select,
+.logbook-message-select {
+  width: 18px !important;
+  height: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  margin: 0 0 0 4px;
+  padding: 0;
+  flex: 0 0 18px;
+  accent-color: var(--blue);
+}
+
+.message-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) max-content;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 0 12px;
+}
+.message-open,
+.mail-content .message-open {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(125px, .7fr) minmax(0, 1.55fr) minmax(135px, auto);
+  gap: clamp(10px, 1.4vw, 20px);
+  padding: 17px 10px;
+  overflow: hidden;
+}
+.message-open > *,
+.message-person,
+.message-subject {
+  min-width: 0;
+  max-width: 100%;
+}
+.message-person,
+.message-subject {
+  overflow-wrap: anywhere;
+}
+.message-open > small {
+  justify-self: end;
+  text-align: right;
+}
+.message-row > .message-actions {
+  min-width: 0;
+  max-width: 250px;
+  padding-right: 2px;
+}
+.message-row > .message-actions .btn {
+  white-space: nowrap;
+}
+
+.mail-tools-enhanced {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) max-content;
+  align-items: center;
+  gap: 12px;
+}
+.mail-filter-group {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(190px, .8fr);
+  gap: 10px;
+}
+.mail-bulk-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Simple owner cleanup: categories instead of a long resident-by-resident grid. */
+.cleanup-manager {
+  max-width: 1120px;
+  margin-right: auto;
+  padding: 0;
+  overflow: hidden;
+}
+.cleanup-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(145deg, #f8fbff, #f4f8fc);
+}
+.cleanup-summary > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: end;
+  justify-content: start;
+  column-gap: 10px;
+}
+.cleanup-summary .eyebrow {
+  grid-column: 1 / -1;
+}
+.cleanup-summary strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+.cleanup-summary small {
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+.cleanup-select-all {
+  flex: 0 0 auto;
+}
+.cleanup-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 22px 24px;
+}
+.cleanup-category-card {
+  min-width: 0;
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fff;
+  cursor: pointer;
+  transition: .16s ease;
+}
+.cleanup-category-card:hover {
+  border-color: #a9cae9;
+  box-shadow: 0 8px 22px rgba(8, 28, 53, .055);
+}
+.cleanup-category-card:has(input:checked) {
+  border-color: #79afe2;
+  background: #f3f9ff;
+  box-shadow: inset 4px 0 var(--blue);
+}
+.cleanup-category-card > input {
+  width: 18px !important;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--blue);
+}
+.cleanup-category-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.cleanup-category-copy b {
+  font-size: .95rem;
+}
+.cleanup-category-copy small {
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.cleanup-category-card > strong {
+  min-width: 42px;
+  display: grid;
+  place-items: center;
+  padding: 9px 10px;
+  border-radius: 12px;
+  color: #15518c;
+  background: #eaf4fe;
+  font-size: 1rem;
+}
+.cleanup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 24px 22px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfe;
+}
+.cleanup-protection {
+  max-width: 650px;
+  display: grid;
+  gap: 4px;
+  color: #155e45;
+}
+.cleanup-protection span {
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+.cleanup-protection code {
+  color: #155e45;
+  background: #edf8f3;
+  padding: 1px 4px;
+  border-radius: 5px;
+}
+.cleanup-buttons {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1180px) {
+  .mail-tools-enhanced {
+    grid-template-columns: 1fr;
+  }
+  .mail-bulk-actions {
+    justify-content: flex-start;
+  }
+  .message-open,
+  .mail-content .message-open {
+    grid-template-columns: minmax(115px, .75fr) minmax(0, 1.5fr) minmax(120px, auto);
+  }
+}
+
+@media (max-width: 760px) {
+  .message-row {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: start;
+    padding: 0 10px 10px;
+  }
+  .message-select,
+  .logbook-message-select {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 18px 0 0 2px;
+  }
+  .message-open,
+  .mail-content .message-open {
+    grid-column: 2;
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 14px 4px 6px;
+  }
+  .message-open > small {
+    justify-self: start;
+    text-align: left;
+    white-space: normal;
+  }
+  .message-row > .message-actions {
+    grid-column: 2;
+    width: 100%;
+    max-width: none;
+  }
+  .message-row > .message-actions .btn {
+    width: 100%;
+  }
+  .mail-filter-group,
+  .cleanup-category-grid {
+    grid-template-columns: 1fr;
+  }
+  .cleanup-summary,
+  .cleanup-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .cleanup-select-all,
+  .cleanup-buttons,
+  .cleanup-buttons .btn {
+    width: 100%;
+  }
+  .cleanup-buttons {
+    display: grid;
+  }
+}
