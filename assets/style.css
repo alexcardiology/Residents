@@ -1377,3 +1377,4 @@ dialog::backdrop {
 .review-callout p { margin:0; color:var(--muted); }
 @media (max-width:1000px) { .assessor-dashboard { grid-template-columns:1fr; } .assessor-next,.assessor-progress,.assessor-review { grid-column:auto; } .next-assessment-body { grid-template-columns:1fr 1fr; } .scope-tags { grid-column:1/-1; } }
 @media (max-width:700px) { .next-assessment-body { grid-template-columns:1fr; } .scope-tags { grid-column:auto; } .review-callout { align-items:flex-start; flex-direction:column; } .review-callout .btn { width:100%; } }
+
