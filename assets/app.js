@@ -888,9 +888,9 @@ async function R() {
     ` <div class="table-scroll"><table class="table"><tbody>${(i || []).map((e) => ` <tr> <td>${o(e.display_name)} · Year ${e.residency_year}</td> <td><button class="btn" data-review="${e.id}" data-name="${o(e.display_name)}">Write review</button></td> </tr>`).join("")}</tbody></table></div>`;
 }
 const F = {
-  procedure: "Procedure / manual",
+  procedure: "Manual intervention",
   conference_attendance: "Conference attended",
-  conference_lecture: "Conference lecture given",
+  conference_lecture: "Conference speech given",
 };
 function B(e) {
   const statusClass =
@@ -899,7 +899,16 @@ function B(e) {
       : "rejected" === e.status
         ? "danger"
         : "warning";
-  return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_type)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details"> ${e.institution_or_event ? `<p><b>Event / institution:</b> ${o(e.institution_or_event)}</p>` : ""} ${e.location ? `<p><b>Location:</b> ${o(e.location)}</p>` : ""} ${e.resident_role ? `<p><b>Resident role:</b> ${o(e.resident_role)}</p>` : ""} ${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""} <p><b>Selected supervisor:</b> ${o(e.supervisor_name)} (${o(e.supervisor_role)})</p> ${e.supervisor_note ? `<p class="supervisor-note"><b>Supervisor note:</b> ${o(e.supervisor_note)}</p>` : ""} </div> ${"pending" === e.status && e.supervisor_id === s.p.id ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
+  const isConference = e.activity_category === "conference";
+  const canReviewSenior = e.senior_resident_id === s.p.id && e.senior_status === "pending";
+  const canReviewAssessor = e.assessor_id === s.p.id && e.assessor_status === "pending";
+  const conferenceDetail = isConference
+    ? `<p><b>Conference activity:</b> ${e.conference_participation === "gave_speech" ? "Gave a speech" : "Attended the conference"}</p><p><b>Conference name:</b> ${o(e.title)}</p>`
+    : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(e.participation_mode)}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>`;
+  const approvalDetail = isConference
+    ? `<div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div>`
+    : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${o(e.senior_resident_name)} <span class="tag">${o(e.senior_status)}</span>${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
+  return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_category)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details">${conferenceDetail}${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""}${approvalDetail}</div> ${(canReviewSenior || canReviewAssessor) ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
 }
 async function P() {
   t("#title").textContent =
@@ -908,31 +917,34 @@ async function P() {
       : "observer" === s.p.role
         ? "Logbook approvals"
         : "Resident logbooks";
-  const requests = [e.rpc("get_logbook_entries", {
+  const requests = [e.rpc("get_logbook_entries_v2", {
     p_resident_id: null,
     p_status: null,
-    p_activity_type: null,
+    p_activity_category: null,
   })];
-  "resident" === s.p.role && requests.push(e.rpc("logbook_supervisors"));
+  "resident" === s.p.role && requests.push(e.rpc("logbook_approvers"));
   const [entriesResult, supervisorsResult] = await Promise.all(requests);
   if (entriesResult.error) throw entriesResult.error;
   const entries = entriesResult.data || [];
   const own = entries.filter((entry) => entry.resident_id === s.p.id);
-  const assigned = entries.filter(
-    (entry) => entry.supervisor_id === s.p.id && entry.resident_id !== s.p.id,
-  );
+  const assigned = entries.filter((entry) =>
+    entry.resident_id !== s.p.id &&
+    (entry.senior_resident_id === s.p.id || entry.assessor_id === s.p.id));
   const visible = "resident" === s.p.role ? own : entries;
-  const supervisors = supervisorsResult?.data || [];
+  const approvers = supervisorsResult?.data || [];
+  const seniorResidents = approvers.filter((person) => person.approver_group === "senior_resident");
+  const assessors = approvers.filter((person) => person.approver_group === "assessor");
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>The selected supervisor will receive an Inbox approval request.</p></div></div> <form id="logbookForm" class="form-grid"> <label>Activity type<select name="activity_type" required><option value="procedure">Procedure / manual performed</option><option value="conference_attendance">Conference attended</option><option value="conference_lecture">Lecture given at a conference</option></select></label> <label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label> <label class="full">Title<input name="title" minlength="3" maxlength="200" placeholder="Procedure, conference or lecture title" required></label> <label>Institution / event<input name="institution_or_event"></label> <label>Location<input name="location"></label> <label class="full">Your role<textarea name="resident_role" placeholder="Your role or level of participation"></textarea></label> <label class="full">Description / evidence<textarea name="description" placeholder="Brief details of the activity"></textarea></label> <label class="full">Approving supervisor<select name="supervisor_id" required><option value="">Choose a supervisor</option>${supervisors.map((person) => `<option value="${person.id}">${o(person.display_name)} · ${o(m(person.role) || person.role)}${"resident" === person.role ? ` · Year ${person.residency_year}` : ""}</option>`).join("")}</select></label> <div class="full form-submit"><button>Submit for approval</button></div> </form> </section>`
+      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label>Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP","Intubation","Temporary pacemaker","Pericardiocentesis","Coronary angiography","PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><label>Participation<select name="participation_mode" required><option value="">Choose participation</option><option value="solo">Solo</option><option value="assisted">Assisted</option></select></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose Year 3–5 senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference activity<select name="conference_participation" disabled required><option value="attended">Attended the conference</option><option value="gave_speech">Gave a speech</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label></div><label class="full">Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
   const pending =
     "resident" === s.p.role
       ? assigned.filter((entry) => "pending" === entry.status)
       : entries.filter(
           (entry) =>
-            "pending" === entry.status && entry.supervisor_id === s.p.id,
+            (entry.senior_resident_id === s.p.id && entry.senior_status === "pending") ||
+            (entry.assessor_id === s.p.id && entry.assessor_status === "pending"),
         );
   a.innerHTML =
     h(
@@ -946,7 +958,7 @@ async function P() {
     (pending.length
       ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
       : "") +
-    ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>${visible.length} record${1 === visible.length ? "" : "s"}</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="procedure">Procedures / manuals</option><option value="conference_attendance">Conferences attended</option><option value="conference_lecture">Lectures given</option></select></div></div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
+    ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>${visible.length} record${1 === visible.length ? "" : "s"}</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="manual_intervention">Manual interventions</option><option value="conference">Conferences</option></select></div></div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
 }
 function H() {
   const status = t("#logbookStatus")?.value || "";
@@ -1092,6 +1104,15 @@ function H() {
     }
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
+      "logbookCategory" === a.id && (() => {
+        const conference = a.value === "conference";
+        const manualFields = t("#manualFields");
+        const conferenceFields = t("#conferenceFields");
+        manualFields.hidden = conference;
+        conferenceFields.hidden = !conference;
+        manualFields.querySelectorAll("input,select,textarea").forEach((field) => field.disabled = conference);
+        conferenceFields.querySelectorAll("input,select,textarea").forEach((field) => field.disabled = !conference);
+      })(),
       "accountRole" === a.id && E(),
       "scheduleYear" === a.id && Y());
   }),
@@ -1184,19 +1205,21 @@ function H() {
         return void (await inboxPage());
       }
       if ("logbookForm" === a.id) {
-        u(await e.rpc("submit_logbook_entry", {
-          p_activity_type: r.get("activity_type"),
-          p_title: r.get("title"),
+        u(await e.rpc("submit_logbook_entry_v2", {
+          p_activity_category: r.get("activity_category"),
           p_activity_date: r.get("activity_date"),
-          p_institution_or_event: r.get("institution_or_event") || null,
-          p_location: r.get("location") || null,
+          p_conference_participation: r.get("conference_participation") || null,
+          p_conference_name: r.get("conference_name") || null,
+          p_procedure_name: r.get("procedure_name") || null,
+          p_participation_mode: r.get("participation_mode") || null,
+          p_hospital: r.get("hospital") || null,
+          p_senior_resident_id: r.get("senior_resident_id") || null,
+          p_assessor_id: r.get("assessor_id"),
           p_description: r.get("description") || null,
-          p_resident_role: r.get("resident_role") || null,
-          p_supervisor_id: r.get("supervisor_id"),
         }));
       }
       if ("logbookReviewForm" === a.id) {
-        u(await e.rpc("review_logbook_entry", {
+        u(await e.rpc("review_logbook_entry_v2", {
           p_entry_id: r.get("entry_id"),
           p_decision: r.get("decision"),
           p_note: r.get("note"),
