@@ -437,6 +437,7 @@ const w = {
         h(
           "Curriculum editor",
           "Choose a chapter to manage every knowledge point and practical skill.",
+          '<button class="btn bulk-paste-btn" data-bulk-curriculum>Bulk add by copy/paste</button>',
         ) +
         `<div class="chapters">${s
           .map((e) => {
@@ -469,9 +470,9 @@ const w = {
       h(
         r.title,
         "Add, edit, reorder or hide curriculum items without removing resident history.",
-        `<div class="lead-actions"><button class="btn ai-btn" data-ai-curriculum="${r.id}">AI from European guideline</button><button class="btn secondary" data-go="curriculum">All chapters</button></div>`,
+        `<div class="lead-actions"><button class="btn bulk-paste-btn" data-bulk-curriculum>Bulk add any chapter</button><button class="btn ai-btn" data-ai-curriculum="${r.id}">AI from European guideline</button><button class="btn secondary" data-go="curriculum">All chapters</button></div>`,
       ) +
-      ` <section class="card ai-guideline-callout"><div><span class="eyebrow">AI curriculum assistant</span><h3>Generate knowledge and skills from a European guideline</h3><p>Upload the guideline PDF. AI creates a reviewable draft only; nothing is added until you select and import the items.</p></div><button class="btn ai-btn" data-ai-curriculum="${r.id}">Generate draft</button></section> <div class="grid g2 curriculum-columns top-gap"> <section class="card"> <div class="section-head"> <div><h3>Knowledge points</h3><p>${n.length} items</p></div> <button class="btn" data-curriculum-add="knowledge" data-chapter-id="${r.id}">Add knowledge</button> </div> <div class="items">${n.map((e) => L("knowledge", e)).join("") || v("No knowledge points yet.")}</div> </section> <section class="card"> <div class="section-head"> <div><h3>Skills</h3><p>${d.length} items</p></div> <button class="btn" data-curriculum-add="skill" data-chapter-id="${r.id}">Add skill</button> </div> <div class="items">${d.map((e) => L("skill", e)).join("") || v("No skills yet.")}</div> </section> </div>`;
+      ` <section class="card ai-guideline-callout"><div><span class="eyebrow">AI curriculum assistant</span><h3>Generate knowledge and skills from a European guideline</h3><p>Upload the guideline PDF. AI creates a reviewable draft only; nothing is added until you select and import the items.</p></div><button class="btn ai-btn" data-ai-curriculum="${r.id}">Generate draft</button></section> <div class="grid g2 curriculum-columns top-gap"> <section class="card"> <div class="section-head"> <div><h3>Knowledge points</h3><p>${n.length} items</p></div><div class="section-actions"><button class="btn secondary" data-bulk-curriculum-kind="knowledge" data-chapter-id="${r.id}">Bulk paste</button><button class="btn" data-curriculum-add="knowledge" data-chapter-id="${r.id}">Add one</button></div> </div> <div class="items">${n.map((e) => L("knowledge", e)).join("") || v("No knowledge points yet.")}</div> </section> <section class="card"> <div class="section-head"> <div><h3>Skills</h3><p>${d.length} items</p></div><div class="section-actions"><button class="btn secondary" data-bulk-curriculum-kind="skill" data-chapter-id="${r.id}">Bulk paste</button><button class="btn" data-curriculum-add="skill" data-chapter-id="${r.id}">Add one</button></div> </div> <div class="items">${d.map((e) => L("skill", e)).join("") || v("No skills yet.")}</div> </section> </div>`;
   },
   schedule: async function () {
     if ("owner" !== s.p.role) return g("dashboard");
@@ -541,6 +542,79 @@ async function reviewPage() {
 }
 
 
+
+function normalizeBulkText(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+function splitBulkCurriculumLine(line) {
+  const delimiter = line.includes("\t") ? "\t" : "|";
+  return line.split(delimiter).map((part) => part.trim());
+}
+async function openBulkCurriculumPaste(kind = "", chapterId = "") {
+  if (s.p.role !== "owner") return;
+  const chapters = u(await e.from("chapters").select("id,title,year_from,year_to,sort_order").order("year_from").order("sort_order")) || [];
+  const chapter = chapterId ? chapters.find((item) => String(item.id) === String(chapterId)) : null;
+  const currentMode = Boolean(chapter && ["knowledge", "skill"].includes(kind));
+  const kindLabel = kind === "skill" ? "skills" : "knowledge points";
+  const simpleExample = kind === "skill"
+    ? `Temporary pacemaker insertion | Perform temporary pacing safely under supervision | 3\nPericardiocentesis | Demonstrate safe emergency pericardiocentesis | 2`
+    : `Initial assessment of ACS | Recognize ACS presentations and initiate guideline-directed assessment\nCardiac arrest | Identify reversible causes and immediate priorities`;
+  const allExample = `Acute Cardiac Care | Knowledge | Initial assessment of ACS | Recognize ACS presentations and immediate priorities\nAcute Cardiac Care | Skill | Temporary pacemaker insertion | Perform temporary pacing safely | 3\nCoronary Artery Disease | Knowledge | Secondary prevention | Apply evidence-based secondary prevention`;
+  y(`<form id="bulkCurriculumForm" class="modal bulk-curriculum-modal">
+    <div class="modal-head"><div><span class="eyebrow">Owner bulk editor</span><h2>${currentMode ? `Bulk add ${kindLabel}` : "Bulk add curriculum across chapters"}</h2></div><button type="button" data-close>×</button></div>
+    <div class="bulk-format-card">
+      ${currentMode
+        ? `<b>${o(chapter.title)}</b><p>Paste one item per line. Use a TAB or <code>|</code> between columns.</p><code>${kind === "skill" ? "Title | Description | Expected level (1–5)" : "Title | Description"}</code>`
+        : `<b>All chapters at once</b><p>Paste one item per line. Chapter can be its exact title or numeric chapter ID. Type accepts Knowledge/K or Skill/S.</p><code>Chapter | Type | Title | Description | Level</code>`}
+    </div>
+    <label class="full">Paste items
+      <textarea name="bulk_text" class="bulk-paste-area" required placeholder="${o(currentMode ? simpleExample : allExample)}"></textarea>
+    </label>
+    ${currentMode && kind === "skill" ? `<label>Default expected level<select name="default_level">${n.map((level) => `<option value="${level}" ${level === 3 ? "selected" : ""}>Level ${level}</option>`).join("")}</select><small class="date-format-hint">Used when a pasted row has no third column.</small></label>` : ""}
+    <label class="check-row"><input name="skip_duplicates" type="checkbox" checked> Skip exact duplicate titles already present in the same chapter</label>
+    <input type="hidden" name="bulk_kind" value="${o(kind)}">
+    <input type="hidden" name="bulk_chapter_id" value="${o(chapterId)}">
+    <div class="bulk-example"><b>Example</b><pre>${o(currentMode ? simpleExample : allExample)}</pre></div>
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Import pasted items</button></div>
+  </form>`);
+}
+function parseBulkCurriculumRows(text, chapters, fixedKind = "", fixedChapterId = "", defaultLevel = 3) {
+  const byId = new Map(chapters.map((chapter) => [String(chapter.id), chapter]));
+  const byTitle = new Map(chapters.map((chapter) => [normalizeBulkText(chapter.title), chapter]));
+  const rows = [];
+  const errors = [];
+  String(text || "").split(/\r?\n/).forEach((raw, index) => {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;
+    const parts = splitBulkCurriculumLine(line);
+    let chapter, kind, title, description, expectedLevel;
+    if (fixedChapterId && fixedKind) {
+      chapter = byId.get(String(fixedChapterId));
+      kind = fixedKind;
+      title = parts[0] || "";
+      description = parts[1] || "";
+      expectedLevel = kind === "skill" ? Number(parts[2] || defaultLevel) : null;
+    } else {
+      const chapterToken = parts[0] || "";
+      chapter = byId.get(chapterToken) || byTitle.get(normalizeBulkText(chapterToken));
+      const typeToken = normalizeBulkText(parts[1]);
+      kind = ["knowledge", "k", "knowledge point", "knowledge points"].includes(typeToken)
+        ? "knowledge"
+        : ["skill", "skills", "s"].includes(typeToken)
+          ? "skill"
+          : "";
+      title = parts[2] || "";
+      description = parts[3] || "";
+      expectedLevel = kind === "skill" ? Number(parts[4] || defaultLevel) : null;
+    }
+    if (!chapter) errors.push(`Line ${index + 1}: chapter not found.`);
+    else if (!kind) errors.push(`Line ${index + 1}: type must be Knowledge or Skill.`);
+    else if (!title) errors.push(`Line ${index + 1}: title is missing.`);
+    else if (kind === "skill" && (!Number.isFinite(expectedLevel) || expectedLevel < 1 || expectedLevel > 5)) errors.push(`Line ${index + 1}: skill level must be 1–5.`);
+    else rows.push({ chapter_id: Number(chapter.id), chapter_title: chapter.title, kind, title: title.slice(0, 180), description: description.slice(0, 1200), expected_level: kind === "skill" ? expectedLevel : null });
+  });
+  return { rows, errors };
+}
 function openGuidelineGenerator(chapterId) {
   const chapter = s.curriculumChapter;
   if (!chapter || String(chapter.id) !== String(chapterId)) {
@@ -1647,6 +1721,8 @@ function H() {
         [t] = a.dataset.curriculumEdit.split("~");
       e && T(t, e.chapter_id, e);
     }
+    if (a.hasAttribute("data-bulk-curriculum")) await openBulkCurriculumPaste();
+    if (a.dataset.bulkCurriculumKind) await openBulkCurriculumPaste(a.dataset.bulkCurriculumKind, a.dataset.chapterId);
     if (a.dataset.aiCurriculum) openGuidelineGenerator(a.dataset.aiCurriculum);
     if ((a.hasAttribute("data-schedule-add") && O(), a.dataset.scheduleEdit)) {
       const e = s.schedules.get(a.dataset.scheduleEdit);
@@ -2063,6 +2139,56 @@ function H() {
           b(`Assignments saved for ${a.dataset.assessorName}`),
           void (await j())
         );
+      }
+
+      if ("bulkCurriculumForm" === a.id) {
+        const chapters = u(await e.from("chapters").select("id,title,year_from,year_to,sort_order").order("year_from").order("sort_order")) || [];
+        const fixedKind = String(r.get("bulk_kind") || "");
+        const fixedChapterId = String(r.get("bulk_chapter_id") || "");
+        const parsed = parseBulkCurriculumRows(r.get("bulk_text"), chapters, fixedKind, fixedChapterId, Number(r.get("default_level")) || 3);
+        if (parsed.errors.length) throw new Error(`Please fix the pasted rows:\n${parsed.errors.slice(0, 8).join("\n")}${parsed.errors.length > 8 ? `\n…and ${parsed.errors.length - 8} more.` : ""}`);
+        if (!parsed.rows.length) throw new Error("No valid curriculum rows were found.");
+        const [knowledgeExisting, skillsExisting] = await Promise.all([
+          e.from("knowledge_items").select("chapter_id,title,sort_order"),
+          e.from("skills").select("chapter_id,title,sort_order"),
+        ]).then((results) => results.map(u));
+        const maxKnowledge = new Map(), maxSkills = new Map(), existingKnowledge = new Set(), existingSkills = new Set();
+        (knowledgeExisting || []).forEach((item) => {
+          const id = Number(item.chapter_id);
+          maxKnowledge.set(id, Math.max(maxKnowledge.get(id) || 0, Number(item.sort_order) || 0));
+          existingKnowledge.add(`${id}~${normalizeBulkText(item.title)}`);
+        });
+        (skillsExisting || []).forEach((item) => {
+          const id = Number(item.chapter_id);
+          maxSkills.set(id, Math.max(maxSkills.get(id) || 0, Number(item.sort_order) || 0));
+          existingSkills.add(`${id}~${normalizeBulkText(item.title)}`);
+        });
+        const skipDuplicates = r.get("skip_duplicates") === "on";
+        const seenKnowledge = new Set(), seenSkills = new Set();
+        const knowledgeRows = [], skillRows = [];
+        let skipped = 0;
+        parsed.rows.forEach((item) => {
+          const key = `${item.chapter_id}~${normalizeBulkText(item.title)}`;
+          if (item.kind === "knowledge") {
+            if ((skipDuplicates && existingKnowledge.has(key)) || seenKnowledge.has(key)) { skipped += 1; return; }
+            seenKnowledge.add(key);
+            const nextOrder = (maxKnowledge.get(item.chapter_id) || 0) + 10;
+            maxKnowledge.set(item.chapter_id, nextOrder);
+            knowledgeRows.push({ chapter_id: item.chapter_id, title: item.title, description: item.description || null, sort_order: nextOrder, is_active: true });
+          } else {
+            if ((skipDuplicates && existingSkills.has(key)) || seenSkills.has(key)) { skipped += 1; return; }
+            seenSkills.add(key);
+            const nextOrder = (maxSkills.get(item.chapter_id) || 0) + 10;
+            maxSkills.set(item.chapter_id, nextOrder);
+            skillRows.push({ chapter_id: item.chapter_id, title: item.title, description: item.description || null, expected_level: item.expected_level, sort_order: nextOrder, is_active: true });
+          }
+        });
+        if (!knowledgeRows.length && !skillRows.length) throw new Error("All pasted items were duplicates. Nothing was added.");
+        if (knowledgeRows.length) u(await e.from("knowledge_items").insert(knowledgeRows));
+        if (skillRows.length) u(await e.from("skills").insert(skillRows));
+        i.close();
+        b(`${knowledgeRows.length} knowledge point${knowledgeRows.length === 1 ? "" : "s"} + ${skillRows.length} skill${skillRows.length === 1 ? "" : "s"} added${skipped ? ` · ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}`);
+        return void (await w.curriculum(fixedChapterId || ""));
       }
       if ("guidelineAiForm" === a.id) {
         const file = r.get("guideline");
