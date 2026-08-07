@@ -573,12 +573,150 @@ async function k() {
       ) +
       ` <section class="card"> <div class="form-grid"> <label>Search resident<input id="findResident" placeholder="Name or username"></label> <label>Residency year <select id="findYear"> <option value="">All years</option> ${n.map((e) => `<option>${e}</option>`).join("")} </select> </label> </div> <div id="results" class="top-gap">${v("Start typing to find a resident.")}</div> </section>`);
   if ("assessor" === i.role) {
-    const { data: e } = await S();
+    const assigned = (await S()).data || [],
+      residentIds = assigned.map((item) => item.resident_id),
+      now = new Date().toISOString(),
+      [yearsResult, schedulesResult, knowledgeResult, skillsResult, assessmentsResult, commentsResult] =
+        await Promise.all([
+          e
+            .from("assessor_year_assignments")
+            .select("residency_year")
+            .eq("assessor_id", i.id)
+            .eq("is_active", !0),
+          e
+            .from("assessment_schedules")
+            .select("*,assessment_schedule_chapters(chapter_id,chapters(title))")
+            .eq("is_active", !0)
+            .gte("ends_at", now)
+            .order("starts_at"),
+          residentIds.length
+            ? e
+                .from("knowledge_progress")
+                .select("resident_id,status")
+                .in("resident_id", residentIds)
+            : Promise.resolve({ data: [] }),
+          residentIds.length
+            ? e
+                .from("skill_logs")
+                .select("resident_id")
+                .in("resident_id", residentIds)
+            : Promise.resolve({ data: [] }),
+          residentIds.length
+            ? e
+                .from("assessments")
+                .select("resident_id,total_score,overall_pass,assessment_date")
+                .in("resident_id", residentIds)
+                .order("assessment_date", { ascending: !1 })
+            : Promise.resolve({ data: [] }),
+          residentIds.length
+            ? e
+                .from("observer_reviews")
+                .select("*")
+                .in("resident_id", residentIds)
+                .order("observed_on", { ascending: !1 })
+                .limit(5)
+            : Promise.resolve({ data: [] }),
+        ]),
+      assignedYears = new Set(
+        (yearsResult.data || []).map((item) => Number(item.residency_year)),
+      ),
+      nextAssessment = (schedulesResult.data || []).find(
+        (item) =>
+          assignedYears.has(Number(item.residency_year)) &&
+          (!item.assessor_id || item.assessor_id === i.id),
+      ),
+      knowledgeCounts = (knowledgeResult.data || []).reduce((map, item) => {
+        if (item.status === "completed")
+          map.set(item.resident_id, (map.get(item.resident_id) || 0) + 1);
+        return map;
+      }, new Map()),
+      skillCounts = (skillsResult.data || []).reduce((map, item) => {
+        map.set(item.resident_id, (map.get(item.resident_id) || 0) + 1);
+        return map;
+      }, new Map()),
+      latestAssessments = (assessmentsResult.data || []).reduce((map, item) => {
+        if (!map.has(item.resident_id)) map.set(item.resident_id, item);
+        return map;
+      }, new Map()),
+      scope =
+        nextAssessment?.assessment_schedule_chapters
+          ?.map((item) => item.chapters?.title)
+          .filter(Boolean) || [],
+      progressRows = assigned.length
+        ? assigned
+            .map((resident) => {
+              const latest = latestAssessments.get(resident.resident_id),
+                status = latest
+                  ? latest.overall_pass
+                    ? '<span class="tag success">Passed</span>'
+                    : '<span class="tag warning">Reassessment</span>'
+                  : '<span class="tag">Not assessed</span>';
+              return `<tr>
+                <td><b>${o(resident.resident_name || resident.username)}</b><br><small>Year ${resident.residency_year}</small></td>
+                <td>${knowledgeCounts.get(resident.resident_id) || 0}</td>
+                <td>${skillCounts.get(resident.resident_id) || 0}</td>
+                <td>${latest ? `${latest.total_score}/30` : "—"}<br>${status}</td>
+                <td><button class="btn small" data-candidate="${resident.resident_id}~">Open</button></td>
+              </tr>`;
+            })
+            .join("")
+        : '<tr><td colspan="5">No assigned residents yet.</td></tr>',
+      assignedPreview = assigned.length
+        ? assigned
+            .slice(0, 6)
+            .map(
+              (resident) => `<button class="assessor-resident-row" data-candidate="${resident.resident_id}~">
+                <span><b>${o(resident.resident_name || resident.username)}</b><small>@${o(resident.username || "resident")}</small></span>
+                <span class="year-chip">Year ${resident.residency_year}</span>
+              </button>`,
+            )
+            .join("")
+        : '<div class="panel-empty">No residents are assigned yet.</div>',
+      recentComments = commentsResult.data || [];
+
     return void (a.innerHTML =
       h(
-        "Assessment workspace",
-        "Review evidence and previous results before scoring.",
-      ) + C(e || []));
+        `Welcome, ${i.display_name || i.username}`,
+        "Your assessment responsibilities and assigned residents in one place.",
+      ) +
+      `<div class="assessor-dashboard">
+        <section class="card assessor-panel assessor-next">
+          <div class="panel-heading"><div><span class="panel-number">1</span><span class="eyebrow">Next assessment</span></div><button class="text-link" data-go="assessments">View schedule</button></div>
+          ${
+            nextAssessment
+              ? `<div class="next-assessment-body"><div><h2>${o(nextAssessment.title)}</h2><p>Year ${nextAssessment.residency_year} · ${o(nextAssessment.assessment_type)}</p></div><div class="next-time"><b>${l(nextAssessment.starts_at)}</b><small>Closes ${l(nextAssessment.ends_at)}</small></div><div class="scope-tags">${(scope.length ? scope : ["Whole-year assessment"]).map((item) => `<span>${o(item)}</span>`).join("")}</div></div>`
+              : '<div class="panel-empty">No upcoming assessment is assigned to you.</div>'
+          }
+        </section>
+
+        <section class="card assessor-panel assessor-assigned">
+          <div class="panel-heading"><div><span class="panel-number">2</span><h3>Assigned residents</h3></div><button class="text-link" data-go="residents">View all (${assigned.length})</button></div>
+          <div class="assessor-resident-list">${assignedPreview}</div>
+        </section>
+
+        <section class="card assessor-panel assessor-progress">
+          <div class="panel-heading"><div><span class="panel-number">3</span><h3>Monitor progress</h3></div><span class="tag">${assigned.length} residents</span></div>
+          <div class="table-scroll"><table class="table compact-table"><thead><tr><th>Resident</th><th>Knowledge</th><th>Skill logs</th><th>Latest result</th><th></th></tr></thead><tbody>${progressRows}</tbody></table></div>
+        </section>
+
+        <section class="card assessor-panel assessor-comments">
+          <div class="panel-heading"><div><span class="panel-number">4</span><h3>Observer comments</h3></div><button class="text-link" data-go="comments">View all</button></div>
+          ${
+            recentComments.length
+              ? `<div class="comment-preview-list">${recentComments
+                  .map(
+                    (comment) => `<article><div><span class="tag">${o(comment.category)}</span><small>${d(comment.observed_on)}</small></div><b>${o(comment.resident_name || "Resident")}</b><p>${o(comment.comment)}</p><small>By ${o(comment.observer_signature)}</small></article>`,
+                  )
+                  .join("")}</div>`
+              : '<div class="panel-empty">No observer comments for your assigned residents.</div>'
+          }
+        </section>
+
+        <section class="card assessor-panel assessor-review">
+          <div class="panel-heading"><div><span class="panel-number">5</span><span class="eyebrow">Submit a review</span></div></div>
+          <div class="review-callout"><div><h2>Record a clinical observation</h2><p>Submit a signed knowledge, skill or attitude review for any resident.</p></div><button class="btn" data-go="write-review">Write a review</button></div>
+        </section>
+      </div>`);
   }
   const [r, o, l, c] = await Promise.all([
     e.from("profiles").select("role,progression_status"),
