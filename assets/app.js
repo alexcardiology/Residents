@@ -204,32 +204,50 @@ const w = {
     const r = await i;
     let n = "";
     if ("owner" !== s.p.role) {
-      const { data: t } = await e
+      let assignedYears = new Set();
+      if ("resident" === s.p.role) {
+        assignedYears.add(Number(s.p.residency_year));
+      } else if ("assessor" === s.p.role) {
+        const { data: yearRows } = await e
+          .from("assessor_year_assignments")
+          .select("residency_year")
+          .eq("assessor_id", s.p.id)
+          .eq("is_active", !0);
+        assignedYears = new Set(
+          (yearRows || []).map((item) => Number(item.residency_year)),
+        );
+      }
+      const { data: scheduleRows } = await e
           .from("assessment_schedules")
-          .select("*")
+          .select("*,assessment_schedule_chapters(chapter_id,chapters(title))")
           .eq("is_active", !0)
           .gte("ends_at", new Date().toISOString())
           .order("starts_at"),
-        a = (t || []).filter((e) =>
-          "resident" === s.p.role
-            ? Number(e.residency_year) === Number(s.p.residency_year)
-            : !e.assessor_id || e.assessor_id === s.p.id,
+        relevantSchedules = (scheduleRows || []).filter((item) =>
+          assignedYears.has(Number(item.residency_year)),
         );
-      a.length &&
-        (n = ` <section class="card window-summary"> <h3>Scheduled assessment windows</h3> <div class="window-list">${a
-          .map((e) => {
-            const [s, t] = N(e);
-            return ` <article> <span class="tag ${t}">${s}</span> <div><b>${o(e.title)}</b><small>${l(e.starts_at)} – ${l(e.ends_at)}</small></div> </article>`;
+      if (relevantSchedules.length) {
+        n = ` <section class="card window-summary"> <h3>Upcoming assessments for your assigned ${assignedYears.size === 1 ? "year" : "years"}</h3> <div class="window-list">${relevantSchedules
+          .map((item) => {
+            const [status, className] = N(item),
+              chapters =
+                item.assessment_schedule_chapters
+                  ?.map((scope) => scope.chapters?.title)
+                  .filter(Boolean) || [];
+            return ` <article> <span class="tag ${className}">${status}</span> <div><b>${o(item.title)}</b><small>Year ${item.residency_year} · ${l(item.starts_at)} – ${l(item.ends_at)}</small>${chapters.length ? `<small>Chapters: ${o(chapters.join(" · "))}</small>` : "<small>Whole-year assessment</small>"}</div> </article>`;
           })
-          .join("")}</div> </section>`);
+          .join("")}</div> </section>`;
+      } else {
+        n = ` <section class="card window-summary quiet"><h3>Upcoming assessments</h3><p>No upcoming assessment is currently scheduled for your assigned ${assignedYears.size === 1 ? "year" : "years"}.</p></section>`;
+      }
     }
     a.innerHTML =
       h(
-        "Assessment history",
-        "Scores, justifications, outcome and reassessment remain permanent.",
+        "Assessment schedule and history",
+        "See upcoming assessments for every year assigned to you and the assessments you have completed.",
       ) +
       n +
-      ` <div class="grid ${n ? "top-gap" : ""}"> ${r.data?.map(A).join("") || v("No assessments recorded.")} </div>`;
+      ` <section class="top-gap"><h2>${"assessor" === s.p.role ? "Completed assessments by you" : "Completed assessments"}</h2><div class="grid top-gap"> ${r.data?.map(A).join("") || v("No completed assessments recorded yet.")} </div></section>`;
   },
   profile: x,
   reviews: async function () {
@@ -621,9 +639,7 @@ async function k() {
         (yearsResult.data || []).map((item) => Number(item.residency_year)),
       ),
       nextAssessment = (schedulesResult.data || []).find(
-        (item) =>
-          assignedYears.has(Number(item.residency_year)) &&
-          (!item.assessor_id || item.assessor_id === i.id),
+        (item) => assignedYears.has(Number(item.residency_year)),
       ),
       knowledgeCounts = (knowledgeResult.data || []).reduce((map, item) => {
         if (item.status === "completed")
