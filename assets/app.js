@@ -619,12 +619,13 @@ function renderAiCurriculumDraft(chapterId, draft) {
 }
 
 function privateMessageCategory(message) {
-  const text = `${message?.subject || ""} ${message?.body || ""}`.toLowerCase();
-  if (text.includes("reconsideration rejected")) return "rejected";
-  if (text.includes("reconsideration approved")) return "approved_updates";
-  if (text.includes("request to reconsider")) return "reconsideration";
-  if (text.includes("logbook rejection") || /\brejected\b/.test(text)) return "rejected";
-  if (text.includes("logbook approval") || text.includes("logbook review update") || /\bapproved\b/.test(text)) return "approved_updates";
+  const subject = String(message?.subject || "").trim().toLowerCase();
+  const text = `${subject} ${message?.body || ""}`.toLowerCase();
+  if (subject === "reconsideration rejected" || subject.startsWith("logbook entry rejected")) return "rejected";
+  if (subject === "reconsideration approved" || subject.startsWith("logbook entry approved")) return "approved_updates";
+  if (text.includes("request to reconsider") && !subject.startsWith("reconsideration ")) return "reconsideration";
+  if (subject === "logbook rejection" || (subject === "logbook review update" && /\brejected\b/.test(text))) return "rejected";
+  if (subject === "logbook approval" || subject === "logbook review update") return "approved_updates";
   return "normal";
 }
 
@@ -655,6 +656,16 @@ function filterPrivateMessageRows() {
     selectVisible.checked = Boolean(checkboxes.length) && checkboxes.every((box) => box.checked);
     selectVisible.indeterminate = checkboxes.some((box) => box.checked) && !selectVisible.checked;
   }
+}
+
+function syncPrivateMailboxControls() {
+  const box = document.querySelector('[data-mail-panel]:not([hidden])')?.dataset.mailPanel || "inbox";
+  document.querySelectorAll("[data-inbox-only]").forEach((element) => {
+    element.hidden = box !== "inbox";
+  });
+  document.querySelectorAll("[data-live-mail-only]").forEach((element) => {
+    element.hidden = !["inbox", "sent"].includes(box);
+  });
 }
 
 async function inboxPage() {
@@ -735,9 +746,8 @@ async function inboxPage() {
         </div>
         <div class="mail-bulk-actions">
           <label class="bulk-check"><input id="selectVisibleMessages" type="checkbox"> Select visible</label>
-          <button class="btn secondary" data-mark-all-read ${inbox.some((item) => !item.is_read) ? "" : "disabled"}>Mark all read</button>
-          <button class="btn danger" data-trash-selected>Delete selected</button>
-          <button class="btn danger-button" data-delete-all-visible>Delete all shown</button>
+          <button class="btn secondary" data-mark-all-read data-inbox-only ${inbox.some((item) => !item.is_read) ? "" : "disabled"}>Mark all read</button>
+          <button class="btn danger" data-trash-selected data-live-mail-only>Delete selected</button>
         </div>
       </div>
       <div class="mail-panel" data-mail-panel="inbox"><div class="message-list">${rows(inbox, "inbox")}</div></div>
@@ -746,13 +756,49 @@ async function inboxPage() {
       <div id="messageSearchEmpty" class="mail-empty" hidden>No messages match your current filter.</div>
     </section>`;
   filterPrivateMessageRows();
+  syncPrivateMailboxControls();
 }
 
 async function ownerMessageCleanupPage() {
   if (s.p.role !== "owner") return g("dashboard");
   t("#title").textContent = "Message cleanup";
-  const users = u(await e.rpc("owner_message_cleanup_users")) || [];
-  a.innerHTML = h("Message cleanup", "Permanently remove ordinary messages for selected users. Resident logbook evidence stays separate and protected.") + `<section class="card"><form id="ownerMessageCleanupForm"><div class="cleanup-users">${users.map(person => `<label><input type="checkbox" name="user_ids" value="${person.id}"><span>${o(person.display_name)} · ${m(person.role)}${person.residency_year ? ` · Year ${person.residency_year}` : ""} · ${person.message_count} messages</span></label>`).join("")}</div><div class="actions"><button class="btn danger">Delete all messages for selected users</button></div><p class="form-note"><b>Protected:</b> this cleanup targets ordinary private messages only. It does not delete rows from the resident e-logbook, so My logbook and exported logbook evidence remain intact.</p></form></section>`;
+  const summary = u(await e.rpc("owner_message_cleanup_summary")) || [];
+  const counts = new Map(summary.map((row) => [String(row.category), Number(row.message_count) || 0]));
+  const total = counts.get("all") || 0;
+  const categories = [
+    ["approved_updates", "Approved & updates", "Completed approvals and status/update notifications."],
+    ["normal", "Normal inbox", "Ordinary messages and other non-final message traffic."],
+    ["rejected", "Rejected", "Rejected logbook and reconsideration result messages."],
+    ["reconsideration", "Requests to reconsider", "Active reconsideration message copies. Delete only if you intentionally want to clear them."],
+  ];
+  a.innerHTML =
+    h(
+      "Message cleanup",
+      "Choose message categories instead of selecting residents one by one. This deletes message records only; resident My logbook evidence remains protected.",
+    ) +
+    `<section class="card cleanup-manager">
+      <div class="cleanup-summary">
+        <div><span class="eyebrow">Program messages</span><strong>${total}</strong><small>Total message records currently stored</small></div>
+        <label class="bulk-check cleanup-select-all"><input id="cleanupSelectAll" type="checkbox"> Select all categories</label>
+      </div>
+      <form id="ownerMessageCleanupForm">
+        <div class="cleanup-category-grid">
+          ${categories.map(([value, title, description]) => `
+            <label class="cleanup-category-card">
+              <input type="checkbox" name="categories" value="${value}">
+              <span class="cleanup-category-copy"><b>${o(title)}</b><small>${o(description)}</small></span>
+              <strong>${counts.get(value) || 0}</strong>
+            </label>`).join("")}
+        </div>
+        <div class="cleanup-actions">
+          <div class="cleanup-protection"><b>My logbook is protected.</b><span>No row from <code>resident_logbook_entries</code> is deleted by these controls, so resident logbook history and PDF export data remain available.</span></div>
+          <div class="cleanup-buttons">
+            <button class="btn danger" type="submit">Delete selected categories</button>
+            <button class="btn danger-button" type="button" data-cleanup-delete-all>Delete ALL messages</button>
+          </div>
+        </div>
+      </form>
+    </section>`;
 }
 
 async function logbookRequestsPage() {
@@ -811,7 +857,7 @@ async function logbookRequestsPage() {
       <div class="mail-safety-note"><b>Protected logbook:</b> deleting these message copies only hides them from your message view. It does not delete the resident activity from My logbook.</div>
       <div class="mail-tools logbook-mail-tools">
         <div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map([...received,...sent,...updates,...trash].filter(x=>x.resident_id).map(x=>[x.resident_id,x.resident_name])).entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>`<option value="${id}">${o(name)}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set([...received,...sent,...updates,...trash].map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div>
-        <div class="mail-bulk-actions logbook-bulk-actions"><label class="bulk-check"><input id="selectVisibleLogbookMessages" type="checkbox"> Select visible</label><button class="btn danger" data-hide-logbook-selected>Delete selected</button><button class="btn danger-button" data-hide-logbook-visible>Delete all shown</button></div>
+        <div class="mail-bulk-actions logbook-bulk-actions"><label class="bulk-check"><input id="selectVisibleLogbookMessages" type="checkbox"> Select visible</label><button class="btn danger" data-hide-logbook-selected>Delete selected</button></div>
       </div>
       ${views.includes("received") ? `<div class="mail-panel" data-mail-panel="received" ${firstView === "received" ? "" : "hidden"}><div class="message-list">${rows(received, "received")}</div></div>` : ""}
       ${views.includes("sent") ? `<div class="mail-panel" data-mail-panel="sent" ${firstView === "sent" ? "" : "hidden"}><div class="message-list">${rows(sent, "sent")}</div></div>` : ""}
@@ -1538,6 +1584,7 @@ function H() {
         if (category) category.value = "";
         if (selectVisible) selectVisible.checked = false;
         filterPrivateMessageRows();
+        syncPrivateMailboxControls();
       })(),
       a.dataset.logbookTab && (() => {
         document.querySelectorAll("[data-logbook-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.logbookTab === a.dataset.logbookTab));
@@ -1558,24 +1605,6 @@ function H() {
         const ids=[...panel.querySelectorAll('.message-select:checked')].map(x=>Number(x.value));
         if(!ids.length) return alert("Select at least one message");
         u(await e.rpc("move_private_messages_to_trash",{p_message_ids:ids,p_box:box})); await inboxPage(); b("Messages moved to Trash");
-      })(),
-      a.hasAttribute("data-delete-all-visible") && (async () => {
-        const panel = document.querySelector('[data-mail-panel]:not([hidden])');
-        const box = panel?.dataset.mailPanel;
-        const ids = [...(panel?.querySelectorAll('.message-row:not([hidden]) .message-select') || [])].map((x) => Number(x.value));
-        if (!ids.length) return alert("There are no visible messages to delete.");
-        const category = t("#messageCategoryFilter")?.selectedOptions?.[0]?.textContent || "current filter";
-        if (box === "trash") {
-          if (!confirm(`Permanently delete all ${ids.length} messages shown under ${category}? This cannot be undone.`)) return;
-          u(await e.rpc("permanently_delete_private_messages", { p_message_ids: ids }));
-          await inboxPage();
-          return void b(`${ids.length} messages permanently deleted`);
-        }
-        if (!["inbox", "sent"].includes(box)) return;
-        if (!confirm(`Delete all ${ids.length} messages currently shown under ${category}? My logbook records will not be deleted.`)) return;
-        u(await e.rpc("move_private_messages_to_trash", { p_message_ids: ids, p_box: box }));
-        await inboxPage();
-        b(`${ids.length} messages moved to Trash`);
       })(),
       a.hasAttribute("data-restore-selected") && (async () => {
         const ids=[...document.querySelectorAll('[data-mail-panel="trash"] .message-select:checked')].map(x=>Number(x.value));
@@ -1601,14 +1630,15 @@ function H() {
         await logbookRequestsPage();
         b(`${ids.length} logbook message cop${ids.length === 1 ? "y" : "ies"} removed from your view`);
       })(),
-      a.hasAttribute("data-hide-logbook-visible") && (async () => {
-        const panel = document.querySelector('[data-mail-panel]:not([hidden])');
-        const ids = [...(panel?.querySelectorAll(".message-row:not([hidden]) .logbook-message-select") || [])].map((box) => Number(box.value));
-        if (!ids.length) return alert("There are no visible logbook messages to delete");
-        if (!confirm(`Delete all ${ids.length} currently shown message copies? My logbook data will remain unchanged.`)) return;
-        u(await e.rpc("hide_logbook_messages", { p_message_ids: ids }));
-        await logbookRequestsPage();
-        b(`${ids.length} logbook message copies removed from your view`);
+      a.hasAttribute("data-cleanup-delete-all") && (async () => {
+        const summary = u(await e.rpc("owner_message_cleanup_summary")) || [];
+        const total = Number(summary.find((row) => row.category === "all")?.message_count || 0);
+        if (!total) return alert("There are no messages to delete.");
+        if (!confirm(`Delete ALL ${total} program messages? This removes Inbox/Sent message records for all users. Resident My logbook records and exported logbook data will remain unchanged.`)) return;
+        const count = u(await e.rpc("owner_cleanup_message_categories", { p_categories: [], p_delete_all: true }));
+        await q();
+        b(`${count} message${count === 1 ? "" : "s"} deleted. Resident logbooks were not changed.`);
+        await ownerMessageCleanupPage();
       })(),
       a.hasAttribute("data-logbook-print") && printApprovedLogbook(),
       a.dataset.reclaimLogbook && openLogbookReclaim(
@@ -1754,6 +1784,11 @@ function H() {
           { onConflict: "resident_id,skill_id" },
         );
       t ? alert(t.message) : b("Level updated");
+    }
+    if (a.id === "cleanupSelectAll") {
+      document.querySelectorAll('#ownerMessageCleanupForm input[name="categories"]').forEach((box) => {
+        box.checked = a.checked;
+      });
     }
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
@@ -1972,11 +2007,13 @@ function H() {
         );
       }
       if ("ownerMessageCleanupForm" === a.id) {
-        const ids=r.getAll("user_ids");
-        if(!ids.length) throw new Error("Choose at least one user");
-        if(!confirm("Permanently delete all ordinary messages connected to the selected users?")) return;
-        const count=u(await e.rpc("owner_cleanup_messages",{p_user_ids:ids}));
-        b(`${count} message${count===1?"":"s"} permanently deleted`);
+        const categories = r.getAll("categories");
+        if (!categories.length) throw new Error("Choose at least one message category");
+        const labels = [...a.querySelectorAll('input[name="categories"]:checked')].map((box) => box.closest("label")?.querySelector("b")?.textContent || box.value);
+        if (!confirm(`Delete all messages in: ${labels.join(", ")}? Resident My logbook records will remain unchanged.`)) return;
+        const count = u(await e.rpc("owner_cleanup_message_categories", { p_categories: categories, p_delete_all: false }));
+        b(`${count} message${count === 1 ? "" : "s"} deleted. Resident logbooks were not changed.`);
+        await q();
         return void (await ownerMessageCleanupPage());
       }
       if ("messageForm" === a.id) {
