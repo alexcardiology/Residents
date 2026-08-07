@@ -277,7 +277,7 @@ const w = {
       h(
         "Comments written by you",
         "No observer can see another observer’s private history.",
-      ) + q(i || [], !0);
+      ) + renderCommentsTable(i || [], !0);
   },
   residents: async function () {
     if ("assessor" !== s.p.role) return g("dashboard");
@@ -354,7 +354,7 @@ const w = {
         y,
       ) +
       f +
-      ` <div class="grid g3 top-gap"> ${_("Knowledge complete", c.data?.length || 0, "topics")} ${_("Skill logs", d.data?.length || 0, "performances")} ${_("Previous assessments", u.data?.length || 0, "records")} </div> <div class="top-gap">${q(n.data || [])}</div> <div class="grid top-gap">${u.data?.map(A).join("") || v("No previous assessments.")}</div>`;
+      ` <div class="grid g3 top-gap"> ${_("Knowledge complete", c.data?.length || 0, "topics")} ${_("Skill logs", d.data?.length || 0, "performances")} ${_("Previous assessments", u.data?.length || 0, "records")} </div> <div class="top-gap">${renderCommentsTable(n.data || [])}</div> <div class="grid top-gap">${u.data?.map(A).join("") || v("No previous assessments.")}</div>`;
   },
   comments: async function () {
     if (!["owner", "assessor"].includes(s.p.role)) return g("dashboard");
@@ -366,7 +366,7 @@ const w = {
       h(
         "Observer comments",
         "Signed clinical observations in your permitted scope.",
-      ) + q(t || []);
+      ) + renderCommentsTable(t || []);
   },
   users: async function () {
     if ("owner" !== s.p.role) return g("dashboard");
@@ -799,7 +799,7 @@ async function k() {
 function A(e) {
   return ` <article class="card"> <div class="lead"> <div> <h2>Year ${e.assessed_year} ${o(e.assessment_type)}</h2> <p>${d(e.assessment_date)} · Assessor: ${o(e.assessor_signature)}</p> </div> <span class="tag ${e.overall_pass ? "success" : "danger"}">${e.overall_pass ? "Passed" : "Failed"}</span> </div> <div class="score"> <div><b>${e.knowledge_score}/10</b><small>Knowledge</small></div> <div><b>${e.skills_score}/10</b><small>Skills</small></div> <div><b>${e.attitude_score}/10</b><small>Attitude</small></div> <div><b>${e.total_score}/30</b><small>Total</small></div> </div> ${["knowledge", "skills", "attitude"].map((s) => (e[`${s}_justification`] ? `<p><b>${s}:</b> ${o(e[`${s}_justification`])}</p>` : "")).join("")} ${e.overall_pass ? "" : `<p class="warning">Reassessment due ${d(e.reassessment_due)}</p>`} </article>`;
 }
-function q(e, s = !1) {
+function renderCommentsTable(e, s = !1) {
   return ` <section class="card table-card"> <div class="table-scroll"> <table class="table"> <thead><tr> <th>Resident</th><th>Category</th><th>Comment</th><th>Date / place</th>${s ? "" : "<th>Observer</th>"} </tr></thead> <tbody>${e.map((e) => ` <tr> <td>${o(e.resident_name || e.resident?.display_name || "Resident")}</td> <td><span class="tag">${o(e.category)}</span></td> <td>${o(e.comment)}</td> <td>${d(e.observed_on)}<br>${o(e.place)}</td> ${s ? "" : `<td>${o(e.observer_signature)}</td>`} </tr>`).join("")}</tbody> </table> </div> </section>`;
 }
 async function S() {
@@ -980,8 +980,22 @@ async function P() {
       p_activity_category: null,
     }),
   ];
-  "resident" === s.p.role && requests.push(e.rpc("logbook_approvers"));
-  const [entriesResult, supervisorsResult] = await Promise.all(requests);
+  requests.push(
+    "resident" === s.p.role
+      ? e.rpc("logbook_approvers")
+      : Promise.resolve({ data: [] }),
+  );
+  requests.push(
+    "owner" === s.p.role
+      ? e
+          .from("profiles")
+          .select("id,display_name,residency_year")
+          .eq("role", "resident")
+          .order("display_name")
+      : Promise.resolve({ data: [] }),
+  );
+  const [entriesResult, supervisorsResult, residentsResult] =
+    await Promise.all(requests);
   if (entriesResult.error) throw entriesResult.error;
   const entries = entriesResult.data || [];
   const own = entries.filter((entry) => entry.resident_id === s.p.id);
@@ -998,6 +1012,11 @@ async function P() {
   const assessors = approvers.filter(
     (person) => person.approver_group === "assessor",
   );
+  const residents = "owner" === s.p.role ? residentsResult?.data || [] : [];
+  const resetCard =
+    "owner" === s.p.role
+      ? ` <section class="card no-print owner-reset-card"><div class="card-heading"><span class="card-icon">↺</span><div><h3>Reset one resident's logbook</h3><p>Trial-phase tool. Assessments, progress, account, and ordinary messages are preserved.</p></div></div><form id="resetLogbookForm" class="inline-actions top-gap"><select name="resident_id" required><option value="">Choose resident</option>${residents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select><button class="btn danger">Reset selected logbook</button></form></section>`
+      : "";
   const submitCard =
     "resident" === s.p.role
       ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Pericardiocentesis", "Coronary angiography", "PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><label>Participation<select name="participation_mode" required><option value="">Choose participation</option><option value="solo">Solo</option><option value="assisted">Assisted</option></select></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose Year 3–5 senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" disabled required></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
@@ -1022,6 +1041,7 @@ async function P() {
         : "Review assigned approval requests and monitor verified resident activity.",
       '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
     ) +
+    resetCard +
     submitCard +
     (pending.length
       ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
@@ -1335,6 +1355,24 @@ function H() {
           }),
         );
         await q();
+      }
+      if ("resetLogbookForm" === a.id) {
+        const residentId = r.get("resident_id");
+        const residentName = a.querySelector('select[name="resident_id"] option:checked')?.textContent || "this resident";
+        if (
+          !confirm(
+            `Reset the entire logbook for ${residentName}? This cannot be undone.`,
+          )
+        )
+          return;
+        u(
+          await e.rpc("owner_reset_resident_logbook", {
+            p_resident_id: residentId,
+          }),
+        );
+        b(`Logbook reset for ${residentName}`);
+        await q();
+        return void (await P());
       }
       if ("scheduleForm" === a.id) {
         const t = new Date(r.get("starts_at")),
