@@ -207,32 +207,30 @@ const w = {
       let assignedYears = new Set();
       if ("resident" === s.p.role) {
         assignedYears.add(Number(s.p.residency_year));
-      } else if ("assessor" === s.p.role) {
-        const { data: yearRows } = await e
-          .from("assessor_year_assignments")
-          .select("residency_year")
-          .eq("assessor_id", s.p.id)
-          .eq("is_active", !0);
-        assignedYears = new Set(
-          (yearRows || []).map((item) => Number(item.residency_year)),
-        );
       }
-      const { data: scheduleRows } = await e
-          .from("assessment_schedules")
-          .select("*,assessment_schedule_chapters(chapter_id,chapters(title))")
-          .eq("is_active", !0)
-          .gte("ends_at", new Date().toISOString())
-          .order("starts_at"),
-        relevantSchedules = (scheduleRows || []).filter((item) =>
-          assignedYears.has(Number(item.residency_year)),
-        );
+      const scheduleResult =
+          "assessor" === s.p.role
+            ? await e.rpc("my_assessor_schedule")
+            : await e
+                .from("assessment_schedules")
+                .select("*,assessment_schedule_chapters(chapter_id,chapters(title))")
+                .eq("is_active", !0)
+                .eq("residency_year", s.p.residency_year)
+                .order("starts_at"),
+        scheduleRows = scheduleResult.data || [],
+        relevantSchedules = scheduleRows
+          .filter((item) => item.schedule_status !== "finished")
+          .sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at));
+      if (scheduleResult.error) {
+        n = ` <section class="card warning"><h3>Schedule could not load</h3><p>${o(scheduleResult.error.message)}</p></section>`;
+      } else
       if (relevantSchedules.length) {
         n = ` <section class="card window-summary"> <h3>Upcoming assessments for your assigned ${assignedYears.size === 1 ? "year" : "years"}</h3> <div class="window-list">${relevantSchedules
           .map((item) => {
             const [status, className] = N(item),
               chapters =
-                item.assessment_schedule_chapters
-                  ?.map((scope) => scope.chapters?.title)
+                (item.chapters || item.assessment_schedule_chapters)
+                  ?.map((scope) => scope.title || scope.chapters?.title)
                   .filter(Boolean) || [];
             return ` <article> <span class="tag ${className}">${status}</span> <div><b>${o(item.title)}</b><small>Year ${item.residency_year} · ${l(item.starts_at)} – ${l(item.ends_at)}</small>${chapters.length ? `<small>Chapters: ${o(chapters.join(" · "))}</small>` : "<small>Whole-year assessment</small>"}</div> </article>`;
           })
@@ -594,19 +592,9 @@ async function k() {
     const assigned = (await S()).data || [],
       residentIds = assigned.map((item) => item.resident_id),
       now = new Date().toISOString(),
-      [yearsResult, schedulesResult, knowledgeResult, skillsResult, assessmentsResult, commentsResult] =
+      [schedulesResult, knowledgeResult, skillsResult, assessmentsResult, commentsResult] =
         await Promise.all([
-          e
-            .from("assessor_year_assignments")
-            .select("residency_year")
-            .eq("assessor_id", i.id)
-            .eq("is_active", !0),
-          e
-            .from("assessment_schedules")
-            .select("*,assessment_schedule_chapters(chapter_id,chapters(title))")
-            .eq("is_active", !0)
-            .gte("ends_at", now)
-            .order("starts_at"),
+          e.rpc("my_assessor_schedule"),
           residentIds.length
             ? e
                 .from("knowledge_progress")
@@ -635,12 +623,9 @@ async function k() {
                 .limit(5)
             : Promise.resolve({ data: [] }),
         ]),
-      assignedYears = new Set(
-        (yearsResult.data || []).map((item) => Number(item.residency_year)),
-      ),
-      nextAssessment = (schedulesResult.data || []).find(
-        (item) => assignedYears.has(Number(item.residency_year)),
-      ),
+      nextAssessment = (schedulesResult.data || [])
+        .filter((item) => item.schedule_status !== "finished")
+        .sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at))[0],
       knowledgeCounts = (knowledgeResult.data || []).reduce((map, item) => {
         if (item.status === "completed")
           map.set(item.resident_id, (map.get(item.resident_id) || 0) + 1);
@@ -655,8 +640,8 @@ async function k() {
         return map;
       }, new Map()),
       scope =
-        nextAssessment?.assessment_schedule_chapters
-          ?.map((item) => item.chapters?.title)
+        (nextAssessment?.chapters || nextAssessment?.assessment_schedule_chapters)
+          ?.map((item) => item.title || item.chapters?.title)
           .filter(Boolean) || [],
       progressRows = assigned.length
         ? assigned
