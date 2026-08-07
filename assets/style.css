@@ -1320,6 +1320,13 @@ dialog::backdrop {
 
 .mail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .mail-panel { padding:0; overflow:hidden; }
+.mailbox { padding:0; overflow:hidden; }
+.mailbox-tabs { display:flex; gap:4px; padding:14px 18px 0; border-bottom:1px solid var(--line); background:#f8fafc; }
+.mailbox-tab { display:flex; align-items:center; gap:9px; padding:13px 20px; border:0; border-bottom:3px solid transparent; border-radius:10px 10px 0 0; background:transparent; color:var(--muted); font-weight:850; }
+.mailbox-tab.active { border-bottom-color:var(--blue); background:#fff; color:var(--navy); }
+.mail-tools { display:flex; gap:12px; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+.mail-tools input { flex:1; min-width:0; }
+.inline-badge { margin-left:0; }
 .mail-heading { display:flex; align-items:center; justify-content:space-between; padding:20px 22px; border-bottom:1px solid var(--line); }
 .mail-heading h3 { margin:0; }
 .message-list { display:grid; }
@@ -1334,7 +1341,10 @@ dialog::backdrop {
 .decision-icon.approved { background:#16a34a; }
 .decision-icon.rejected { background:#dc2626; }
 .message-row:hover { background:#f7f9fc; }
-.message-row.unread { background:#eef6ff; box-shadow:inset 4px 0 var(--blue); }
+.message-row.unread { background:#fff0f1; box-shadow:inset 5px 0 #dc2626; }
+.message-row.unread strong,.message-row.unread .message-person { color:#991b1b; }
+.message-row.read { background:#effaf4; box-shadow:inset 5px 0 #16a34a; }
+.message-row.read strong,.message-row.read .message-person { color:#166534; }
 .message-row small { color:var(--muted); white-space:nowrap; }
 .message-person { font-weight:750; }
 .nav-badge { display:inline-grid; place-items:center; min-width:24px; height:24px; margin-left:auto; padding:0 7px; border-radius:999px; background:#f59e0b; color:#fff; font-size:12px; font-weight:900; }
@@ -1352,7 +1362,7 @@ aside nav button { display:flex; align-items:center; gap:10px; }
 .chapter-selector input { width:auto; margin-top:2px; }
 .chapter-selector small { grid-column:1/-1; color:var(--muted); }
 @media (max-width:900px) { .mail-grid { grid-template-columns:1fr; } .upcoming-assessment { grid-template-columns:1fr; gap:16px; } }
-@media (max-width:620px) { .message-row { align-items:stretch; flex-direction:column; padding:0 14px 14px; } .message-open { grid-template-columns:1fr; gap:5px; width:100%; padding:16px 8px 4px; } .message-row small { white-space:normal; } .message-actions .btn { width:100%; } .chapter-selector { grid-template-columns:1fr; } }
+@media (max-width:620px) { .mail-tools { align-items:stretch; flex-direction:column; } .mail-tools input,.mail-tools .btn { width:100%; } .mailbox-tab { flex:1; justify-content:center; padding-inline:10px; } .message-row { align-items:stretch; flex-direction:column; padding:0 14px 14px; } .message-open { grid-template-columns:1fr; gap:5px; width:100%; padding:16px 8px 4px; } .message-row small { white-space:normal; } .message-actions .btn { width:100%; } .chapter-selector { grid-template-columns:1fr; } }
 
 /* Assessor dashboard */
 .assessor-dashboard { display:grid; grid-template-columns:minmax(0,1fr) minmax(320px,.72fr); gap:18px; }
