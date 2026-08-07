@@ -601,36 +601,39 @@ async function ownerMessageCleanupPage() {
 
 async function logbookRequestsPage() {
   t("#title").textContent = "Logbook requests";
-  const [receivedResult, sentResult, updatesResult] = await Promise.all([
+  const [receivedResult, sentResult, updatesResult, trashResult] = await Promise.all([
     e.rpc("get_logbook_messages", { p_view: "received" }),
     e.rpc("get_logbook_messages", { p_view: "sent" }),
     e.rpc("get_logbook_messages", { p_view: "updates" }),
+    e.rpc("get_logbook_messages", { p_view: "trash" }),
   ]);
-  const received = u(receivedResult) || [], sent = u(sentResult) || [], updates = u(updatesResult) || [];
+  const received = u(receivedResult) || [], sent = u(sentResult) || [], updates = u(updatesResult) || [], trash = u(trashResult) || [];
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
   const seniorResident = s.p.role === "resident" && Number(s.p.residency_year) >= 3;
-  const views = juniorResident ? ["updates"] : s.p.role === "assessor" || s.p.role === "observer" ? ["received"] : seniorResident ? ["received","sent","updates"] : ["received","sent","updates"];
+  const assessor = s.p.role === "assessor";
+  const views = juniorResident ? ["updates"] : assessor ? ["received","trash"] : s.p.role === "observer" ? ["received"] : seniorResident ? ["received","sent","updates"] : ["received","sent","updates"];
   const firstView = views[0];
   const activityLabel = (message) => o(message.logbook_title || "Logbook activity");
   const statusTitle = (message) => message.subject === "Logbook approval"
-    ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>${o(message.sender_name)} approved your ${activityLabel(message)} request</span></span>`
+    ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>Approved request · ${o(message.sender_name)} approved your ${activityLabel(message)}</span></span>`
     : message.subject === "Logbook rejection"
-      ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>${o(message.sender_name)} rejected your ${activityLabel(message)} request</span></span>`
+      ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Rejected request · ${o(message.sender_name)} rejected your ${activityLabel(message)}</span></span>`
       : `Approval request · ${activityLabel(message)}`;
   const approvalButtons = (message) => !message.logbook_action_taken
     ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${activityLabel(message)}">Reject</button></div>`
     : `<span class="tag">Action completed</span>`;
   const rows = (items, view) => items.length ? items.map((message) => `
-    <article class="message-row ${view === "sent" ? "sent-message" : message.is_read ? "read" : "unread"}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""}`.toLowerCase())}">
+    <article class="message-row ${message.is_read ? "read" : "unread"}" data-request-resident="${o(message.resident_id || "")}" data-request-status="${o(message.request_status || "pending")}" data-request-type="${o(`${message.activity_category || ""}:${message.activity_kind || ""}`)}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.resident_name || ""} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""} ${message.request_status || ""}`.toLowerCase())}">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
         <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
-      </button>${view === "received" ? approvalButtons(message) : ""}
+      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${view === "updates" && message.can_reclaim ? `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Reclaim</button></div>` : ""}
     </article>`).join("") : '<div class="mail-empty">No logbook items here.</div>';
   window.logbookMessages = new Map([
     ...received.map((message) => [`logbook-${message.id}`, message]),
     ...updates.map((message) => [`logbook-${message.id}`, message]),
     ...sent.map((message) => [`logbook-sent-${message.id}`, message]),
+    ...trash.map((message) => [`logbook-${message.id}`, message]),
   ]);
   window.logbookInboxButtons = approvalButtons;
   a.innerHTML = h("Logbook requests", "Approval work is kept separate from normal messages.") + `
@@ -639,13 +642,37 @@ async function logbookRequestsPage() {
         ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${received.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${received.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
         ${views.includes("sent") ? `<button class="mailbox-tab ${firstView === "sent" ? "active" : ""}" data-logbook-tab="sent">Sent <span class="nav-badge inline-badge" ${sent.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${sent.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
         ${views.includes("updates") ? `<button class="mailbox-tab ${firstView === "updates" ? "active" : ""}" data-logbook-tab="updates">Updates <span class="nav-badge inline-badge" ${updates.filter(item=>!item.is_read).length ? "" : "hidden"}>${updates.filter(item=>!item.is_read).length}</span></button>` : ""}
+        ${views.includes("trash") ? `<button class="mailbox-tab ${firstView === "trash" ? "active" : ""}" data-logbook-tab="trash">Trash <span class="tag">${trash.length}</span></button>` : ""}
       </div>
-      <div class="mail-tools"><input id="messageSearch" type="search" placeholder="Search resident, intervention, conference or status"></div>
+      <div class="mail-tools"><div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map([...received,...sent,...updates,...trash].filter(x=>x.resident_id).map(x=>[x.resident_id,x.resident_name])).entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>`<option value="${id}">${o(name)}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set([...received,...sent,...updates,...trash].map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div></div>
       ${views.includes("received") ? `<div class="mail-panel" data-mail-panel="received" ${firstView === "received" ? "" : "hidden"}><div class="message-list">${rows(received, "received")}</div></div>` : ""}
       ${views.includes("sent") ? `<div class="mail-panel" data-mail-panel="sent" ${firstView === "sent" ? "" : "hidden"}><div class="message-list">${rows(sent, "sent")}</div></div>` : ""}
       ${views.includes("updates") ? `<div class="mail-panel" data-mail-panel="updates" ${firstView === "updates" ? "" : "hidden"}><div class="message-list notification-lines">${rows(updates, "updates")}</div></div>` : ""}
+      ${views.includes("trash") ? `<div class="mail-panel" data-mail-panel="trash" ${firstView === "trash" ? "" : "hidden"}><div class="message-list">${rows(trash, "trash")}</div></div>` : ""}
       <div id="messageSearchEmpty" class="mail-empty" hidden>No logbook items match your search.</div>
     </section>`;
+}
+
+function openLogbookReclaim(entryId, title, reviewer) {
+  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Reclaim ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox, with drmohamedalaa90@gmail.com in CC.</p><label>Justification<textarea name="justification" minlength="10" maxlength="3000" required placeholder="Explain why this request should be reconsidered"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send reclaim</button></div></form>`);
+}
+function filterLogbookRequestRows() {
+  const query = (t("#messageSearch")?.value || "").trim().toLowerCase();
+  const resident = t("#requestResidentFilter")?.value || "";
+  const status = t("#requestStatusFilter")?.value || "";
+  const type = t("#requestTypeFilter")?.value || "";
+  const activePanel = document.querySelector('[data-mail-panel]:not([hidden])');
+  let visible = 0;
+  activePanel?.querySelectorAll(".message-row").forEach((row) => {
+    const match = (!query || (row.dataset.messageSearch || "").includes(query)) &&
+      (!resident || row.dataset.requestResident === resident) &&
+      (!status || row.dataset.requestStatus === status) &&
+      (!type || row.dataset.requestType === type);
+    row.hidden = !match;
+    if (match) visible += 1;
+  });
+  const empty = t("#messageSearchEmpty");
+  if (empty) empty.hidden = visible > 0;
 }
 
 async function openComposer(replyTo = null) {
@@ -1290,6 +1317,11 @@ function H() {
         u(await e.rpc("empty_private_message_trash")); await inboxPage(); b("Trash emptied");
       })(),
       a.hasAttribute("data-logbook-print") && window.print(),
+      a.dataset.reclaimLogbook && openLogbookReclaim(
+        a.dataset.reclaimLogbook,
+        a.dataset.logbookTitle,
+        a.dataset.reclaimReviewer,
+      ),
       a.dataset.logbookReview &&
         openLogbookDecision(
           a.dataset.logbookReview,
@@ -1327,10 +1359,16 @@ function H() {
             : a.dataset.messageBox === "sent" ? `sent-${a.dataset.messageId}` : a.dataset.messageBox === "trash" ? `trash-${a.dataset.messageId}` : a.dataset.messageId;
           const message = isLogbook ? window.logbookMessages?.get(String(key)) : window.residentMessages?.get(String(key));
           if (!message) return;
-          if ((a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook") && !message.is_read)
-            (await e.rpc("mark_private_message_read", {
+          if ((a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook") && !message.is_read) {
+            await e.rpc("mark_private_message_read", {
               p_message_id: Number(message.id),
-            }), await q());
+            });
+            message.is_read = true;
+            const row = a.closest(".message-row");
+            row?.classList.remove("unread");
+            row?.classList.add("read");
+            await q();
+          }
           const decisionTitle = message.subject === "Logbook approval"
             ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>Logbook approval</span></span>`
             : message.subject === "Logbook rejection"
@@ -1389,6 +1427,7 @@ function H() {
     }
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
+      ("requestResidentFilter" === a.id || "requestStatusFilter" === a.id || "requestTypeFilter" === a.id) && filterLogbookRequestRows(),
       "logbookDecision" === a.id && (() => {
         const note = document.querySelector('#logbookReviewForm textarea[name="note"]');
         const hint = document.querySelector("#logbookNoteHint");
@@ -1430,6 +1469,7 @@ function H() {
       (clearTimeout(window.residentSearchTimer),
       (window.residentSearchTimer = setTimeout(R, 250)));
     if (e.target.id === "messageSearch") {
+      if (t("#requestResidentFilter")) return filterLogbookRequestRows();
       const query = e.target.value.trim().toLowerCase();
       const activePanel = document.querySelector('[data-mail-panel]:not([hidden])');
       let visible = 0;
@@ -1574,6 +1614,15 @@ function H() {
           }),
         );
         await q();
+      }
+      if ("logbookReclaimForm" === a.id) {
+        u(await e.rpc("submit_logbook_reclaim", {
+          p_entry_id: r.get("entry_id"),
+          p_justification: r.get("justification"),
+        }));
+        i.close();
+        b("Reclaim sent to the reviewer and copied to the owner");
+        return void (await logbookRequestsPage());
       }
       if ("resetLogbookForm" === a.id) {
         const residentId = r.get("resident_id");
