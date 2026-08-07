@@ -1319,6 +1319,134 @@ function B(e) {
     : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${o(e.senior_resident_name)} <span class="tag">${o(e.senior_status)}</span>${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
   return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_category)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details">${conferenceDetail}${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""}${approvalDetail}</div> ${canReviewSenior || canReviewAssessor ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
 }
+
+function ownerSelectedLogbookResidentIds() {
+  return [...document.querySelectorAll(".owner-logbook-resident-check:checked")].map(
+    (input) => input.value,
+  );
+}
+function filterOwnerLogbookResidents() {
+  const query = (t("#ownerLogbookSearch")?.value || "").trim().toLowerCase();
+  document.querySelectorAll("[data-owner-logbook-search]").forEach((row) => {
+    row.hidden = Boolean(query && !(row.dataset.ownerLogbookSearch || "").includes(query));
+  });
+}
+function printOwnerLogbooks(residentIds = null) {
+  if (s.p.role !== "owner") return alert("Owner access required");
+  const residents = s.ownerLogbookResidents || [];
+  const chosenIds = residentIds ? new Set(residentIds.map(String)) : null;
+  const chosenResidents = residents.filter((resident) =>
+    chosenIds ? chosenIds.has(String(resident.id)) : true,
+  );
+  if (!chosenResidents.length) {
+    alert("Select at least one resident to export.");
+    return;
+  }
+  const allEntries = s.logbookPrintEntries || [];
+  const pages = chosenResidents
+    .map((resident) => {
+      const entries = allEntries
+        .filter(
+          (entry) =>
+            String(entry.resident_id) === String(resident.id) &&
+            entry.status === "approved",
+        )
+        .sort(
+          (left, right) =>
+            new Date(left.activity_date) - new Date(right.activity_date) ||
+            new Date(left.created_at) - new Date(right.created_at),
+        );
+      const rows = entries
+        .map((entry, index) => {
+          const conference = entry.activity_category === "conference";
+          const activity = conference
+            ? entry.title
+            : entry.procedure_name || entry.title;
+          const participation = conference
+            ? entry.conference_participation === "gave_speech"
+              ? "Presenter"
+              : "Attendee"
+            : entry.participation_mode === "solo"
+              ? "Solo"
+              : "Assisted";
+          return `<tr>
+            <td>${index + 1}</td>
+            <td>${conference ? "Conference" : "Manual intervention"}</td>
+            <td>${o(activity)}</td>
+            <td>${participation}</td>
+            <td>${d(entry.activity_date)}</td>
+            <td>${conference ? "—" : o(entry.hospital || "—")}</td>
+            <td>${conference ? "—" : o(entry.senior_resident_name || "—")}</td>
+            <td class="signature">${o(entry.assessor_name || "—")}</td>
+          </tr>`;
+        })
+        .join("");
+      return `<section class="resident-page">
+        <header><div><h1>Approved Resident E-logbook</h1><p>${o(resident.display_name)} · Year ${o(resident.residency_year || "—")}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>
+        ${entries.length ? `<table><thead><tr><th>No.</th><th>Category</th><th>Activity</th><th>Role / Participation</th><th>Date</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty-logbook">No approved logbook entries.</div>'}
+        <footer>Generated ${d(new Date().toISOString())}</footer>
+      </section>`;
+    })
+    .join("");
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    alert("Please allow pop-ups to export the PDF.");
+    return;
+  }
+  popup.opener = null;
+  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Resident e-logbooks</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #142033; font-family: Arial, sans-serif; font-size: 9px; }
+    .resident-page { break-after: page; page-break-after: always; }
+    .resident-page:last-child { break-after: auto; page-break-after: auto; }
+    header { display: flex; justify-content: space-between; align-items: end; margin-bottom: 7px; border-bottom: 2px solid #0d4963; padding-bottom: 6px; }
+    h1 { margin: 0 0 2px; font-size: 18px; color: #081c35; }
+    p { margin: 0; color: #526174; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #aebbc8; padding: 4px 5px; vertical-align: middle; overflow-wrap: anywhere; }
+    th { background: #0d4963; color: white; font-size: 8px; text-transform: uppercase; letter-spacing: .25px; }
+    tbody tr:nth-child(even) { background: #f2f7fa; }
+    th:nth-child(1), td:nth-child(1) { width: 4%; text-align: center; }
+    th:nth-child(2), td:nth-child(2) { width: 12%; }
+    th:nth-child(3), td:nth-child(3) { width: 19%; }
+    th:nth-child(4), td:nth-child(4) { width: 12%; }
+    th:nth-child(5), td:nth-child(5) { width: 11%; white-space: nowrap; }
+    th:nth-child(6), td:nth-child(6) { width: 10%; }
+    th:nth-child(7), td:nth-child(7) { width: 15%; }
+    th:nth-child(8), td:nth-child(8) { width: 17%; }
+    .signature { font-family: "Segoe Script", "Brush Script MT", cursive; font-size: 13px; font-style: italic; color: #153d68; text-align: center; white-space: normal; }
+    .empty-logbook { padding: 28px; border: 1px dashed #aebbc8; text-align: center; color: #526174; }
+    footer { margin-top: 5px; text-align: right; color: #6c7886; font-size: 8px; }
+  </style></head><body>${pages}</body></html>`);
+  popup.document.close();
+  popup.focus();
+  setTimeout(() => popup.print(), 250);
+}
+async function resetOwnerLogbooks(residentIds, resetAll = false) {
+  if (s.p.role !== "owner") return alert("Owner access required");
+  const residents = s.ownerLogbookResidents || [];
+  const ids = resetAll ? residents.map((resident) => String(resident.id)) : residentIds.map(String);
+  if (!ids.length) return alert("Select at least one resident to reset.");
+  const chosen = residents.filter((resident) => ids.includes(String(resident.id)));
+  const totalEntries = (s.logbookPrintEntries || []).filter((entry) => ids.includes(String(entry.resident_id))).length;
+  if (!totalEntries) return alert("The selected resident logbook(s) are already empty.");
+  if (resetAll) {
+    const typed = prompt(`You are about to reset ALL ${residents.length} resident logbooks (${totalEntries} activities). This cannot be undone. Type RESET ALL to continue.`);
+    if (typed !== "RESET ALL") return;
+  } else {
+    const names = chosen.slice(0, 5).map((resident) => resident.display_name).join(", ");
+    const more = chosen.length > 5 ? ` and ${chosen.length - 5} more` : "";
+    if (!confirm(`Reset ${chosen.length} selected resident logbook${chosen.length === 1 ? "" : "s"} (${totalEntries} activities)? ${names}${more}. This cannot be undone.`)) return;
+  }
+  const resetCount = u(await e.rpc("owner_bulk_reset_logbooks", {
+    p_resident_ids: resetAll ? [] : ids,
+    p_reset_all: resetAll,
+  }));
+  await q();
+  b(`${resetCount} resident logbook${resetCount === 1 ? "" : "s"} reset successfully`);
+  await P();
+}
 function printApprovedLogbook() {
   const entries = (s.logbookPrintEntries || []).filter(
     (entry) => entry.status === "approved",
@@ -1441,9 +1569,14 @@ async function P() {
     (person) => person.approver_group === "assessor",
   );
   const residents = "owner" === s.p.role ? residentsResult?.data || [] : [];
-  const resetCard =
+  if (s.p.role === "owner") s.ownerLogbookResidents = residents;
+  const ownerLogbookManager =
     "owner" === s.p.role
-      ? ` <section class="card no-print owner-reset-card"><div class="card-heading"><span class="card-icon">↺</span><div><h3>Reset one resident's logbook</h3><p>Trial-phase tool. Assessments, progress, account, and ordinary messages are preserved.</p></div></div><form id="resetLogbookForm" class="inline-actions top-gap"><select name="resident_id" required><option value="">Choose resident</option>${residents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select><button class="btn danger">Reset selected logbook</button></form></section>`
+      ? ` <section class="card no-print owner-logbook-manager"><div class="card-heading"><span class="card-icon">LOG</span><div><h3>Owner logbook management</h3><p>Select residents, export their approved e-logbooks, or reset selected/all logbook data.</p></div></div>
+          <div class="owner-logbook-toolbar"><input id="ownerLogbookSearch" type="search" placeholder="Search resident"><div class="owner-logbook-toolbar-actions"><button class="btn secondary" type="button" data-owner-logbook-select-all>Select all</button><button class="btn secondary" type="button" data-owner-logbook-clear>Clear</button></div></div>
+          <div id="ownerLogbookResidentList" class="owner-logbook-resident-grid">${residents.map((person) => { const residentEntries = entries.filter((entry) => String(entry.resident_id) === String(person.id)); const approvedCount = residentEntries.filter((entry) => entry.status === "approved").length; return `<label class="owner-logbook-resident" data-owner-logbook-search="${o(`${person.display_name} year ${person.residency_year}`.toLowerCase())}"><input class="owner-logbook-resident-check" type="checkbox" value="${person.id}"><span><b>${o(person.display_name)}</b><small>Year ${o(person.residency_year)} · ${residentEntries.length} total · ${approvedCount} approved</small></span></label>`; }).join("") || '<div class="panel-empty">No resident accounts are available.</div>'}</div>
+          <div class="owner-logbook-actions"><div class="owner-logbook-export-actions"><button class="btn" type="button" data-owner-export-selected>Export selected PDF</button><button class="btn secondary" type="button" data-owner-export-all>Export all PDF</button></div><div class="owner-logbook-reset-actions"><button class="btn danger" type="button" data-owner-reset-selected>Reset selected</button><button class="btn danger danger-button" type="button" data-owner-reset-all>Reset ALL logbooks</button></div></div>
+          <p class="form-note"><b>Export:</b> official PDF output contains approved activities only, with each resident on a separate page. <b>Reset:</b> permanently clears the chosen resident logbook activities. Accounts, assessments, progress and ordinary Inbox messages are not reset.</p></section>`
       : "";
   const today = new Date();
   today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
@@ -1470,9 +1603,9 @@ async function P() {
       "resident" === s.p.role
         ? "Record procedures, conference attendance and lectures. Entries become verified after supervisor approval."
         : "Review assigned approval requests and monitor verified resident activity.",
-      '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
+      s.p.role === "owner" ? "" : '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
     ) +
-    resetCard +
+    ownerLogbookManager +
     submitCard +
     (pending.length
       ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
@@ -1518,6 +1651,24 @@ function H() {
     if ((a.hasAttribute("data-schedule-add") && O(), a.dataset.scheduleEdit)) {
       const e = s.schedules.get(a.dataset.scheduleEdit);
       e && O(e);
+    }
+    if (a.hasAttribute("data-owner-logbook-select-all")) {
+      document.querySelectorAll("[data-owner-logbook-search]:not([hidden]) .owner-logbook-resident-check").forEach((box) => (box.checked = true));
+    }
+    if (a.hasAttribute("data-owner-logbook-clear")) {
+      document.querySelectorAll(".owner-logbook-resident-check").forEach((box) => (box.checked = false));
+    }
+    if (a.hasAttribute("data-owner-export-selected")) {
+      printOwnerLogbooks(ownerSelectedLogbookResidentIds());
+    }
+    if (a.hasAttribute("data-owner-export-all")) {
+      printOwnerLogbooks(null);
+    }
+    if (a.hasAttribute("data-owner-reset-selected")) {
+      await resetOwnerLogbooks(ownerSelectedLogbookResidentIds(), false);
+    }
+    if (a.hasAttribute("data-owner-reset-all")) {
+      await resetOwnerLogbooks([], true);
     }
     var r, d;
     if (
@@ -1854,6 +2005,7 @@ function H() {
     "findResident" === e.target.id &&
       (clearTimeout(window.residentSearchTimer),
       (window.residentSearchTimer = setTimeout(R, 250)));
+    if (e.target.id === "ownerLogbookSearch") filterOwnerLogbookResidents();
     if (e.target.id === "messageSearch") {
       if (t("#requestResidentFilter")) return filterLogbookRequestRows();
       filterPrivateMessageRows();
@@ -2081,24 +2233,6 @@ function H() {
         i.close();
         b("Request to reconsider sent to the reviewer and copied to the owner");
         return void (await logbookRequestsPage());
-      }
-      if ("resetLogbookForm" === a.id) {
-        const residentId = r.get("resident_id");
-        const residentName = a.querySelector('select[name="resident_id"] option:checked')?.textContent || "this resident";
-        if (
-          !confirm(
-            `Reset the entire logbook for ${residentName}? This cannot be undone.`,
-          )
-        )
-          return;
-        u(
-          await e.rpc("owner_reset_resident_logbook", {
-            p_resident_id: residentId,
-          }),
-        );
-        b(`Logbook reset for ${residentName}`);
-        await q();
-        return void (await P());
       }
       if ("scheduleForm" === a.id) {
         const t = new Date(r.get("starts_at")),
