@@ -9,6 +9,8 @@ const s = {
     scheduleScopes: new Map(),
     scheduleAssessors: new Map(),
     assessorYears: new Map(),
+    curriculumChapter: null,
+    aiCurriculumDraft: null,
   },
   t = (e) => document.querySelector(e),
   a = t("#content"),
@@ -169,6 +171,7 @@ async function q() {
 }
 async function $() {
   const [e = "dashboard", s = ""] = location.hash.slice(1).split(":");
+  a.classList.remove("mail-content");
   (document.querySelectorAll("[data-go]").forEach((s) => {
     s.classList.toggle("active", s.dataset.go === e);
   }),
@@ -461,13 +464,14 @@ const w = {
         .order("sort_order")
         .order("id"),
     ]).then((e) => e.map(u));
+    s.curriculumChapter = r;
     a.innerHTML =
       h(
         r.title,
         "Add, edit, reorder or hide curriculum items without removing resident history.",
-        '<button class="btn secondary" data-go="curriculum">All chapters</button>',
+        `<div class="lead-actions"><button class="btn ai-btn" data-ai-curriculum="${r.id}">AI from European guideline</button><button class="btn secondary" data-go="curriculum">All chapters</button></div>`,
       ) +
-      ` <div class="grid g2 curriculum-columns"> <section class="card"> <div class="section-head"> <div><h3>Knowledge points</h3><p>${n.length} items</p></div> <button class="btn" data-curriculum-add="knowledge" data-chapter-id="${r.id}">Add knowledge</button> </div> <div class="items">${n.map((e) => L("knowledge", e)).join("") || v("No knowledge points yet.")}</div> </section> <section class="card"> <div class="section-head"> <div><h3>Skills</h3><p>${d.length} items</p></div> <button class="btn" data-curriculum-add="skill" data-chapter-id="${r.id}">Add skill</button> </div> <div class="items">${d.map((e) => L("skill", e)).join("") || v("No skills yet.")}</div> </section> </div>`;
+      ` <section class="card ai-guideline-callout"><div><span class="eyebrow">AI curriculum assistant</span><h3>Generate knowledge and skills from a European guideline</h3><p>Upload the guideline PDF. AI creates a reviewable draft only; nothing is added until you select and import the items.</p></div><button class="btn ai-btn" data-ai-curriculum="${r.id}">Generate draft</button></section> <div class="grid g2 curriculum-columns top-gap"> <section class="card"> <div class="section-head"> <div><h3>Knowledge points</h3><p>${n.length} items</p></div> <button class="btn" data-curriculum-add="knowledge" data-chapter-id="${r.id}">Add knowledge</button> </div> <div class="items">${n.map((e) => L("knowledge", e)).join("") || v("No knowledge points yet.")}</div> </section> <section class="card"> <div class="section-head"> <div><h3>Skills</h3><p>${d.length} items</p></div> <button class="btn" data-curriculum-add="skill" data-chapter-id="${r.id}">Add skill</button> </div> <div class="items">${d.map((e) => L("skill", e)).join("") || v("No skills yet.")}</div> </section> </div>`;
   },
   schedule: async function () {
     if ("owner" !== s.p.role) return g("dashboard");
@@ -536,8 +540,126 @@ async function reviewPage() {
   await R();
 }
 
+
+function openGuidelineGenerator(chapterId) {
+  const chapter = s.curriculumChapter;
+  if (!chapter || String(chapter.id) !== String(chapterId)) {
+    return alert("Open the chapter again before using AI generation.");
+  }
+  y(`<form id="guidelineAiForm" class="modal ai-guideline-modal">
+    <div class="modal-head">
+      <div><span class="eyebrow">Owner AI tool</span><h2>Generate curriculum from European guideline</h2></div>
+      <button type="button" data-close>×</button>
+    </div>
+    <p class="form-note">Chapter: <b>${o(chapter.title)}</b>. Upload the European guideline PDF. AI will create a draft of assessment-oriented knowledge points and practical skills. You review the draft before anything is saved.</p>
+    <div class="form-grid">
+      <label class="full">European guideline PDF
+        <input name="guideline" type="file" accept="application/pdf,.pdf" required>
+        <small class="date-format-hint">PDF only · maximum 10 MB</small>
+      </label>
+      <label>Knowledge points requested
+        <input name="knowledge_count" type="number" min="1" max="30" value="10" required>
+      </label>
+      <label>Skills requested
+        <input name="skills_count" type="number" min="1" max="25" value="8" required>
+      </label>
+      <label class="full">Extra instructions
+        <textarea name="instructions" maxlength="2000" placeholder="Optional: emphasize assessment competencies, entrustable clinical activities, procedural independence, acute care, etc."></textarea>
+      </label>
+    </div>
+    <input type="hidden" name="chapter_id" value="${o(chapter.id)}">
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn ai-btn">Generate draft</button></div>
+  </form>`);
+}
+
+function readGuidelineFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read the guideline PDF."));
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderAiCurriculumDraft(chapterId, draft) {
+  const knowledge = Array.isArray(draft?.knowledge) ? draft.knowledge : [];
+  const skills = Array.isArray(draft?.skills) ? draft.skills : [];
+  s.aiCurriculumDraft = { chapterId: String(chapterId), knowledge, skills, summary: draft?.summary || "", warnings: draft?.warnings || [] };
+  const warningText = Array.isArray(draft?.warnings) && draft.warnings.length
+    ? `<div class="ai-warning"><b>AI cautions</b><ul>${draft.warnings.map((item) => `<li>${o(item)}</li>`).join("")}</ul></div>`
+    : "";
+  y(`<form id="aiCurriculumImportForm" class="modal ai-draft-modal">
+    <div class="modal-head">
+      <div><span class="eyebrow">AI draft · review before import</span><h2>${o(s.curriculumChapter?.title || "Curriculum")}</h2></div>
+      <button type="button" data-close>×</button>
+    </div>
+    ${draft?.summary ? `<p class="ai-summary">${o(draft.summary)}</p>` : ""}
+    ${warningText}
+    <div class="ai-draft-columns">
+      <section>
+        <div class="section-head"><div><h3>Knowledge</h3><p>${knowledge.length} suggestions</p></div><label class="bulk-check"><input type="checkbox" data-ai-select-all="knowledge" checked> Select all</label></div>
+        <div class="ai-draft-list">${knowledge.map((item, index) => `
+          <label class="ai-draft-item">
+            <input type="checkbox" name="knowledge_indices" value="${index}" checked>
+            <span><b>${o(item.title)}</b><small>${o(item.description || "")}</small>${item.source_basis ? `<em>Guideline basis: ${o(item.source_basis)}</em>` : ""}</span>
+          </label>`).join("") || '<p class="muted">No knowledge points were generated.</p>'}</div>
+      </section>
+      <section>
+        <div class="section-head"><div><h3>Skills</h3><p>${skills.length} suggestions</p></div><label class="bulk-check"><input type="checkbox" data-ai-select-all="skills" checked> Select all</label></div>
+        <div class="ai-draft-list">${skills.map((item, index) => `
+          <label class="ai-draft-item">
+            <input type="checkbox" name="skill_indices" value="${index}" checked>
+            <span><b>${o(item.title)}</b><small>${o(item.description || "")}</small><span class="tag">Expected level ${Number(item.expected_level) || 1}</span>${item.source_basis ? `<em>Guideline basis: ${o(item.source_basis)}</em>` : ""}</span>
+          </label>`).join("") || '<p class="muted">No skills were generated.</p>'}</div>
+      </section>
+    </div>
+    <input type="hidden" name="chapter_id" value="${o(chapterId)}">
+    <div class="actions"><button type="button" class="btn secondary" data-close>Discard draft</button><button class="btn success-button">Import selected items</button></div>
+  </form>`);
+}
+
+function privateMessageCategory(message) {
+  const text = `${message?.subject || ""} ${message?.body || ""}`.toLowerCase();
+  if (text.includes("reconsideration rejected")) return "rejected";
+  if (text.includes("reconsideration approved")) return "approved_updates";
+  if (text.includes("request to reconsider")) return "reconsideration";
+  if (text.includes("logbook rejection") || /\brejected\b/.test(text)) return "rejected";
+  if (text.includes("logbook approval") || text.includes("logbook review update") || /\bapproved\b/.test(text)) return "approved_updates";
+  return "normal";
+}
+
+function isReconsiderationRequest(message) {
+  const text = `${message?.subject || ""} ${message?.body || ""}`.toLowerCase();
+  return text.includes("request to reconsider") &&
+    !text.includes("reconsideration approved") &&
+    !text.includes("reconsideration rejected");
+}
+
+function filterPrivateMessageRows() {
+  const query = (t("#messageSearch")?.value || "").trim().toLowerCase();
+  const category = t("#messageCategoryFilter")?.value || "";
+  const activePanel = document.querySelector('[data-mail-panel]:not([hidden])');
+  let visible = 0;
+  activePanel?.querySelectorAll(".message-row").forEach((row) => {
+    const match =
+      (!query || (row.dataset.messageSearch || "").includes(query)) &&
+      (!category || row.dataset.messageCategory === category);
+    row.hidden = !match;
+    if (match) visible += 1;
+  });
+  const empty = t("#messageSearchEmpty");
+  if (empty) empty.hidden = visible > 0;
+  const selectVisible = t("#selectVisibleMessages");
+  if (selectVisible) {
+    const checkboxes = [...(activePanel?.querySelectorAll(".message-row:not([hidden]) .message-select") || [])];
+    selectVisible.checked = Boolean(checkboxes.length) && checkboxes.every((box) => box.checked);
+    selectVisible.indeterminate = checkboxes.some((box) => box.checked) && !selectVisible.checked;
+  }
+}
+
 async function inboxPage() {
   t("#title").textContent = "Inbox";
+  a.classList.add("mail-content");
   const [inboxResult, sentResult, trashResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_private_messages", { p_box: "sent" }),
@@ -547,75 +669,108 @@ async function inboxPage() {
   const sent = u(sentResult) || [];
   const trash = u(trashResult) || [];
   const statusTitle = (message) => {
-    if (message.subject === "Logbook approval")
-      return `<span class="decision-title"><span class="decision-icon approved" aria-label="Approved">✓</span><span>Logbook approval</span></span>`;
-    if (message.subject === "Logbook rejection")
-      return `<span class="decision-title"><span class="decision-icon rejected" aria-label="Rejected">×</span><span>Logbook rejection</span></span>`;
-    return o((message.subject || "No subject").replace(/\bReclaim\b/gi, "Request to reconsider"));
+    const subject = String(message.subject || "No subject").replace(/\bReclaim\b/gi, "Request to reconsider");
+    if (message.subject === "Logbook approval" || subject === "Reconsideration approved")
+      return `<span class="decision-title"><span class="decision-icon approved" aria-label="Approved">✓</span><span>${o(subject)}</span></span>`;
+    if (message.subject === "Logbook rejection" || subject === "Reconsideration rejected")
+      return `<span class="decision-title"><span class="decision-icon rejected" aria-label="Rejected">×</span><span>${o(subject)}</span></span>`;
+    if (isReconsiderationRequest(message))
+      return `<span class="decision-title"><span class="decision-icon reconsider" aria-label="Reconsideration">↺</span><span>Request to reconsider</span></span>`;
+    return o(subject);
   };
-  const approvalButtons = (message, location) =>
-    message.logbook_entry_id && !message.logbook_action_taken
+  const approvalButtons = (message) =>
+    message.logbook_entry_id && !message.logbook_action_taken && !isReconsiderationRequest(message)
       ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${o(message.logbook_title || "Logbook activity")}">Reject</button></div>`
       : "";
   const rows = (items, box) =>
     items.length
-      ? items
-          .map(
-            (message) => `
-    <article class="message-row ${box === "inbox" ? (message.is_read ? "read" : "unread") : "sent-message"}" data-message-search="${o(`${box === "inbox" ? message.sender_name : message.receiver_name} ${message.subject || ""} ${message.body || ""}`.toLowerCase())}">
+      ? items.map((message) => {
+          const category = privateMessageCategory(message);
+          return `
+    <article class="message-row ${box === "inbox" ? (message.is_read ? "read" : "unread") : "sent-message"}"
+      data-message-category="${category}"
+      data-message-search="${o(`${box === "inbox" ? message.sender_name : message.receiver_name} ${message.subject || ""} ${message.body || ""}`.toLowerCase())}">
       <input class="message-select" type="checkbox" value="${message.id}" aria-label="Select message">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
         <span class="message-person"><span class="message-direction">${box === "inbox" ? "From" : "To"}</span>${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
-        <span class="message-subject">${statusTitle(message)}</span><small>${l(message.created_at)}</small>
+        <span class="message-subject">${statusTitle(message)}${category === "reconsideration" ? '<span class="tag warning">Decision needed</span>' : ""}</span>
+        <small>${l(message.created_at)}</small>
       </button>
-      ${box === "inbox" ? approvalButtons(message, "row") : ""}
-    </article>`,
-          )
-          .join("")
+      ${box === "inbox" ? approvalButtons(message) : ""}
+    </article>`;
+        }).join("")
       : '<div class="mail-empty">No messages here.</div>';
+
   window.residentMessages = new Map([
     ...inbox.map((message) => [String(message.id), message]),
     ...sent.map((message) => [`sent-${message.id}`, message]),
     ...trash.map((message) => [`trash-${message.id}`, message]),
   ]);
   window.logbookInboxButtons = approvalButtons;
+
   a.innerHTML =
     h(
       "Private messages",
-      "Send and receive secure messages within the training program.",
+      "Search, filter, select and clean messages without deleting resident logbook evidence.",
       '<button class="btn" data-compose-message>New message</button>',
     ) +
     `
-    <section class="card mailbox">
+    <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
         <button class="mailbox-tab active" data-mail-tab="inbox">Inbox <span class="nav-badge inline-badge" ${inbox.filter((item) => !item.is_read).length ? "" : "hidden"}>${inbox.filter((item) => !item.is_read).length}</span></button>
         <button class="mailbox-tab" data-mail-tab="sent">Sent <span class="tag">${sent.length}</span></button>
         <button class="mailbox-tab" data-mail-tab="trash">Trash <span class="tag">${trash.length}</span></button>
       </div>
-      <div class="mail-tools"><input id="messageSearch" type="search" placeholder="Search by any word"><button class="btn secondary" data-mark-all-read ${inbox.some((item) => !item.is_read) ? "" : "disabled"}>Mark all as read</button><button class="btn danger" data-trash-selected>Delete selected</button></div>
+      <div class="mail-safety-note"><b>Safe cleanup:</b> deleting Inbox/Sent messages does not delete <b>My logbook</b> entries or exported resident logbook data.</div>
+      <div class="mail-tools mail-tools-enhanced">
+        <div class="mail-filter-group">
+          <input id="messageSearch" type="search" placeholder="Search by any word">
+          <select id="messageCategoryFilter" aria-label="Filter message category">
+            <option value="">All message types</option>
+            <option value="approved_updates">Approved / updates</option>
+            <option value="normal">Normal inbox</option>
+            <option value="rejected">Rejected</option>
+            <option value="reconsideration">Requests to reconsider</option>
+          </select>
+        </div>
+        <div class="mail-bulk-actions">
+          <label class="bulk-check"><input id="selectVisibleMessages" type="checkbox"> Select visible</label>
+          <button class="btn secondary" data-mark-all-read ${inbox.some((item) => !item.is_read) ? "" : "disabled"}>Mark all read</button>
+          <button class="btn danger" data-trash-selected>Delete selected</button>
+          <button class="btn danger-button" data-delete-all-visible>Delete all shown</button>
+        </div>
+      </div>
       <div class="mail-panel" data-mail-panel="inbox"><div class="message-list">${rows(inbox, "inbox")}</div></div>
       <div class="mail-panel" data-mail-panel="sent" hidden><div class="message-list">${rows(sent, "sent")}</div></div>
       <div class="mail-panel" data-mail-panel="trash" hidden><div class="trash-tools"><button class="btn secondary" data-restore-selected>Restore selected</button><button class="btn danger" data-delete-forever>Delete selected forever</button><button class="btn danger" data-empty-trash>Empty Trash</button></div><div class="message-list">${rows(trash, "trash")}</div></div>
-      <div id="messageSearchEmpty" class="mail-empty" hidden>No messages match your search.</div>
+      <div id="messageSearchEmpty" class="mail-empty" hidden>No messages match your current filter.</div>
     </section>`;
+  filterPrivateMessageRows();
 }
 
 async function ownerMessageCleanupPage() {
   if (s.p.role !== "owner") return g("dashboard");
   t("#title").textContent = "Message cleanup";
   const users = u(await e.rpc("owner_message_cleanup_users")) || [];
-  a.innerHTML = h("Message cleanup", "Permanently remove ordinary messages for selected users. Logbook requests are protected.") + `<section class="card"><form id="ownerMessageCleanupForm"><div class="cleanup-users">${users.map(person => `<label><input type="checkbox" name="user_ids" value="${person.id}"><span>${o(person.display_name)} · ${m(person.role)}${person.residency_year ? ` · Year ${person.residency_year}` : ""} · ${person.message_count} messages</span></label>`).join("")}</div><div class="actions"><button class="btn danger">Delete all messages for selected users</button></div><p class="form-note">Permanent deletion applies only to ordinary Inbox/Sent messages.</p></form></section>`;
+  a.innerHTML = h("Message cleanup", "Permanently remove ordinary messages for selected users. Resident logbook evidence stays separate and protected.") + `<section class="card"><form id="ownerMessageCleanupForm"><div class="cleanup-users">${users.map(person => `<label><input type="checkbox" name="user_ids" value="${person.id}"><span>${o(person.display_name)} · ${m(person.role)}${person.residency_year ? ` · Year ${person.residency_year}` : ""} · ${person.message_count} messages</span></label>`).join("")}</div><div class="actions"><button class="btn danger">Delete all messages for selected users</button></div><p class="form-note"><b>Protected:</b> this cleanup targets ordinary private messages only. It does not delete rows from the resident e-logbook, so My logbook and exported logbook evidence remain intact.</p></form></section>`;
 }
 
 async function logbookRequestsPage() {
   t("#title").textContent = "Logbook requests";
-  const [receivedResult, sentResult, updatesResult, trashResult] = await Promise.all([
+  a.classList.add("mail-content");
+  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult] = await Promise.all([
     e.rpc("get_logbook_messages", { p_view: "received" }),
     e.rpc("get_logbook_messages", { p_view: "sent" }),
     e.rpc("get_logbook_messages", { p_view: "updates" }),
     e.rpc("get_logbook_messages", { p_view: "trash" }),
+    e.rpc("get_hidden_logbook_message_ids"),
   ]);
-  const received = u(receivedResult) || [], sent = u(sentResult) || [], updates = u(updatesResult) || [], trash = u(trashResult) || [];
+  const hiddenIds = new Set((u(hiddenResult) || []).map((row) => String(row.message_id)));
+  const keepVisible = (items) => (u(items) || []).filter((message) => !hiddenIds.has(String(message.id)));
+  const received = keepVisible(receivedResult),
+    sent = keepVisible(sentResult),
+    updates = keepVisible(updatesResult),
+    trash = keepVisible(trashResult);
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
   const seniorResident = s.p.role === "resident" && Number(s.p.residency_year) >= 3;
   const assessor = s.p.role === "assessor";
@@ -632,6 +787,7 @@ async function logbookRequestsPage() {
     : `<span class="tag">Action completed</span>`;
   const rows = (items, view) => items.length ? items.map((message) => `
     <article class="message-row ${message.is_read ? "read" : "unread"}" data-request-resident="${o(message.resident_id || "")}" data-request-status="${o(message.request_status || "pending")}" data-request-type="${o(`${message.activity_category || ""}:${message.activity_kind || ""}`)}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.resident_name || ""} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""} ${message.request_status || ""}`.toLowerCase())}">
+      <input class="message-select logbook-message-select" type="checkbox" value="${message.id}" aria-label="Select logbook message">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
         <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
@@ -644,15 +800,19 @@ async function logbookRequestsPage() {
     ...trash.map((message) => [`logbook-${message.id}`, message]),
   ]);
   window.logbookInboxButtons = approvalButtons;
-  a.innerHTML = h("Logbook requests", "Approval work is kept separate from normal messages.") + `
-    <section class="card mailbox">
+  a.innerHTML = h("Logbook requests", "Approval work is kept separate from normal messages. You can clean message copies without deleting the resident logbook record.") + `
+    <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
         ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${received.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${received.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
         ${views.includes("sent") ? `<button class="mailbox-tab ${firstView === "sent" ? "active" : ""}" data-logbook-tab="sent">Sent <span class="nav-badge inline-badge" ${sent.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${sent.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
         ${views.includes("updates") ? `<button class="mailbox-tab ${firstView === "updates" ? "active" : ""}" data-logbook-tab="updates">Updates <span class="nav-badge inline-badge" ${updates.filter(item=>!item.is_read).length ? "" : "hidden"}>${updates.filter(item=>!item.is_read).length}</span></button>` : ""}
         ${views.includes("trash") ? `<button class="mailbox-tab ${firstView === "trash" ? "active" : ""}" data-logbook-tab="trash">Trash <span class="tag">${trash.length}</span></button>` : ""}
       </div>
-      <div class="mail-tools"><div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map([...received,...sent,...updates,...trash].filter(x=>x.resident_id).map(x=>[x.resident_id,x.resident_name])).entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>`<option value="${id}">${o(name)}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set([...received,...sent,...updates,...trash].map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div></div>
+      <div class="mail-safety-note"><b>Protected logbook:</b> deleting these message copies only hides them from your message view. It does not delete the resident activity from My logbook.</div>
+      <div class="mail-tools logbook-mail-tools">
+        <div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map([...received,...sent,...updates,...trash].filter(x=>x.resident_id).map(x=>[x.resident_id,x.resident_name])).entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>`<option value="${id}">${o(name)}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set([...received,...sent,...updates,...trash].map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div>
+        <div class="mail-bulk-actions logbook-bulk-actions"><label class="bulk-check"><input id="selectVisibleLogbookMessages" type="checkbox"> Select visible</label><button class="btn danger" data-hide-logbook-selected>Delete selected</button><button class="btn danger-button" data-hide-logbook-visible>Delete all shown</button></div>
+      </div>
       ${views.includes("received") ? `<div class="mail-panel" data-mail-panel="received" ${firstView === "received" ? "" : "hidden"}><div class="message-list">${rows(received, "received")}</div></div>` : ""}
       ${views.includes("sent") ? `<div class="mail-panel" data-mail-panel="sent" ${firstView === "sent" ? "" : "hidden"}><div class="message-list">${rows(sent, "sent")}</div></div>` : ""}
       ${views.includes("updates") ? `<div class="mail-panel" data-mail-panel="updates" ${firstView === "updates" ? "" : "hidden"}><div class="message-list notification-lines">${rows(updates, "updates")}</div></div>` : ""}
@@ -681,6 +841,12 @@ function filterLogbookRequestRows() {
   });
   const empty = t("#messageSearchEmpty");
   if (empty) empty.hidden = visible > 0;
+  const selectVisible = t("#selectVisibleLogbookMessages");
+  if (selectVisible) {
+    const boxes = [...(activePanel?.querySelectorAll(".message-row:not([hidden]) .logbook-message-select") || [])];
+    selectVisible.checked = Boolean(boxes.length) && boxes.every((box) => box.checked);
+    selectVisible.indeterminate = boxes.some((box) => box.checked) && !selectVisible.checked;
+  }
 }
 
 async function openComposer(replyTo = null) {
@@ -708,7 +874,7 @@ async function openComposer(replyTo = null) {
 }
 function openLogbookDecision(entryId, title, messageId = "", preset = "approved") {
   const rejected = preset === "rejected";
-  y(` <form id="logbookReviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Supervisor decision</span><h2>${o(title)}</h2></div><button type="button" data-close>×</button></div><label>Decision<select name="decision" id="logbookDecision" required><option value="approved" ${rejected ? "" : "selected"}>Approve</option><option value="rejected" ${rejected ? "selected" : ""}>Reject</option></select></label><label>Supervisor note <small id="logbookNoteHint">${rejected ? "Required for rejection" : "Optional for approval"}</small><textarea name="note" minlength="2" ${rejected ? "required" : ""}></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="message_id" value="${o(messageId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit decision</button></div></form>`);
+  y(` <form id="logbookReviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Supervisor decision</span><h2>${o(title)}</h2></div><button type="button" data-close>×</button></div><label>Decision<select name="decision" id="logbookDecision" required><option value="approved" ${rejected ? "" : "selected"}>Approve</option><option value="rejected" ${rejected ? "selected" : ""}>Reject</option></select></label><label>Supervisor note <small id="logbookNoteHint">${rejected ? "Required for rejection" : "Optional (defaults to Approved)"}</small><textarea name="note" minlength="2" ${rejected ? "required" : ""}></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="message_id" value="${o(messageId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit decision</button></div></form>`);
 }
 async function k() {
   const i = s.p;
@@ -1302,6 +1468,7 @@ function H() {
         [t] = a.dataset.curriculumEdit.split("~");
       e && T(t, e.chapter_id, e);
     }
+    if (a.dataset.aiCurriculum) openGuidelineGenerator(a.dataset.aiCurriculum);
     if ((a.hasAttribute("data-schedule-add") && O(), a.dataset.scheduleEdit)) {
       const e = s.schedules.get(a.dataset.scheduleEdit);
       e && O(e);
@@ -1365,7 +1532,12 @@ function H() {
         document.querySelectorAll("[data-mail-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.mailTab === a.dataset.mailTab));
         document.querySelectorAll("[data-mail-panel]").forEach((panel) => panel.hidden = panel.dataset.mailPanel !== a.dataset.mailTab);
         const search = t("#messageSearch");
-        if (search) { search.value = ""; search.dispatchEvent(new Event("input", { bubbles: true })); }
+        const category = t("#messageCategoryFilter");
+        const selectVisible = t("#selectVisibleMessages");
+        if (search) search.value = "";
+        if (category) category.value = "";
+        if (selectVisible) selectVisible.checked = false;
+        filterPrivateMessageRows();
       })(),
       a.dataset.logbookTab && (() => {
         document.querySelectorAll("[data-logbook-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.logbookTab === a.dataset.logbookTab));
@@ -1387,6 +1559,24 @@ function H() {
         if(!ids.length) return alert("Select at least one message");
         u(await e.rpc("move_private_messages_to_trash",{p_message_ids:ids,p_box:box})); await inboxPage(); b("Messages moved to Trash");
       })(),
+      a.hasAttribute("data-delete-all-visible") && (async () => {
+        const panel = document.querySelector('[data-mail-panel]:not([hidden])');
+        const box = panel?.dataset.mailPanel;
+        const ids = [...(panel?.querySelectorAll('.message-row:not([hidden]) .message-select') || [])].map((x) => Number(x.value));
+        if (!ids.length) return alert("There are no visible messages to delete.");
+        const category = t("#messageCategoryFilter")?.selectedOptions?.[0]?.textContent || "current filter";
+        if (box === "trash") {
+          if (!confirm(`Permanently delete all ${ids.length} messages shown under ${category}? This cannot be undone.`)) return;
+          u(await e.rpc("permanently_delete_private_messages", { p_message_ids: ids }));
+          await inboxPage();
+          return void b(`${ids.length} messages permanently deleted`);
+        }
+        if (!["inbox", "sent"].includes(box)) return;
+        if (!confirm(`Delete all ${ids.length} messages currently shown under ${category}? My logbook records will not be deleted.`)) return;
+        u(await e.rpc("move_private_messages_to_trash", { p_message_ids: ids, p_box: box }));
+        await inboxPage();
+        b(`${ids.length} messages moved to Trash`);
+      })(),
       a.hasAttribute("data-restore-selected") && (async () => {
         const ids=[...document.querySelectorAll('[data-mail-panel="trash"] .message-select:checked')].map(x=>Number(x.value));
         if(!ids.length) return alert("Select at least one message");
@@ -1401,6 +1591,24 @@ function H() {
       a.hasAttribute("data-empty-trash") && (async () => {
         if(!confirm("Empty Trash permanently? This cannot be undone.")) return;
         u(await e.rpc("empty_private_message_trash")); await inboxPage(); b("Trash emptied");
+      })(),
+      a.hasAttribute("data-hide-logbook-selected") && (async () => {
+        const panel = document.querySelector('[data-mail-panel]:not([hidden])');
+        const ids = [...(panel?.querySelectorAll(".logbook-message-select:checked") || [])].map((box) => Number(box.value));
+        if (!ids.length) return alert("Select at least one logbook message");
+        if (!confirm(`Delete ${ids.length} selected message cop${ids.length === 1 ? "y" : "ies"} from your view? The resident My logbook record will remain unchanged.`)) return;
+        u(await e.rpc("hide_logbook_messages", { p_message_ids: ids }));
+        await logbookRequestsPage();
+        b(`${ids.length} logbook message cop${ids.length === 1 ? "y" : "ies"} removed from your view`);
+      })(),
+      a.hasAttribute("data-hide-logbook-visible") && (async () => {
+        const panel = document.querySelector('[data-mail-panel]:not([hidden])');
+        const ids = [...(panel?.querySelectorAll(".message-row:not([hidden]) .logbook-message-select") || [])].map((box) => Number(box.value));
+        if (!ids.length) return alert("There are no visible logbook messages to delete");
+        if (!confirm(`Delete all ${ids.length} currently shown message copies? My logbook data will remain unchanged.`)) return;
+        u(await e.rpc("hide_logbook_messages", { p_message_ids: ids }));
+        await logbookRequestsPage();
+        b(`${ids.length} logbook message copies removed from your view`);
       })(),
       a.hasAttribute("data-logbook-print") && printApprovedLogbook(),
       a.dataset.reclaimLogbook && openLogbookReclaim(
@@ -1432,11 +1640,38 @@ function H() {
           u(await e.rpc("review_logbook_entry_v2", {
             p_entry_id: a.dataset.quickLogbookApprove,
             p_decision: "approved",
-            p_note: "",
+            p_note: "Approved",
           }));
           await q();
-          await logbookRequestsPage();
+          if (a.closest(".wide-mailbox") && location.hash === "#inbox") await inboxPage();
+          else await logbookRequestsPage();
         })(),
+      a.dataset.reconsiderApprove && (async () => {
+        if (!confirm("Approve this request to reconsider? The original rejecting decision will be changed to approved.")) return;
+        const finalStatus = u(await e.rpc("resolve_logbook_reconsideration", {
+          p_message_id: Number(a.dataset.reconsiderMessageId),
+          p_entry_id: a.dataset.reconsiderApprove,
+          p_decision: "approved",
+          p_note: "Approved after reconsideration",
+        }));
+        i.close();
+        await q();
+        await inboxPage();
+        b(`Reconsideration approved · logbook status: ${finalStatus || "updated"}`);
+      })(),
+      a.dataset.reconsiderReject && (async () => {
+        if (!confirm("Reject this request to reconsider? The original rejection will remain in place.")) return;
+        const finalStatus = u(await e.rpc("resolve_logbook_reconsideration", {
+          p_message_id: Number(a.dataset.reconsiderMessageId),
+          p_entry_id: a.dataset.reconsiderReject,
+          p_decision: "rejected",
+          p_note: "Request to reconsider rejected",
+        }));
+        i.close();
+        await q();
+        await inboxPage();
+        b(`Reconsideration rejected · logbook status: ${finalStatus || "rejected"}`);
+      })(),
       a.dataset.messageId &&
         (async () => {
           const isLogbook = a.dataset.messageBox?.startsWith("logbook");
@@ -1455,17 +1690,26 @@ function H() {
             row?.classList.add("read");
             await q();
           }
-          const decisionTitle = message.subject === "Logbook approval"
-            ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>Logbook approval</span></span>`
-            : message.subject === "Logbook rejection"
-              ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Logbook rejection</span></span>`
-              : o(message.subject || "No subject");
+          const reconsiderationRequest = a.dataset.messageBox === "inbox" &&
+            isReconsiderationRequest(message) &&
+            Boolean(message.logbook_entry_id) &&
+            s.p.role !== "owner";
+          const decisionTitle = message.subject === "Logbook approval" || message.subject === "Reconsideration approved"
+            ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>${o(message.subject)}</span></span>`
+            : message.subject === "Logbook rejection" || message.subject === "Reconsideration rejected"
+              ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>${o(message.subject)}</span></span>`
+              : reconsiderationRequest
+                ? `<span class="decision-title"><span class="decision-icon reconsider">↺</span><span>Request to reconsider</span></span>`
+                : o((message.subject || "No subject").replace(/\bReclaim\b/gi, "Request to reconsider"));
           const approvalActions = a.dataset.messageBox === "logbook"
             ? window.logbookInboxButtons?.(message, "modal") || ""
             : "";
+          const reconsiderationActions = reconsiderationRequest
+            ? `<div class="reconsideration-decision"><p><b>Reconsideration decision</b><br><small>Approve changes your original rejection to approval. Reject keeps the original rejection.</small></p><div class="approval-actions"><button class="btn danger-button" data-reconsider-reject="${message.logbook_entry_id}" data-reconsider-message-id="${message.id}">Reject reconsideration</button><button class="btn success-button" data-reconsider-approve="${message.logbook_entry_id}" data-reconsider-message-id="${message.id}">Approve reconsideration</button></div></div>`
+            : "";
           const incoming = a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook";
           y(
-            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><div class="message-body">${messageBody(message)}</div>${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
+            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><div class="message-body">${messageBody(message)}</div>${reconsiderationActions}${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
           );
         })(),
       a.dataset.replyTo && (i.close(), openComposer(a.dataset.replyTo)),
@@ -1514,12 +1758,33 @@ function H() {
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
       ("requestResidentFilter" === a.id || "requestStatusFilter" === a.id || "requestTypeFilter" === a.id) && filterLogbookRequestRows(),
+      "messageCategoryFilter" === a.id && filterPrivateMessageRows(),
+      "selectVisibleMessages" === a.id && (() => {
+        const panel = document.querySelector('[data-mail-panel]:not([hidden])');
+        panel?.querySelectorAll(".message-row:not([hidden]) .message-select").forEach((box) => {
+          box.checked = a.checked;
+        });
+        filterPrivateMessageRows();
+      })(),
+      a.classList.contains("message-select") && (t("#requestResidentFilter") ? filterLogbookRequestRows() : filterPrivateMessageRows()),
+      "selectVisibleLogbookMessages" === a.id && (() => {
+        const panel = document.querySelector('[data-mail-panel]:not([hidden])');
+        panel?.querySelectorAll(".message-row:not([hidden]) .logbook-message-select").forEach((box) => {
+          box.checked = a.checked;
+        });
+        filterLogbookRequestRows();
+      })(),
+      a.dataset.aiSelectAll && (() => {
+        const form = a.closest("#aiCurriculumImportForm");
+        const selector = a.dataset.aiSelectAll === "knowledge" ? 'input[name="knowledge_indices"]' : 'input[name="skill_indices"]';
+        form?.querySelectorAll(selector).forEach((box) => { box.checked = a.checked; });
+      })(),
       "logbookDecision" === a.id && (() => {
         const note = document.querySelector('#logbookReviewForm textarea[name="note"]');
         const hint = document.querySelector("#logbookNoteHint");
         const rejected = a.value === "rejected";
         note.required = rejected;
-        hint.textContent = rejected ? "Required for rejection" : "Optional for approval";
+        hint.textContent = rejected ? "Required for rejection" : "Optional (defaults to Approved)";
       })(),
       "logbookCategory" === a.id &&
         (() => {
@@ -1556,16 +1821,7 @@ function H() {
       (window.residentSearchTimer = setTimeout(R, 250)));
     if (e.target.id === "messageSearch") {
       if (t("#requestResidentFilter")) return filterLogbookRequestRows();
-      const query = e.target.value.trim().toLowerCase();
-      const activePanel = document.querySelector('[data-mail-panel]:not([hidden])');
-      let visible = 0;
-      activePanel?.querySelectorAll(".message-row").forEach((row) => {
-        const match = !query || (row.dataset.messageSearch || "").includes(query);
-        row.hidden = !match;
-        if (match) visible += 1;
-      });
-      const empty = t("#messageSearchEmpty");
-      if (empty) empty.hidden = visible > 0;
+      filterPrivateMessageRows();
     }
   }),
   document.addEventListener("submit", async (t) => {
@@ -1620,6 +1876,84 @@ function H() {
           b(`Assignments saved for ${a.dataset.assessorName}`),
           void (await j())
         );
+      }
+      if ("guidelineAiForm" === a.id) {
+        const file = r.get("guideline");
+        if (!(file instanceof File) || !file.size) throw new Error("Choose a European guideline PDF");
+        if (file.type && file.type !== "application/pdf") throw new Error("The guideline must be a PDF");
+        if (file.size > 10 * 1024 * 1024) throw new Error("The guideline PDF must be 10 MB or smaller");
+        const submitButton = a.querySelector('button:not([type="button"])');
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "Generating…";
+        }
+        const fileData = await readGuidelineFile(file);
+        const { data: generated, error: generationError } = await e.functions.invoke(
+          "generate-curriculum-from-guideline",
+          {
+            body: {
+              chapter_id: Number(r.get("chapter_id")),
+              chapter_title: s.curriculumChapter?.title || "Cardiology chapter",
+              guideline_name: file.name,
+              file_data: fileData,
+              knowledge_count: Number(r.get("knowledge_count")) || 10,
+              skills_count: Number(r.get("skills_count")) || 8,
+              instructions: String(r.get("instructions") || "").trim() || null,
+            },
+          },
+        );
+        if (generationError) throw generationError;
+        if (generated?.error) throw new Error(generated.error);
+        renderAiCurriculumDraft(r.get("chapter_id"), generated?.draft || generated);
+        return;
+      }
+      if ("aiCurriculumImportForm" === a.id) {
+        const stateDraft = s.aiCurriculumDraft;
+        if (!stateDraft || stateDraft.chapterId !== String(r.get("chapter_id")))
+          throw new Error("This AI draft is no longer available. Generate it again.");
+        const knowledgeIndices = r.getAll("knowledge_indices").map(Number);
+        const skillIndices = r.getAll("skill_indices").map(Number);
+        if (!knowledgeIndices.length && !skillIndices.length)
+          throw new Error("Select at least one knowledge point or skill");
+        const currentItems = [...s.curriculumItems.entries()];
+        const maxKnowledgeOrder = currentItems
+          .filter(([key]) => key.startsWith("knowledge~"))
+          .reduce((max, [, item]) => Math.max(max, Number(item.sort_order) || 0), 0);
+        const maxSkillOrder = currentItems
+          .filter(([key]) => key.startsWith("skill~"))
+          .reduce((max, [, item]) => Math.max(max, Number(item.sort_order) || 0), 0);
+        const chapterId = Number(r.get("chapter_id"));
+        if (knowledgeIndices.length) {
+          const rows = knowledgeIndices.map((index, offset) => {
+            const item = stateDraft.knowledge[index];
+            return {
+              chapter_id: chapterId,
+              title: String(item.title || "").trim().slice(0, 180),
+              description: String(item.description || "").trim().slice(0, 1200) || null,
+              sort_order: maxKnowledgeOrder + offset + 1,
+              is_active: true,
+            };
+          }).filter((item) => item.title);
+          if (rows.length) u(await e.from("knowledge_items").insert(rows));
+        }
+        if (skillIndices.length) {
+          const rows = skillIndices.map((index, offset) => {
+            const item = stateDraft.skills[index];
+            return {
+              chapter_id: chapterId,
+              title: String(item.title || "").trim().slice(0, 180),
+              description: String(item.description || "").trim().slice(0, 1200) || null,
+              expected_level: Math.max(1, Math.min(5, Number(item.expected_level) || 1)),
+              sort_order: maxSkillOrder + offset + 1,
+              is_active: true,
+            };
+          }).filter((item) => item.title);
+          if (rows.length) u(await e.from("skills").insert(rows));
+        }
+        s.aiCurriculumDraft = null;
+        i.close();
+        b(`${knowledgeIndices.length} knowledge point${knowledgeIndices.length === 1 ? "" : "s"} and ${skillIndices.length} skill${skillIndices.length === 1 ? "" : "s"} imported`);
+        return void (await w.curriculum(String(chapterId)));
       }
       if ("curriculumItemForm" === a.id) {
         const s = r.get("kind"),
@@ -1689,7 +2023,8 @@ function H() {
       }
       if ("logbookReviewForm" === a.id) {
         const decision = r.get("decision");
-        const note = String(r.get("note") || "").trim();
+        const enteredNote = String(r.get("note") || "").trim();
+        const note = enteredNote || (decision === "approved" ? "Approved" : "");
         if (decision === "rejected" && note.length < 2)
           throw new Error("A note is required when rejecting an entry");
         u(
