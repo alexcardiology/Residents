@@ -1350,6 +1350,9 @@ dialog::backdrop {
 .nav-badge { display:inline-grid; place-items:center; min-width:24px; height:24px; margin-left:auto; padding:0 7px; border-radius:999px; background:#f59e0b; color:#fff; font-size:12px; font-weight:900; }
 aside nav button { display:flex; align-items:center; gap:10px; }
 .mail-empty { padding:30px 22px; color:var(--muted); text-align:center; }
+.message-select{margin-left:16px;accent-color:var(--blue)}
+.trash-tools{display:flex;gap:10px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line);background:#fff8f8}
+.cleanup-users{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-bottom:18px}.cleanup-users label{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px}
 .message-view > p { margin:24px 0; line-height:1.75; }
 .upcoming-assessment { display:grid; grid-template-columns:minmax(220px,1.3fr) minmax(180px,.8fr) minmax(220px,1fr); gap:24px; align-items:center; margin-top:18px; border-left:5px solid var(--blue); }
 .upcoming-assessment h2,.upcoming-assessment h3 { margin:5px 0 0; }
