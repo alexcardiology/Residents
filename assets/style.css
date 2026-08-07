@@ -20,6 +20,11 @@
 .logbook-details { display: grid; gap: .35rem; margin-top: 1rem; }
 .logbook-details p { margin: 0; }
 .supervisor-note { padding: .8rem 1rem; border-left: 4px solid #1f8a70; background: #f0faf7; border-radius: .4rem; }
+.approval-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.approval-line { padding: .8rem 1rem; border: 1px solid var(--line); background: #f8fafc; border-radius: .6rem; }
+.approval-line p { margin-top: .45rem; }
+#manualFields, #conferenceFields { padding: 1rem; border: 1px solid var(--line); border-radius: .7rem; background: #f8fafc; }
+@media (max-width: 700px) { .approval-grid { grid-template-columns: 1fr; } }
 
 @media print {
   aside, header, #backdrop, .no-print, #toast, dialog { display: none !important; }
