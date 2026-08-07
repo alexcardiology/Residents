@@ -27,18 +27,18 @@ const s = {
           "'": "&#39;",
         })[e],
     ),
-  d = (e) =>
-    e
-      ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(
-          new Date(e),
-        )
-      : "—",
+  d = (e) => {
+    if (!e) return "—";
+    const value = /^\d{4}-\d{2}-\d{2}$/.test(String(e)) ? new Date(`${e}T12:00:00`) : new Date(e);
+    const day = String(value.getDate()).padStart(2, "0");
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const year = value.getFullYear();
+    const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(value).toUpperCase();
+    return `${weekday}/${day}/${month}/${year}`;
+  },
   l = (e) =>
     e
-      ? new Intl.DateTimeFormat("en-GB", {
-          dateStyle: "medium",
-          timeStyle: "short",
-        }).format(new Date(e))
+      ? `${d(e)} · ${new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(e))}`
       : "—",
   c = (e) => {
     if (!e) return "";
@@ -47,6 +47,14 @@ const s = {
       s.setMinutes(s.getMinutes() - s.getTimezoneOffset()),
       s.toISOString().slice(0, 16)
     );
+  },
+  messageBody = (message) => {
+    let body = String(message?.body || "");
+    if (message?.senior_resident_name) {
+      body = body.replace(/Senior resident:\s*(approved|pending|rejected)/i, `Senior resident: ${message.senior_resident_name} ($1)`);
+    }
+    body = body.replace(/\bReclaim\b/gi, "Request to reconsider");
+    return o(body).replace(/\n/g, "<br>");
   },
   u = ({ data: e, error: s }) => {
     if (s) throw s;
@@ -543,7 +551,7 @@ async function inboxPage() {
       return `<span class="decision-title"><span class="decision-icon approved" aria-label="Approved">✓</span><span>Logbook approval</span></span>`;
     if (message.subject === "Logbook rejection")
       return `<span class="decision-title"><span class="decision-icon rejected" aria-label="Rejected">×</span><span>Logbook rejection</span></span>`;
-    return o(message.subject || "No subject");
+    return o((message.subject || "No subject").replace(/\bReclaim\b/gi, "Request to reconsider"));
   };
   const approvalButtons = (message, location) =>
     message.logbook_entry_id && !message.logbook_action_taken
@@ -557,8 +565,8 @@ async function inboxPage() {
     <article class="message-row ${box === "inbox" ? (message.is_read ? "read" : "unread") : "sent-message"}" data-message-search="${o(`${box === "inbox" ? message.sender_name : message.receiver_name} ${message.subject || ""} ${message.body || ""}`.toLowerCase())}">
       <input class="message-select" type="checkbox" value="${message.id}" aria-label="Select message">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
-        <span class="message-person">${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
-        <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
+        <span class="message-person"><span class="message-direction">${box === "inbox" ? "From" : "To"}</span>${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
+        <span class="message-subject">${statusTitle(message)}</span><small>${l(message.created_at)}</small>
       </button>
       ${box === "inbox" ? approvalButtons(message, "row") : ""}
     </article>`,
@@ -627,7 +635,7 @@ async function logbookRequestsPage() {
       <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
         <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
-      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${view === "updates" && message.can_reclaim ? `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Reclaim</button></div>` : ""}
+      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${view === "updates" && message.can_reclaim ? `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>` : ""}
     </article>`).join("") : '<div class="mail-empty">No logbook items here.</div>';
   window.logbookMessages = new Map([
     ...received.map((message) => [`logbook-${message.id}`, message]),
@@ -654,7 +662,7 @@ async function logbookRequestsPage() {
 }
 
 function openLogbookReclaim(entryId, title, reviewer) {
-  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Reclaim ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox, with drmohamedalaa90@gmail.com in CC.</p><label>Justification<textarea name="justification" minlength="10" maxlength="3000" required placeholder="Explain why this request should be reconsidered"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send reclaim</button></div></form>`);
+  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Request to reconsider ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox, with drmohamedalaa90@gmail.com in CC.</p><label>Justification<textarea name="justification" minlength="10" maxlength="3000" required placeholder="Explain why this request should be reconsidered"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request to reconsider</button></div></form>`);
 }
 function filterLogbookRequestRows() {
   const query = (t("#messageSearch")?.value || "").trim().toLowerCase();
@@ -1099,6 +1107,77 @@ function B(e) {
     : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${o(e.senior_resident_name)} <span class="tag">${o(e.senior_status)}</span>${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
   return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_category)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details">${conferenceDetail}${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""}${approvalDetail}</div> ${canReviewSenior || canReviewAssessor ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
 }
+function printApprovedLogbook() {
+  const entries = (s.logbookPrintEntries || []).filter(
+    (entry) => entry.status === "approved",
+  );
+  if (!entries.length) {
+    alert("There are no approved logbook entries to export.");
+    return;
+  }
+  const rows = entries
+    .map((entry, index) => {
+      const conference = entry.activity_category === "conference";
+      const activity = conference
+        ? entry.title
+        : entry.procedure_name || entry.title;
+      const participation = conference
+        ? entry.conference_participation === "gave_speech"
+          ? "Presenter"
+          : "Attendee"
+        : entry.participation_mode === "solo"
+          ? "Solo"
+          : "Assisted";
+      return `<tr>
+        <td>${index + 1}</td>
+        <td>${o(entry.resident_name)}</td>
+        <td>${conference ? "Conference" : "Manual intervention"}</td>
+        <td>${o(activity)}</td>
+        <td>${participation}</td>
+        <td>${d(entry.activity_date)}</td>
+        <td>${conference ? "—" : o(entry.hospital || "—")}</td>
+        <td>${conference ? "—" : o(entry.senior_resident_name || "—")}</td>
+        <td class="signature">${o(entry.assessor_name || "—")}</td>
+      </tr>`;
+    })
+    .join("");
+  const residentNames = [...new Set(entries.map((entry) => entry.resident_name))];
+  const reportFor = residentNames.length === 1 ? residentNames[0] : "Approved resident activities";
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    alert("Please allow pop-ups to export the PDF.");
+    return;
+  }
+  popup.opener = null;
+  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Approved e-logbook</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #142033; font-family: Arial, sans-serif; font-size: 9px; }
+    header { display: flex; justify-content: space-between; align-items: end; margin-bottom: 7px; border-bottom: 2px solid #0d4963; padding-bottom: 6px; }
+    h1 { margin: 0 0 2px; font-size: 18px; color: #081c35; }
+    p { margin: 0; color: #526174; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #aebbc8; padding: 4px 5px; vertical-align: middle; overflow-wrap: anywhere; }
+    th { background: #0d4963; color: white; font-size: 8px; text-transform: uppercase; letter-spacing: .25px; }
+    tbody tr:nth-child(even) { background: #f2f7fa; }
+    th:nth-child(1), td:nth-child(1) { width: 3%; text-align: center; }
+    th:nth-child(2), td:nth-child(2) { width: 13%; }
+    th:nth-child(3), td:nth-child(3) { width: 11%; }
+    th:nth-child(4), td:nth-child(4) { width: 16%; }
+    th:nth-child(5), td:nth-child(5) { width: 9%; }
+    th:nth-child(6), td:nth-child(6) { width: 10%; white-space: nowrap; }
+    th:nth-child(7), td:nth-child(7) { width: 8%; }
+    th:nth-child(8), td:nth-child(8) { width: 14%; }
+    th:nth-child(9), td:nth-child(9) { width: 16%; }
+    .signature { font-family: "Segoe Script", "Brush Script MT", cursive; font-size: 13px; font-style: italic; color: #153d68; text-align: center; white-space: normal; }
+    footer { margin-top: 5px; text-align: right; color: #6c7886; font-size: 8px; }
+  </style></head><body><header><div><h1>Approved Resident E-logbook</h1><p>${o(reportFor)}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>
+  <table><thead><tr><th>No.</th><th>Resident</th><th>Category</th><th>Activity</th><th>Role / Participation</th><th>Date</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th></tr></thead><tbody>${rows}</tbody></table>
+  <footer>Generated ${d(new Date().toISOString())}</footer></body></html>`);
+  popup.document.close();
+  popup.focus();
+  setTimeout(() => popup.print(), 250);
+}
 async function P() {
   t("#title").textContent =
     "resident" === s.p.role
@@ -1137,7 +1216,11 @@ async function P() {
       entry.resident_id !== s.p.id &&
       (entry.senior_resident_id === s.p.id || entry.assessor_id === s.p.id),
   );
-  const visible = "resident" === s.p.role ? own : entries;
+  const visible = ("resident" === s.p.role ? own : entries).sort((left, right) => {
+    const priority = (item) => item.status === "pending" ? 0 : 1;
+    return priority(left) - priority(right) || new Date(right.activity_date) - new Date(left.activity_date);
+  });
+  s.logbookPrintEntries = visible;
   const approvers = supervisorsResult?.data || [];
   const seniorResidents = approvers.filter(
     (person) => person.approver_group === "senior_resident",
@@ -1150,9 +1233,12 @@ async function P() {
     "owner" === s.p.role
       ? ` <section class="card no-print owner-reset-card"><div class="card-heading"><span class="card-icon">↺</span><div><h3>Reset one resident's logbook</h3><p>Trial-phase tool. Assessments, progress, account, and ordinary messages are preserved.</p></div></div><form id="resetLogbookForm" class="inline-actions top-gap"><select name="resident_id" required><option value="">Choose resident</option>${residents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select><button class="btn danger">Reset selected logbook</button></form></section>`
       : "";
+  const today = new Date();
+  today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  const todayValue = today.toISOString().slice(0, 10);
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Pericardiocentesis", "Coronary angiography", "PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><label>Participation<select name="participation_mode" required><option value="">Choose participation</option><option value="solo">Solo</option><option value="assisted">Assisted</option></select></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" disabled required></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
+      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Pericardiocentesis", "Coronary angiography", "PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks"><label><input type="radio" name="participation_mode" value="solo" required><span>Solo</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Assisted</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
   const pending =
     "resident" === s.p.role
@@ -1179,7 +1265,7 @@ async function P() {
     (pending.length
       ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
       : "") +
-    ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>${visible.length} record${1 === visible.length ? "" : "s"}</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="manual_intervention">Manual interventions</option><option value="conference">Conferences</option></select></div></div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
+    ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>Pending requests and newest activities appear first; older records remain below.</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="manual_intervention">Manual interventions</option><option value="conference">Conferences</option></select></div></div><div class="logbook-order-label">Pending & recent</div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
   const seniorSelect = document.querySelector('select[name="senior_resident_id"]');
   if (seniorSelect) {
     seniorSelect.options[0].textContent = "Choose senior resident";
@@ -1316,7 +1402,7 @@ function H() {
         if(!confirm("Empty Trash permanently? This cannot be undone.")) return;
         u(await e.rpc("empty_private_message_trash")); await inboxPage(); b("Trash emptied");
       })(),
-      a.hasAttribute("data-logbook-print") && window.print(),
+      a.hasAttribute("data-logbook-print") && printApprovedLogbook(),
       a.dataset.reclaimLogbook && openLogbookReclaim(
         a.dataset.reclaimLogbook,
         a.dataset.logbookTitle,
@@ -1379,7 +1465,7 @@ function H() {
             : "";
           const incoming = a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook";
           y(
-            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><p>${o(message.body).replace(/\n/g, "<br>")}</p>${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
+            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><div class="message-body">${messageBody(message)}</div>${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
           );
         })(),
       a.dataset.replyTo && (i.close(), openComposer(a.dataset.replyTo)),
@@ -1621,7 +1707,7 @@ function H() {
           p_justification: r.get("justification"),
         }));
         i.close();
-        b("Reclaim sent to the reviewer and copied to the owner");
+        b("Request to reconsider sent to the reviewer and copied to the owner");
         return void (await logbookRequestsPage());
       }
       if ("resetLogbookForm" === a.id) {
@@ -1779,3 +1865,16 @@ if (I) {
     ? ((s.p = t), f(), $())
     : (await e.auth.signOut(), location.replace("index.html"));
 } else location.replace("index.html");
+
+const defaultDateInputs = (root = document) => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  const today = now.toISOString().slice(0, 10);
+  root.querySelectorAll?.('input[type="date"]:not([value])').forEach((input) => {
+    if (!input.value) input.value = today;
+  });
+};
+defaultDateInputs();
+new MutationObserver((changes) => changes.forEach((change) => change.addedNodes.forEach((node) => {
+  if (node.nodeType === 1) defaultDateInputs(node);
+}))).observe(document.body, { childList: true, subtree: true });
