@@ -523,6 +523,17 @@ async function inboxPage() {
   ]);
   const inbox = u(inboxResult) || [];
   const sent = u(sentResult) || [];
+  const statusTitle = (message) => {
+    if (message.subject === "Logbook approval")
+      return `<span class="decision-title"><span class="decision-icon approved" aria-label="Approved">✓</span><span>Logbook approval</span></span>`;
+    if (message.subject === "Logbook rejection")
+      return `<span class="decision-title"><span class="decision-icon rejected" aria-label="Rejected">×</span><span>Logbook rejection</span></span>`;
+    return o(message.subject || "No subject");
+  };
+  const approvalButtons = (message, location) =>
+    message.logbook_entry_id && !message.logbook_action_taken
+      ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${o(message.logbook_title || "Logbook activity")}">Reject</button></div>`
+      : "";
   const rows = (items, box) =>
     items.length
       ? items
@@ -531,9 +542,9 @@ async function inboxPage() {
     <article class="message-row ${box === "inbox" && !message.is_read ? "unread" : ""}">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
         <span class="message-person">${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
-        <strong>${o(message.subject || "No subject")}</strong><small>${l(message.created_at)}</small>
+        <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
       </button>
-      ${box === "inbox" && message.logbook_entry_id && !message.logbook_action_taken ? `<div class="message-actions"><button class="btn small" data-inbox-logbook-review="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${o(message.logbook_title || "Logbook activity")}">Approve / Reject</button></div>` : ""}
+      ${box === "inbox" ? approvalButtons(message, "row") : ""}
     </article>`,
           )
           .join("")
@@ -542,6 +553,7 @@ async function inboxPage() {
     ...inbox.map((message) => [String(message.id), message]),
     ...sent.map((message) => [`sent-${message.id}`, message]),
   ]);
+  window.logbookInboxButtons = approvalButtons;
   a.innerHTML =
     h(
       "Private messages",
@@ -568,8 +580,9 @@ async function openComposer(replyTo = null) {
     </div><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send message</button></div>
   </form>`);
 }
-function openLogbookDecision(entryId, title, messageId = "") {
-  y(` <form id="logbookReviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Supervisor decision</span><h2>${o(title)}</h2></div><button type="button" data-close>×</button></div><label>Decision<select name="decision" id="logbookDecision" required><option value="approved">Approve</option><option value="rejected">Reject</option></select></label><label>Supervisor note <small id="logbookNoteHint">Optional for approval</small><textarea name="note" minlength="2"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="message_id" value="${o(messageId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit decision</button></div></form>`);
+function openLogbookDecision(entryId, title, messageId = "", preset = "approved") {
+  const rejected = preset === "rejected";
+  y(` <form id="logbookReviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Supervisor decision</span><h2>${o(title)}</h2></div><button type="button" data-close>×</button></div><label>Decision<select name="decision" id="logbookDecision" required><option value="approved" ${rejected ? "" : "selected"}>Approve</option><option value="rejected" ${rejected ? "selected" : ""}>Reject</option></select></label><label>Supervisor note <small id="logbookNoteHint">${rejected ? "Required for rejection" : "Optional for approval"}</small><textarea name="note" minlength="2" ${rejected ? "required" : ""}></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="message_id" value="${o(messageId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit decision</button></div></form>`);
 }
 async function k() {
   const i = s.p;
@@ -957,7 +970,9 @@ function B(e) {
   const canReviewSenior =
     e.senior_resident_id === s.p.id && e.senior_status === "pending";
   const canReviewAssessor =
-    e.assessor_id === s.p.id && e.assessor_status === "pending";
+    e.assessor_id === s.p.id &&
+    e.assessor_status === "pending" &&
+    (isConference || e.senior_status === "approved");
   const conferenceDetail = isConference
     ? `<p><b>Conference activity:</b> ${e.conference_participation === "gave_speech" ? "Gave a speech" : "Attended the conference"}</p><p><b>Conference name:</b> ${o(e.title)}</p>`
     : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(e.participation_mode)}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>`;
@@ -1019,7 +1034,7 @@ async function P() {
       : "";
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Pericardiocentesis", "Coronary angiography", "PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><label>Participation<select name="participation_mode" required><option value="">Choose participation</option><option value="solo">Solo</option><option value="assisted">Assisted</option></select></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose Year 3–5 senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" disabled required></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
+      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Pericardiocentesis", "Coronary angiography", "PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><label>Participation<select name="participation_mode" required><option value="">Choose participation</option><option value="solo">Solo</option><option value="assisted">Assisted</option></select></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" disabled required></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
   const pending =
     "resident" === s.p.role
@@ -1154,6 +1169,24 @@ function H() {
           a.dataset.logbookTitle,
           a.dataset.approvalMessageId,
         ),
+      a.dataset.inboxLogbookReject &&
+        openLogbookDecision(
+          a.dataset.inboxLogbookReject,
+          a.dataset.logbookTitle,
+          a.dataset.approvalMessageId,
+          "rejected",
+        ),
+      a.dataset.quickLogbookApprove &&
+        (async () => {
+          if (!confirm("Approve this logbook request?")) return;
+          u(await e.rpc("review_logbook_entry_v2", {
+            p_entry_id: a.dataset.quickLogbookApprove,
+            p_decision: "approved",
+            p_note: "",
+          }));
+          await q();
+          await inboxPage();
+        })(),
       a.dataset.messageId &&
         (async () => {
           const key =
@@ -1166,8 +1199,16 @@ function H() {
             (await e.rpc("mark_private_message_read", {
               p_message_id: Number(message.id),
             }), await q());
+          const decisionTitle = message.subject === "Logbook approval"
+            ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>Logbook approval</span></span>`
+            : message.subject === "Logbook rejection"
+              ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Logbook rejection</span></span>`
+              : o(message.subject || "No subject");
+          const approvalActions = a.dataset.messageBox === "inbox"
+            ? window.logbookInboxButtons?.(message, "modal") || ""
+            : "";
           y(
-            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${a.dataset.messageBox === "inbox" ? "From" : "To"} ${o(a.dataset.messageBox === "inbox" ? message.sender_name : message.receiver_name)}</span><h2>${o(message.subject || "No subject")}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><p>${o(message.body).replace(/\n/g, "<br>")}</p>${a.dataset.messageBox === "inbox" ? `<div class="actions"><button class="btn" data-reply-to="${message.sender_id}">Reply</button></div>` : ""}</article>`,
+            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${a.dataset.messageBox === "inbox" ? "From" : "To"} ${o(a.dataset.messageBox === "inbox" ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><p>${o(message.body).replace(/\n/g, "<br>")}</p>${a.dataset.messageBox === "inbox" ? `<div class="actions">${approvalActions}<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button></div>` : ""}</article>`,
           );
         })(),
       a.dataset.replyTo && (i.close(), openComposer(a.dataset.replyTo)),
