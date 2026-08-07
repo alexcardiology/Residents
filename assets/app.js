@@ -719,7 +719,7 @@ async function k() {
         </section>
       </div>`);
   }
-  const [r, assessmentStats, l, c] = await Promise.all([
+  const [r, assessmentStats, reviewStats, c] = await Promise.all([
     e.from("profiles").select("role,progression_status"),
     e.from("assessments").select("*", { head: !0, count: "exact" }),
     e.from("observer_reviews").select("*", { head: !0, count: "exact" }),
@@ -735,7 +735,7 @@ async function k() {
       "Controlled accounts, resident evidence and formal outcomes.",
       '<button class="btn" data-create>Create account</button>',
     ) +
-    ` <div class="grid g4"> ${_("Residents", r.data?.filter((e) => "resident" === e.role).length || 0, "Active curriculum users")} ${_("Upcoming windows", c.count || 0, "Scheduled assessments")} ${_("Assessments", assessmentStats.count || 0, "Permanent history")} ${_("Observer reviews", l.count || 0, "Signed comments")} </div>`;
+    ` <div class="grid g4"> ${_("Residents", r.data?.filter((e) => "resident" === e.role).length || 0, "Active curriculum users")} ${_("Upcoming windows", c.count || 0, "Scheduled assessments")} ${_("Assessments", assessmentStats.count || 0, "Permanent history")} ${_("Observer reviews", reviewStats.count || 0, "Signed comments")} </div>`;
 }
 function A(e) {
   return ` <article class="card"> <div class="lead"> <div> <h2>Year ${e.assessed_year} ${o(e.assessment_type)}</h2> <p>${d(e.assessment_date)} · Assessor: ${o(e.assessor_signature)}</p> </div> <span class="tag ${e.overall_pass ? "success" : "danger"}">${e.overall_pass ? "Passed" : "Failed"}</span> </div> <div class="score"> <div><b>${e.knowledge_score}/10</b><small>Knowledge</small></div> <div><b>${e.skills_score}/10</b><small>Skills</small></div> <div><b>${e.attitude_score}/10</b><small>Attitude</small></div> <div><b>${e.total_score}/30</b><small>Total</small></div> </div> ${["knowledge", "skills", "attitude"].map((s) => (e[`${s}_justification`] ? `<p><b>${s}:</b> ${o(e[`${s}_justification`])}</p>` : "")).join("")} ${e.overall_pass ? "" : `<p class="warning">Reassessment due ${d(e.reassessment_due)}</p>`} </article>`;
