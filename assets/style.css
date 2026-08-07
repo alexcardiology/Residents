@@ -2104,3 +2104,81 @@ dialog:has(.ai-guideline-modal) {
     padding: 18px;
   }
 }
+
+
+/* Bulk curriculum copy/paste editor — v1.0.37 */
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.bulk-paste-btn {
+  background: linear-gradient(135deg, #0f5fae, #14889c);
+}
+.bulk-curriculum-modal {
+  width: min(94vw, 900px);
+}
+.bulk-format-card {
+  margin: 14px 0 18px;
+  padding: 15px 17px;
+  border: 1px solid #cfe0ef;
+  border-radius: 13px;
+  background: #f6fbff;
+}
+.bulk-format-card p {
+  margin: 6px 0 9px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.bulk-format-card code,
+.bulk-example code {
+  padding: 4px 7px;
+  border-radius: 7px;
+  color: #0b456f;
+  background: #e7f3fd;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .78rem;
+  font-weight: 750;
+}
+.bulk-paste-area {
+  min-height: 300px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.bulk-example {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px dashed #c7d7e7;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+.bulk-example pre {
+  margin: 9px 0 0;
+  padding: 12px;
+  overflow-x: auto;
+  border-radius: 9px;
+  color: #31465b;
+  background: #f0f5fa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .75rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+@media (max-width: 700px) {
+  .section-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .section-actions .btn {
+    width: 100%;
+  }
+  .bulk-paste-area {
+    min-height: 240px;
+  }
+}
