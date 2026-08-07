@@ -128,10 +128,25 @@ function f() {
     (t("#profileChip").innerHTML =
       `${a}<span>${o(e.display_name || e.username)}</span>`),
     (t("#nav").innerHTML = p[e.role]
-      .map(([e, s]) => `<button data-go="${e}">${o(s)}</button>`)
+      .map(
+        ([e, s]) =>
+          `<button data-go="${e}"><span>${o(s)}</span>${e === "inbox" ? '<span class="nav-badge" data-inbox-badge hidden>0</span>' : ""}</button>`,
+      )
       .join("")),
     (t("#loading").hidden = !0),
-    (t("#shell").hidden = !1));
+    (t("#shell").hidden = !1),
+    q());
+}
+async function q() {
+  const { data, error } = await e.rpc("get_private_messages", {
+    p_box: "inbox",
+  });
+  if (error) return;
+  const count = (data || []).filter((message) => !message.is_read).length;
+  document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
+    badge.textContent = count;
+    badge.hidden = count === 0;
+  });
 }
 async function $() {
   const [e = "dashboard", s = ""] = location.hash.slice(1).split(":");
@@ -217,7 +232,9 @@ const w = {
             ? await e.rpc("my_assessor_schedule")
             : await e
                 .from("assessment_schedules")
-                .select("*,assessment_schedule_chapters(chapter_id,chapters(title))")
+                .select(
+                  "*,assessment_schedule_chapters(chapter_id,chapters(title))",
+                )
                 .eq("is_active", !0)
                 .eq("residency_year", s.p.residency_year)
                 .order("starts_at"),
@@ -227,8 +244,7 @@ const w = {
           .sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at));
       if (scheduleResult.error) {
         n = ` <section class="card warning"><h3>Schedule could not load</h3><p>${o(scheduleResult.error.message)}</p></section>`;
-      } else
-      if (relevantSchedules.length) {
+      } else if (relevantSchedules.length) {
         n = ` <section class="card window-summary"> <h3>Upcoming assessments for your assigned ${assignedYears.size === 1 ? "year" : "years"}</h3> <div class="window-list">${relevantSchedules
           .map((item) => {
             const [status, className] = N(item),
@@ -486,7 +502,12 @@ const w = {
 async function reviewPage() {
   if (!["observer", "assessor"].includes(s.p.role)) return g("dashboard");
   t("#title").textContent = "Write a review";
-  a.innerHTML = h("Record a clinical observation", "Choose any resident, then write a signed knowledge, skill or attitude comment.") + `
+  a.innerHTML =
+    h(
+      "Record a clinical observation",
+      "Choose any resident, then write a signed knowledge, skill or attitude comment.",
+    ) +
+    `
     <section class="card"><div class="form-grid">
       <label>Search resident<input id="findResident" placeholder="Name or username"></label>
       <label>Residency year<select id="findYear"><option value="">All years</option>${n.map((year) => `<option>${year}</option>`).join("")}</select></label>
@@ -502,16 +523,32 @@ async function inboxPage() {
   ]);
   const inbox = u(inboxResult) || [];
   const sent = u(sentResult) || [];
-  const rows = (items, box) => items.length ? items.map((message) => `
-    <button class="message-row ${box === "inbox" && !message.is_read ? "unread" : ""}" data-message-id="${message.id}" data-message-box="${box}">
-      <span class="message-person">${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
-      <strong>${o(message.subject || "No subject")}</strong><small>${l(message.created_at)}</small>
-    </button>`).join("") : '<div class="mail-empty">No messages here.</div>';
+  const rows = (items, box) =>
+    items.length
+      ? items
+          .map(
+            (message) => `
+    <article class="message-row ${box === "inbox" && !message.is_read ? "unread" : ""}">
+      <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
+        <span class="message-person">${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
+        <strong>${o(message.subject || "No subject")}</strong><small>${l(message.created_at)}</small>
+      </button>
+      ${box === "inbox" && message.logbook_entry_id && !message.logbook_action_taken ? `<div class="message-actions"><button class="btn small" data-inbox-logbook-review="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${o(message.logbook_title || "Logbook activity")}">Approve / Reject</button></div>` : ""}
+    </article>`,
+          )
+          .join("")
+      : '<div class="mail-empty">No messages here.</div>';
   window.residentMessages = new Map([
     ...inbox.map((message) => [String(message.id), message]),
     ...sent.map((message) => [`sent-${message.id}`, message]),
   ]);
-  a.innerHTML = h("Private messages", "Send and receive secure messages within the training program.", '<button class="btn" data-compose-message>New message</button>') + `
+  a.innerHTML =
+    h(
+      "Private messages",
+      "Send and receive secure messages within the training program.",
+      '<button class="btn" data-compose-message>New message</button>',
+    ) +
+    `
     <div class="mail-grid">
       <section class="card mail-panel"><div class="mail-heading"><h3>Inbox</h3><span class="tag">${inbox.filter((item) => !item.is_read).length} unread</span></div><div class="message-list">${rows(inbox, "inbox")}</div></section>
       <section class="card mail-panel"><div class="mail-heading"><h3>Sent</h3><span class="tag">${sent.length}</span></div><div class="message-list">${rows(sent, "sent")}</div></section>
@@ -519,7 +556,9 @@ async function inboxPage() {
 }
 
 async function openComposer(replyTo = null) {
-  const { data: contacts } = await e.rpc("message_contacts", { search_text: null });
+  const { data: contacts } = await e.rpc("message_contacts", {
+    search_text: null,
+  });
   y(`<form id="messageForm" class="modal">
     <div class="modal-head"><div><span class="eyebrow">Private inbox</span><h2>${replyTo ? "Reply" : "New message"}</h2></div><button type="button" data-close>×</button></div>
     <div class="form-grid">
@@ -528,6 +567,9 @@ async function openComposer(replyTo = null) {
       <label class="full">Message<textarea name="body" maxlength="5000" required></textarea></label>
     </div><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send message</button></div>
   </form>`);
+}
+function openLogbookDecision(entryId, title, messageId = "") {
+  y(` <form id="logbookReviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Supervisor decision</span><h2>${o(title)}</h2></div><button type="button" data-close>×</button></div><label>Decision<select name="decision" id="logbookDecision" required><option value="approved">Approve</option><option value="rejected">Reject</option></select></label><label>Supervisor note <small id="logbookNoteHint">Optional for approval</small><textarea name="note" minlength="2"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="message_id" value="${o(messageId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit decision</button></div></form>`);
 }
 async function k() {
   const i = s.p;
@@ -568,9 +610,10 @@ async function k() {
       ]),
       latest = n.data?.[0],
       upcoming = scheduleResult.data?.[0],
-      scope = upcoming?.assessment_schedule_chapters
-        ?.map((item) => item.chapters?.title)
-        .filter(Boolean) || [];
+      scope =
+        upcoming?.assessment_schedule_chapters
+          ?.map((item) => item.chapters?.title)
+          .filter(Boolean) || [];
     return void (a.innerHTML =
       h(
         `Welcome, ${i.display_name || i.username}`,
@@ -597,37 +640,42 @@ async function k() {
     const assigned = (await S()).data || [],
       residentIds = assigned.map((item) => item.resident_id),
       now = new Date().toISOString(),
-      [schedulesResult, knowledgeResult, skillsResult, assessmentsResult, commentsResult] =
-        await Promise.all([
-          e.rpc("my_assessor_schedule"),
-          residentIds.length
-            ? e
-                .from("knowledge_progress")
-                .select("resident_id,status")
-                .in("resident_id", residentIds)
-            : Promise.resolve({ data: [] }),
-          residentIds.length
-            ? e
-                .from("skill_logs")
-                .select("resident_id")
-                .in("resident_id", residentIds)
-            : Promise.resolve({ data: [] }),
-          residentIds.length
-            ? e
-                .from("assessments")
-                .select("resident_id,total_score,overall_pass,assessment_date")
-                .in("resident_id", residentIds)
-                .order("assessment_date", { ascending: !1 })
-            : Promise.resolve({ data: [] }),
-          residentIds.length
-            ? e
-                .from("observer_reviews")
-                .select("*")
-                .in("resident_id", residentIds)
-                .order("observed_on", { ascending: !1 })
-                .limit(5)
-            : Promise.resolve({ data: [] }),
-        ]),
+      [
+        schedulesResult,
+        knowledgeResult,
+        skillsResult,
+        assessmentsResult,
+        commentsResult,
+      ] = await Promise.all([
+        e.rpc("my_assessor_schedule"),
+        residentIds.length
+          ? e
+              .from("knowledge_progress")
+              .select("resident_id,status")
+              .in("resident_id", residentIds)
+          : Promise.resolve({ data: [] }),
+        residentIds.length
+          ? e
+              .from("skill_logs")
+              .select("resident_id")
+              .in("resident_id", residentIds)
+          : Promise.resolve({ data: [] }),
+        residentIds.length
+          ? e
+              .from("assessments")
+              .select("resident_id,total_score,overall_pass,assessment_date")
+              .in("resident_id", residentIds)
+              .order("assessment_date", { ascending: !1 })
+          : Promise.resolve({ data: [] }),
+        residentIds.length
+          ? e
+              .from("observer_reviews")
+              .select("*")
+              .in("resident_id", residentIds)
+              .order("observed_on", { ascending: !1 })
+              .limit(5)
+          : Promise.resolve({ data: [] }),
+      ]),
       nextAssessment = (schedulesResult.data || [])
         .filter((item) => item.schedule_status !== "finished")
         .sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at))[0],
@@ -645,7 +693,10 @@ async function k() {
         return map;
       }, new Map()),
       scope =
-        (nextAssessment?.chapters || nextAssessment?.assessment_schedule_chapters)
+        (
+          nextAssessment?.chapters ||
+          nextAssessment?.assessment_schedule_chapters
+        )
           ?.map((item) => item.title || item.chapters?.title)
           .filter(Boolean) || [],
       progressRows = assigned.length
@@ -671,7 +722,9 @@ async function k() {
         ? assigned
             .slice(0, 6)
             .map(
-              (resident) => `<button class="assessor-resident-row" data-candidate="${resident.resident_id}~">
+              (
+                resident,
+              ) => `<button class="assessor-resident-row" data-candidate="${resident.resident_id}~">
                 <span><b>${o(resident.resident_name || resident.username)}</b><small>@${o(resident.username || "resident")}</small></span>
                 <span class="year-chip">Year ${resident.residency_year}</span>
               </button>`,
@@ -711,7 +764,8 @@ async function k() {
             recentComments.length
               ? `<div class="comment-preview-list">${recentComments
                   .map(
-                    (comment) => `<article><div><span class="tag">${o(comment.category)}</span><small>${d(comment.observed_on)}</small></div><b>${o(comment.resident_name || "Resident")}</b><p>${o(comment.comment)}</p><small>By ${o(comment.observer_signature)}</small></article>`,
+                    (comment) =>
+                      `<article><div><span class="tag">${o(comment.category)}</span><small>${d(comment.observed_on)}</small></div><b>${o(comment.resident_name || "Resident")}</b><p>${o(comment.comment)}</p><small>By ${o(comment.observer_signature)}</small></article>`,
                   )
                   .join("")}</div>`
               : '<div class="panel-empty">No observer comments for your assigned residents.</div>'
@@ -900,15 +954,17 @@ function B(e) {
         ? "danger"
         : "warning";
   const isConference = e.activity_category === "conference";
-  const canReviewSenior = e.senior_resident_id === s.p.id && e.senior_status === "pending";
-  const canReviewAssessor = e.assessor_id === s.p.id && e.assessor_status === "pending";
+  const canReviewSenior =
+    e.senior_resident_id === s.p.id && e.senior_status === "pending";
+  const canReviewAssessor =
+    e.assessor_id === s.p.id && e.assessor_status === "pending";
   const conferenceDetail = isConference
     ? `<p><b>Conference activity:</b> ${e.conference_participation === "gave_speech" ? "Gave a speech" : "Attended the conference"}</p><p><b>Conference name:</b> ${o(e.title)}</p>`
     : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(e.participation_mode)}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>`;
   const approvalDetail = isConference
     ? `<div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div>`
     : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${o(e.senior_resident_name)} <span class="tag">${o(e.senior_status)}</span>${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
-  return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_category)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details">${conferenceDetail}${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""}${approvalDetail}</div> ${(canReviewSenior || canReviewAssessor) ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
+  return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_category)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details">${conferenceDetail}${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""}${approvalDetail}</div> ${canReviewSenior || canReviewAssessor ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
 }
 async function P() {
   t("#title").textContent =
@@ -917,38 +973,50 @@ async function P() {
       : "observer" === s.p.role
         ? "Logbook approvals"
         : "Resident logbooks";
-  const requests = [e.rpc("get_logbook_entries_v2", {
-    p_resident_id: null,
-    p_status: null,
-    p_activity_category: null,
-  })];
+  const requests = [
+    e.rpc("get_logbook_entries_v2", {
+      p_resident_id: null,
+      p_status: null,
+      p_activity_category: null,
+    }),
+  ];
   "resident" === s.p.role && requests.push(e.rpc("logbook_approvers"));
   const [entriesResult, supervisorsResult] = await Promise.all(requests);
   if (entriesResult.error) throw entriesResult.error;
   const entries = entriesResult.data || [];
   const own = entries.filter((entry) => entry.resident_id === s.p.id);
-  const assigned = entries.filter((entry) =>
-    entry.resident_id !== s.p.id &&
-    (entry.senior_resident_id === s.p.id || entry.assessor_id === s.p.id));
+  const assigned = entries.filter(
+    (entry) =>
+      entry.resident_id !== s.p.id &&
+      (entry.senior_resident_id === s.p.id || entry.assessor_id === s.p.id),
+  );
   const visible = "resident" === s.p.role ? own : entries;
   const approvers = supervisorsResult?.data || [];
-  const seniorResidents = approvers.filter((person) => person.approver_group === "senior_resident");
-  const assessors = approvers.filter((person) => person.approver_group === "assessor");
+  const seniorResidents = approvers.filter(
+    (person) => person.approver_group === "senior_resident",
+  );
+  const assessors = approvers.filter(
+    (person) => person.approver_group === "assessor",
+  );
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP","Intubation","Temporary pacemaker","Pericardiocentesis","Coronary angiography","PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><label>Participation<select name="participation_mode" required><option value="">Choose participation</option><option value="solo">Solo</option><option value="assisted">Assisted</option></select></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose Year 3–5 senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" disabled required></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
+      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Pericardiocentesis", "Coronary angiography", "PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><label>Participation<select name="participation_mode" required><option value="">Choose participation</option><option value="solo">Solo</option><option value="assisted">Assisted</option></select></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" required></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose Year 3–5 senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${person.residency_year}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" max="${new Date().toISOString().slice(0, 10)}" disabled required></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
   const pending =
     "resident" === s.p.role
       ? assigned.filter((entry) => "pending" === entry.status)
       : entries.filter(
           (entry) =>
-            (entry.senior_resident_id === s.p.id && entry.senior_status === "pending") ||
-            (entry.assessor_id === s.p.id && entry.assessor_status === "pending"),
+            (entry.senior_resident_id === s.p.id &&
+              entry.senior_status === "pending") ||
+            (entry.assessor_id === s.p.id &&
+              entry.assessor_status === "pending"),
         );
   a.innerHTML =
     h(
-      "resident" === s.p.role ? "Resident e-logbook" : "Clinical activity logbooks",
+      "resident" === s.p.role
+        ? "Resident e-logbook"
+        : "Clinical activity logbooks",
       "resident" === s.p.role
         ? "Record procedures, conference attendance and lectures. Entries become verified after supervisor approval."
         : "Review assigned approval requests and monitor verified resident activity.",
@@ -959,16 +1027,25 @@ async function P() {
       ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
       : "") +
     ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>${visible.length} record${1 === visible.length ? "" : "s"}</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="manual_intervention">Manual interventions</option><option value="conference">Conferences</option></select></div></div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
+  const seniorSelect = document.querySelector('select[name="senior_resident_id"]');
+  if (seniorSelect) {
+    seniorSelect.options[0].textContent = "Choose senior resident";
+    [...seniorSelect.options].slice(1).forEach((option) => {
+      option.textContent = option.textContent.replace(/\s*·\s*Year\s+[3-5]\s*$/, "");
+    });
+  }
 }
 function H() {
   const status = t("#logbookStatus")?.value || "";
   const type = t("#logbookType")?.value || "";
-  document.querySelectorAll("#logbookEntries [data-logbook-status]").forEach((card) => {
-    card.hidden = Boolean(
-      (status && card.dataset.logbookStatus !== status) ||
-        (type && card.dataset.logbookType !== type),
-    );
-  });
+  document
+    .querySelectorAll("#logbookEntries [data-logbook-status]")
+    .forEach((card) => {
+      card.hidden = Boolean(
+        (status && card.dataset.logbookStatus !== status) ||
+          (type && card.dataset.logbookType !== type),
+      );
+    });
 }
 (document.addEventListener("click", async (t) => {
   const a = t.target.closest("button,[data-chapter]");
@@ -1047,15 +1124,31 @@ function H() {
       a.hasAttribute("data-compose-message") && openComposer(),
       a.hasAttribute("data-logbook-print") && window.print(),
       a.dataset.logbookReview &&
-        y(` <form id="logbookReviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Supervisor decision</span><h2>${o(a.dataset.logbookTitle)}</h2></div><button type="button" data-close>×</button></div><label>Decision<select name="decision" required><option value="approved">Approve</option><option value="rejected">Reject</option></select></label><label>Mandatory supervisor note<textarea name="note" minlength="2" required></textarea></label><input type="hidden" name="entry_id" value="${a.dataset.logbookReview}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit decision</button></div></form>`),
+        openLogbookDecision(
+          a.dataset.logbookReview,
+          a.dataset.logbookTitle,
+        ),
+      a.dataset.inboxLogbookReview &&
+        openLogbookDecision(
+          a.dataset.inboxLogbookReview,
+          a.dataset.logbookTitle,
+          a.dataset.approvalMessageId,
+        ),
       a.dataset.messageId &&
         (async () => {
-          const key = a.dataset.messageBox === "sent" ? `sent-${a.dataset.messageId}` : a.dataset.messageId;
+          const key =
+            a.dataset.messageBox === "sent"
+              ? `sent-${a.dataset.messageId}`
+              : a.dataset.messageId;
           const message = window.residentMessages?.get(String(key));
           if (!message) return;
           if (a.dataset.messageBox === "inbox" && !message.is_read)
-            await e.rpc("mark_private_message_read", { p_message_id: Number(message.id) });
-          y(`<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${a.dataset.messageBox === "inbox" ? "From" : "To"} ${o(a.dataset.messageBox === "inbox" ? message.sender_name : message.receiver_name)}</span><h2>${o(message.subject || "No subject")}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><p>${o(message.body).replace(/\n/g, "<br>")}</p>${a.dataset.messageBox === "inbox" ? `<div class="actions"><button class="btn" data-reply-to="${message.sender_id}">Reply</button></div>` : ""}</article>`);
+            (await e.rpc("mark_private_message_read", {
+              p_message_id: Number(message.id),
+            }), await q());
+          y(
+            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${a.dataset.messageBox === "inbox" ? "From" : "To"} ${o(a.dataset.messageBox === "inbox" ? message.sender_name : message.receiver_name)}</span><h2>${o(message.subject || "No subject")}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><p>${o(message.body).replace(/\n/g, "<br>")}</p>${a.dataset.messageBox === "inbox" ? `<div class="actions"><button class="btn" data-reply-to="${message.sender_id}">Reply</button></div>` : ""}</article>`,
+          );
         })(),
       a.dataset.replyTo && (i.close(), openComposer(a.dataset.replyTo)),
       a.hasAttribute("data-close") && i.close(),
@@ -1081,16 +1174,14 @@ function H() {
   document.addEventListener("change", async (t) => {
     const a = t.target;
     if (a.dataset.k) {
-      const { error: t } = await e
-        .from("knowledge_progress")
-        .upsert(
-          {
-            resident_id: s.p.id,
-            knowledge_item_id: +a.dataset.k,
-            status: a.checked ? "completed" : "in_progress",
-          },
-          { onConflict: "resident_id,knowledge_item_id" },
-        );
+      const { error: t } = await e.from("knowledge_progress").upsert(
+        {
+          resident_id: s.p.id,
+          knowledge_item_id: +a.dataset.k,
+          status: a.checked ? "completed" : "in_progress",
+        },
+        { onConflict: "resident_id,knowledge_item_id" },
+      );
       t ? alert(t.message) : b("Knowledge updated");
     }
     if (a.dataset.level) {
@@ -1104,15 +1195,27 @@ function H() {
     }
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
-      "logbookCategory" === a.id && (() => {
-        const conference = a.value === "conference";
-        const manualFields = document.querySelector("#manualFields");
-        const conferenceFields = document.querySelector("#conferenceFields");
-        manualFields.hidden = conference;
-        conferenceFields.hidden = !conference;
-        manualFields.querySelectorAll("input,select,textarea").forEach((field) => field.disabled = conference);
-        conferenceFields.querySelectorAll("input,select,textarea").forEach((field) => field.disabled = !conference);
+      "logbookDecision" === a.id && (() => {
+        const note = document.querySelector('#logbookReviewForm textarea[name="note"]');
+        const hint = document.querySelector("#logbookNoteHint");
+        const rejected = a.value === "rejected";
+        note.required = rejected;
+        hint.textContent = rejected ? "Required for rejection" : "Optional for approval";
       })(),
+      "logbookCategory" === a.id &&
+        (() => {
+          const conference = a.value === "conference";
+          const manualFields = document.querySelector("#manualFields");
+          const conferenceFields = document.querySelector("#conferenceFields");
+          manualFields.hidden = conference;
+          conferenceFields.hidden = !conference;
+          manualFields
+            .querySelectorAll("input,select,textarea")
+            .forEach((field) => (field.disabled = conference));
+          conferenceFields
+            .querySelectorAll("input,select,textarea")
+            .forEach((field) => (field.disabled = !conference));
+        })(),
       "accountRole" === a.id && E(),
       "scheduleYear" === a.id && Y());
   }),
@@ -1129,29 +1232,25 @@ function H() {
       if (
         ("logForm" === a.id &&
           u(
-            await e
-              .from("skill_logs")
-              .insert({
-                resident_id: s.p.id,
-                skill_id: +r.get("skill_id"),
-                performed_on: r.get("performed_on"),
-                supervisor_name: r.get("supervisor_name"),
-                notes: r.get("notes") || null,
-              }),
+            await e.from("skill_logs").insert({
+              resident_id: s.p.id,
+              skill_id: +r.get("skill_id"),
+              performed_on: r.get("performed_on"),
+              supervisor_name: r.get("supervisor_name"),
+              notes: r.get("notes") || null,
+            }),
           ),
         "reviewForm" === a.id &&
           u(
-            await e
-              .from("observer_reviews")
-              .insert({
-                observer_id: s.p.id,
-                resident_id: r.get("resident_id"),
-                category: r.get("category"),
-                observed_on: r.get("observed_on"),
-                place: r.get("place"),
-                comment: r.get("comment"),
-                observer_signature: s.p.display_name,
-              }),
+            await e.from("observer_reviews").insert({
+              observer_id: s.p.id,
+              resident_id: r.get("resident_id"),
+              category: r.get("category"),
+              observed_on: r.get("observed_on"),
+              place: r.get("place"),
+              comment: r.get("comment"),
+              observer_signature: s.p.display_name,
+            }),
           ),
         "accountForm" === a.id)
       ) {
@@ -1195,35 +1294,47 @@ function H() {
         );
       }
       if ("messageForm" === a.id) {
-        u(await e.rpc("send_private_message", {
-          p_receiver_id: r.get("receiver_id"),
-          p_subject: r.get("subject") || null,
-          p_body: r.get("body"),
-        }));
+        u(
+          await e.rpc("send_private_message", {
+            p_receiver_id: r.get("receiver_id"),
+            p_subject: r.get("subject") || null,
+            p_body: r.get("body"),
+          }),
+        );
         i.close();
         b("Message sent");
         return void (await inboxPage());
       }
       if ("logbookForm" === a.id) {
-        u(await e.rpc("submit_logbook_entry_v2", {
-          p_activity_category: r.get("activity_category"),
-          p_activity_date: r.get("activity_date"),
-          p_conference_participation: r.get("conference_participation") || null,
-          p_conference_name: r.get("conference_name") || null,
-          p_procedure_name: r.get("procedure_name") || null,
-          p_participation_mode: r.get("participation_mode") || null,
-          p_hospital: r.get("hospital") || null,
-          p_senior_resident_id: r.get("senior_resident_id") || null,
-          p_assessor_id: r.get("assessor_id"),
-          p_description: r.get("description") || null,
-        }));
+        u(
+          await e.rpc("submit_logbook_entry_v2", {
+            p_activity_category: r.get("activity_category"),
+            p_activity_date: r.get("activity_date"),
+            p_conference_participation:
+              r.get("conference_participation") || null,
+            p_conference_name: r.get("conference_name") || null,
+            p_procedure_name: r.get("procedure_name") || null,
+            p_participation_mode: r.get("participation_mode") || null,
+            p_hospital: r.get("hospital") || null,
+            p_senior_resident_id: r.get("senior_resident_id") || null,
+            p_assessor_id: r.get("assessor_id"),
+            p_description: r.get("description") || null,
+          }),
+        );
       }
       if ("logbookReviewForm" === a.id) {
-        u(await e.rpc("review_logbook_entry_v2", {
-          p_entry_id: r.get("entry_id"),
-          p_decision: r.get("decision"),
-          p_note: r.get("note"),
-        }));
+        const decision = r.get("decision");
+        const note = String(r.get("note") || "").trim();
+        if (decision === "rejected" && note.length < 2)
+          throw new Error("A note is required when rejecting an entry");
+        u(
+          await e.rpc("review_logbook_entry_v2", {
+            p_entry_id: r.get("entry_id"),
+            p_decision: decision,
+            p_note: note,
+          }),
+        );
+        await q();
       }
       if ("scheduleForm" === a.id) {
         const t = new Date(r.get("starts_at")),
@@ -1244,14 +1355,37 @@ function H() {
           n = r.get("schedule_id"),
           saved = u(
             n
-              ? await e.from("assessment_schedules").update(i).eq("id", n).select("id").single()
-              : await e.from("assessment_schedules").insert({ ...i, created_by: s.p.id }).select("id").single(),
+              ? await e
+                  .from("assessment_schedules")
+                  .update(i)
+                  .eq("id", n)
+                  .select("id")
+                  .single()
+              : await e
+                  .from("assessment_schedules")
+                  .insert({ ...i, created_by: s.p.id })
+                  .select("id")
+                  .single(),
           ),
           scheduleId = saved.id,
           chapterIds = r.getAll("chapter_ids").map(Number);
-        u(await e.from("assessment_schedule_chapters").delete().eq("schedule_id", scheduleId));
+        u(
+          await e
+            .from("assessment_schedule_chapters")
+            .delete()
+            .eq("schedule_id", scheduleId),
+        );
         if (chapterIds.length)
-          u(await e.from("assessment_schedule_chapters").insert(chapterIds.map((chapterId) => ({ schedule_id: scheduleId, chapter_id: chapterId }))));
+          u(
+            await e
+              .from("assessment_schedule_chapters")
+              .insert(
+                chapterIds.map((chapterId) => ({
+                  schedule_id: scheduleId,
+                  chapter_id: chapterId,
+                })),
+              ),
+          );
       }
       if ("profileForm" === a.id) {
         const t = {
@@ -1277,12 +1411,7 @@ function H() {
           t.avatar_url = d.publicUrl;
         }
         const i = u(
-          await e
-            .from("profiles")
-            .update(t)
-            .eq("id", s.p.id)
-            .select()
-            .single(),
+          await e.from("profiles").update(t).eq("id", s.p.id).select().single(),
         );
         ((s.p = i), f());
       }
