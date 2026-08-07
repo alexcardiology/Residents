@@ -93,6 +93,7 @@ const s = {
       ["logbook", "Resident logbooks"],
       ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
+      ["message-cleanup", "Message cleanup"],
       ["profile", "My profile"],
     ],
   },
@@ -142,16 +143,17 @@ function f() {
     q());
 }
 async function q() {
+  const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
   const [normalResult, logbookResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
-    e.rpc("get_logbook_messages", { p_view: "received" }),
+    e.rpc("get_logbook_messages", { p_view: juniorResident ? "updates" : "received" }),
   ]);
   const count = (normalResult.data || []).filter((message) => !message.is_read).length;
   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
     badge.textContent = count;
     badge.hidden = count === 0;
   });
-  const logbookCount = (logbookResult.data || []).filter((message) => !message.is_read && !message.logbook_action_taken).length;
+  const logbookCount = (logbookResult.data || []).filter((message) => juniorResident ? !message.is_read : !message.logbook_action_taken).length;
   document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
     badge.textContent = logbookCount;
     badge.hidden = logbookCount === 0;
@@ -505,6 +507,7 @@ const w = {
   },
   inbox: inboxPage,
   "logbook-requests": logbookRequestsPage,
+  "message-cleanup": ownerMessageCleanupPage,
   "write-review": reviewPage,
   password: x,
 };
@@ -527,12 +530,14 @@ async function reviewPage() {
 
 async function inboxPage() {
   t("#title").textContent = "Inbox";
-  const [inboxResult, sentResult] = await Promise.all([
+  const [inboxResult, sentResult, trashResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_private_messages", { p_box: "sent" }),
+    e.rpc("get_private_messages", { p_box: "trash" }),
   ]);
   const inbox = u(inboxResult) || [];
   const sent = u(sentResult) || [];
+  const trash = u(trashResult) || [];
   const statusTitle = (message) => {
     if (message.subject === "Logbook approval")
       return `<span class="decision-title"><span class="decision-icon approved" aria-label="Approved">✓</span><span>Logbook approval</span></span>`;
@@ -550,6 +555,7 @@ async function inboxPage() {
           .map(
             (message) => `
     <article class="message-row ${box === "inbox" ? (message.is_read ? "read" : "unread") : "sent-message"}" data-message-search="${o(`${box === "inbox" ? message.sender_name : message.receiver_name} ${message.subject || ""} ${message.body || ""}`.toLowerCase())}">
+      <input class="message-select" type="checkbox" value="${message.id}" aria-label="Select message">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
         <span class="message-person">${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
@@ -562,6 +568,7 @@ async function inboxPage() {
   window.residentMessages = new Map([
     ...inbox.map((message) => [String(message.id), message]),
     ...sent.map((message) => [`sent-${message.id}`, message]),
+    ...trash.map((message) => [`trash-${message.id}`, message]),
   ]);
   window.logbookInboxButtons = approvalButtons;
   a.innerHTML =
@@ -575,12 +582,21 @@ async function inboxPage() {
       <div class="mailbox-tabs" role="tablist">
         <button class="mailbox-tab active" data-mail-tab="inbox">Inbox <span class="nav-badge inline-badge" ${inbox.filter((item) => !item.is_read).length ? "" : "hidden"}>${inbox.filter((item) => !item.is_read).length}</span></button>
         <button class="mailbox-tab" data-mail-tab="sent">Sent <span class="tag">${sent.length}</span></button>
+        <button class="mailbox-tab" data-mail-tab="trash">Trash <span class="tag">${trash.length}</span></button>
       </div>
-      <div class="mail-tools"><input id="messageSearch" type="search" placeholder="Search by any word"><button class="btn secondary" data-mark-all-read ${inbox.some((item) => !item.is_read) ? "" : "disabled"}>Mark all as read</button></div>
+      <div class="mail-tools"><input id="messageSearch" type="search" placeholder="Search by any word"><button class="btn secondary" data-mark-all-read ${inbox.some((item) => !item.is_read) ? "" : "disabled"}>Mark all as read</button><button class="btn danger" data-trash-selected>Delete selected</button></div>
       <div class="mail-panel" data-mail-panel="inbox"><div class="message-list">${rows(inbox, "inbox")}</div></div>
       <div class="mail-panel" data-mail-panel="sent" hidden><div class="message-list">${rows(sent, "sent")}</div></div>
+      <div class="mail-panel" data-mail-panel="trash" hidden><div class="trash-tools"><button class="btn secondary" data-restore-selected>Restore selected</button><button class="btn danger" data-delete-forever>Delete selected forever</button><button class="btn danger" data-empty-trash>Empty Trash</button></div><div class="message-list">${rows(trash, "trash")}</div></div>
       <div id="messageSearchEmpty" class="mail-empty" hidden>No messages match your search.</div>
     </section>`;
+}
+
+async function ownerMessageCleanupPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "Message cleanup";
+  const users = u(await e.rpc("owner_message_cleanup_users")) || [];
+  a.innerHTML = h("Message cleanup", "Permanently remove ordinary messages for selected users. Logbook requests are protected.") + `<section class="card"><form id="ownerMessageCleanupForm"><div class="cleanup-users">${users.map(person => `<label><input type="checkbox" name="user_ids" value="${person.id}"><span>${o(person.display_name)} · ${m(person.role)}${person.residency_year ? ` · Year ${person.residency_year}` : ""} · ${person.message_count} messages</span></label>`).join("")}</div><div class="actions"><button class="btn danger">Delete all messages for selected users</button></div><p class="form-note">Permanent deletion applies only to ordinary Inbox/Sent messages.</p></form></section>`;
 }
 
 async function logbookRequestsPage() {
@@ -591,11 +607,15 @@ async function logbookRequestsPage() {
     e.rpc("get_logbook_messages", { p_view: "updates" }),
   ]);
   const received = u(receivedResult) || [], sent = u(sentResult) || [], updates = u(updatesResult) || [];
+  const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
+  const seniorResident = s.p.role === "resident" && Number(s.p.residency_year) >= 3;
+  const views = juniorResident ? ["updates"] : s.p.role === "assessor" || s.p.role === "observer" ? ["received"] : seniorResident ? ["received","sent","updates"] : ["received","sent","updates"];
+  const firstView = views[0];
   const activityLabel = (message) => o(message.logbook_title || "Logbook activity");
   const statusTitle = (message) => message.subject === "Logbook approval"
-    ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>Approved · ${activityLabel(message)}</span></span>`
+    ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>${o(message.sender_name)} approved your ${activityLabel(message)} request</span></span>`
     : message.subject === "Logbook rejection"
-      ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Rejected · ${activityLabel(message)}</span></span>`
+      ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>${o(message.sender_name)} rejected your ${activityLabel(message)} request</span></span>`
       : `Approval request · ${activityLabel(message)}`;
   const approvalButtons = (message) => !message.logbook_action_taken
     ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${activityLabel(message)}">Reject</button></div>`
@@ -616,14 +636,14 @@ async function logbookRequestsPage() {
   a.innerHTML = h("Logbook requests", "Approval work is kept separate from normal messages.") + `
     <section class="card mailbox">
       <div class="mailbox-tabs" role="tablist">
-        <button class="mailbox-tab active" data-logbook-tab="received">Received <span class="nav-badge inline-badge" ${received.filter((item) => !item.is_read && !item.logbook_action_taken).length ? "" : "hidden"}>${received.filter((item) => !item.is_read && !item.logbook_action_taken).length}</span></button>
-        <button class="mailbox-tab" data-logbook-tab="sent">Sent <span class="tag">${sent.length}</span></button>
-        <button class="mailbox-tab" data-logbook-tab="updates">Updates <span class="tag">${updates.length}</span></button>
+        ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${received.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${received.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
+        ${views.includes("sent") ? `<button class="mailbox-tab ${firstView === "sent" ? "active" : ""}" data-logbook-tab="sent">Sent <span class="nav-badge inline-badge" ${sent.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${sent.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
+        ${views.includes("updates") ? `<button class="mailbox-tab ${firstView === "updates" ? "active" : ""}" data-logbook-tab="updates">Updates <span class="nav-badge inline-badge" ${updates.filter(item=>!item.is_read).length ? "" : "hidden"}>${updates.filter(item=>!item.is_read).length}</span></button>` : ""}
       </div>
       <div class="mail-tools"><input id="messageSearch" type="search" placeholder="Search resident, intervention, conference or status"></div>
-      <div class="mail-panel" data-mail-panel="received"><div class="message-list">${rows(received, "received")}</div></div>
-      <div class="mail-panel" data-mail-panel="sent" hidden><div class="message-list">${rows(sent, "sent")}</div></div>
-      <div class="mail-panel" data-mail-panel="updates" hidden><div class="message-list">${rows(updates, "updates")}</div></div>
+      ${views.includes("received") ? `<div class="mail-panel" data-mail-panel="received" ${firstView === "received" ? "" : "hidden"}><div class="message-list">${rows(received, "received")}</div></div>` : ""}
+      ${views.includes("sent") ? `<div class="mail-panel" data-mail-panel="sent" ${firstView === "sent" ? "" : "hidden"}><div class="message-list">${rows(sent, "sent")}</div></div>` : ""}
+      ${views.includes("updates") ? `<div class="mail-panel" data-mail-panel="updates" ${firstView === "updates" ? "" : "hidden"}><div class="message-list notification-lines">${rows(updates, "updates")}</div></div>` : ""}
       <div id="messageSearchEmpty" class="mail-empty" hidden>No logbook items match your search.</div>
     </section>`;
 }
@@ -1246,6 +1266,29 @@ function H() {
         await inboxPage();
         b("All Inbox messages marked as read");
       })(),
+      a.hasAttribute("data-trash-selected") && (async () => {
+        const panel=document.querySelector('[data-mail-panel]:not([hidden])');
+        const box=panel?.dataset.mailPanel;
+        if(!["inbox","sent"].includes(box)) return alert("Choose Inbox or Sent");
+        const ids=[...panel.querySelectorAll('.message-select:checked')].map(x=>Number(x.value));
+        if(!ids.length) return alert("Select at least one message");
+        u(await e.rpc("move_private_messages_to_trash",{p_message_ids:ids,p_box:box})); await inboxPage(); b("Messages moved to Trash");
+      })(),
+      a.hasAttribute("data-restore-selected") && (async () => {
+        const ids=[...document.querySelectorAll('[data-mail-panel="trash"] .message-select:checked')].map(x=>Number(x.value));
+        if(!ids.length) return alert("Select at least one message");
+        u(await e.rpc("restore_private_messages",{p_message_ids:ids})); await inboxPage(); b("Messages restored");
+      })(),
+      a.hasAttribute("data-delete-forever") && (async () => {
+        const ids=[...document.querySelectorAll('[data-mail-panel="trash"] .message-select:checked')].map(x=>Number(x.value));
+        if(!ids.length) return alert("Select at least one message");
+        if(!confirm("Delete selected messages forever? This cannot be undone.")) return;
+        u(await e.rpc("permanently_delete_private_messages",{p_message_ids:ids})); await inboxPage(); b("Messages permanently deleted");
+      })(),
+      a.hasAttribute("data-empty-trash") && (async () => {
+        if(!confirm("Empty Trash permanently? This cannot be undone.")) return;
+        u(await e.rpc("empty_private_message_trash")); await inboxPage(); b("Trash emptied");
+      })(),
       a.hasAttribute("data-logbook-print") && window.print(),
       a.dataset.logbookReview &&
         openLogbookDecision(
@@ -1281,7 +1324,7 @@ function H() {
           const isLogbook = a.dataset.messageBox?.startsWith("logbook");
           const key = isLogbook
             ? `${a.dataset.messageBox}-${a.dataset.messageId}`
-            : a.dataset.messageBox === "sent" ? `sent-${a.dataset.messageId}` : a.dataset.messageId;
+            : a.dataset.messageBox === "sent" ? `sent-${a.dataset.messageId}` : a.dataset.messageBox === "trash" ? `trash-${a.dataset.messageId}` : a.dataset.messageId;
           const message = isLogbook ? window.logbookMessages?.get(String(key)) : window.residentMessages?.get(String(key));
           if (!message) return;
           if ((a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook") && !message.is_read)
@@ -1467,6 +1510,14 @@ function H() {
         u(
           i ? await e.from(t).update(a).eq("id", i) : await e.from(t).insert(a),
         );
+      }
+      if ("ownerMessageCleanupForm" === a.id) {
+        const ids=r.getAll("user_ids");
+        if(!ids.length) throw new Error("Choose at least one user");
+        if(!confirm("Permanently delete all ordinary messages connected to the selected users?")) return;
+        const count=u(await e.rpc("owner_cleanup_messages",{p_user_ids:ids}));
+        b(`${count} message${count===1?"":"s"} permanently deleted`);
+        return void (await ownerMessageCleanupPage());
       }
       if ("messageForm" === a.id) {
         if (s.p.role === "owner") {
