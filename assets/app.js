@@ -539,7 +539,7 @@ async function inboxPage() {
       ? items
           .map(
             (message) => `
-    <article class="message-row ${box === "inbox" && !message.is_read ? "unread" : ""}">
+    <article class="message-row ${box === "inbox" ? (message.is_read ? "read" : "unread") : "sent-message"}" data-message-search="${o(`${box === "inbox" ? message.sender_name : message.receiver_name} ${message.subject || ""} ${message.body || ""}`.toLowerCase())}">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
         <span class="message-person">${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
@@ -561,20 +561,36 @@ async function inboxPage() {
       '<button class="btn" data-compose-message>New message</button>',
     ) +
     `
-    <div class="mail-grid">
-      <section class="card mail-panel"><div class="mail-heading"><h3>Inbox</h3><span class="tag">${inbox.filter((item) => !item.is_read).length} unread</span></div><div class="message-list">${rows(inbox, "inbox")}</div></section>
-      <section class="card mail-panel"><div class="mail-heading"><h3>Sent</h3><span class="tag">${sent.length}</span></div><div class="message-list">${rows(sent, "sent")}</div></section>
-    </div>`;
+    <section class="card mailbox">
+      <div class="mailbox-tabs" role="tablist">
+        <button class="mailbox-tab active" data-mail-tab="inbox">Inbox <span class="nav-badge inline-badge" ${inbox.filter((item) => !item.is_read).length ? "" : "hidden"}>${inbox.filter((item) => !item.is_read).length}</span></button>
+        <button class="mailbox-tab" data-mail-tab="sent">Sent <span class="tag">${sent.length}</span></button>
+      </div>
+      <div class="mail-tools"><input id="messageSearch" type="search" placeholder="Search by any word"><button class="btn secondary" data-mark-all-read ${inbox.some((item) => !item.is_read) ? "" : "disabled"}>Mark all as read</button></div>
+      <div class="mail-panel" data-mail-panel="inbox"><div class="message-list">${rows(inbox, "inbox")}</div></div>
+      <div class="mail-panel" data-mail-panel="sent" hidden><div class="message-list">${rows(sent, "sent")}</div></div>
+      <div id="messageSearchEmpty" class="mail-empty" hidden>No messages match your search.</div>
+    </section>`;
 }
 
 async function openComposer(replyTo = null) {
   const { data: contacts } = await e.rpc("message_contacts", {
     search_text: null,
   });
+  const people = contacts || [];
+  const ownerOptions = s.p.role === "owner"
+    ? `<label class="full">Recipients<select name="recipient_scope" id="recipientScope" required>
+        <option value="selected_people">Specific person or people</option><option value="all_people">All people</option>
+        <option value="all_assessors">All assessors</option><option value="selected_assessors">Selected assessors</option>
+        <option value="all_residents">All residents</option><option value="year_residents">Residents of one year</option>
+        <option value="selected_residents">Selected residents</option></select></label>
+      <label class="full" id="recipientPeopleField">Choose recipients<select name="recipient_ids" multiple size="8">${people.map((contact) => `<option value="${contact.id}" data-role="${o(contact.role)}">${o(contact.display_name)} · ${o(m(contact.role))}${contact.residency_year ? ` · Year ${contact.residency_year}` : ""}</option>`).join("")}</select><small>Hold Ctrl (Windows) or Command (Mac) to select several.</small></label>
+      <label class="full" id="recipientYearField" hidden>Residency year<select name="residency_year"><option value="">Choose year</option>${n.map((year) => `<option value="${year}">Year ${year}</option>`).join("")}</select></label>`
+    : `<label class="full">To<select name="receiver_id" required><option value="">Choose a person</option>${people.map((contact) => `<option value="${contact.id}" ${replyTo === contact.id ? "selected" : ""}>${o(contact.display_name)} · ${o(m(contact.role))}</option>`).join("")}</select></label>`;
   y(`<form id="messageForm" class="modal">
     <div class="modal-head"><div><span class="eyebrow">Private inbox</span><h2>${replyTo ? "Reply" : "New message"}</h2></div><button type="button" data-close>×</button></div>
     <div class="form-grid">
-      <label class="full">To<select name="receiver_id" required><option value="">Choose a person</option>${(contacts || []).map((contact) => `<option value="${contact.id}" ${replyTo === contact.id ? "selected" : ""}>${o(contact.display_name)} · ${o(m(contact.role))}</option>`).join("")}</select></label>
+      ${ownerOptions}
       <label class="full">Subject<input name="subject" maxlength="150"></label>
       <label class="full">Message<textarea name="body" maxlength="5000" required></textarea></label>
     </div><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send message</button></div>
@@ -1157,6 +1173,18 @@ function H() {
         ),
         E()),
       a.hasAttribute("data-compose-message") && openComposer(),
+      a.dataset.mailTab && (() => {
+        document.querySelectorAll("[data-mail-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.mailTab === a.dataset.mailTab));
+        document.querySelectorAll("[data-mail-panel]").forEach((panel) => panel.hidden = panel.dataset.mailPanel !== a.dataset.mailTab);
+        const search = t("#messageSearch");
+        if (search) { search.value = ""; search.dispatchEvent(new Event("input", { bubbles: true })); }
+      })(),
+      a.hasAttribute("data-mark-all-read") && (async () => {
+        u(await e.rpc("mark_all_private_messages_read"));
+        await q();
+        await inboxPage();
+        b("All Inbox messages marked as read");
+      })(),
       a.hasAttribute("data-logbook-print") && window.print(),
       a.dataset.logbookReview &&
         openLogbookDecision(
@@ -1277,6 +1305,18 @@ function H() {
             .querySelectorAll("input,select,textarea")
             .forEach((field) => (field.disabled = !conference));
         })(),
+      "recipientScope" === a.id && (() => {
+        const peopleField = t("#recipientPeopleField");
+        const yearField = t("#recipientYearField");
+        const needsPeople = ["selected_people", "selected_assessors", "selected_residents"].includes(a.value);
+        if (peopleField) peopleField.hidden = !needsPeople;
+        if (yearField) yearField.hidden = a.value !== "year_residents";
+        const select = peopleField?.querySelector("select");
+        if (select) Array.from(select.options).forEach((option) => {
+          option.hidden = a.value === "selected_assessors" ? option.dataset.role !== "assessor" : a.value === "selected_residents" ? option.dataset.role !== "resident" : false;
+          if (option.hidden) option.selected = false;
+        });
+      })(),
       "accountRole" === a.id && E(),
       "scheduleYear" === a.id && Y());
   }),
@@ -1284,6 +1324,18 @@ function H() {
     "findResident" === e.target.id &&
       (clearTimeout(window.residentSearchTimer),
       (window.residentSearchTimer = setTimeout(R, 250)));
+    if (e.target.id === "messageSearch") {
+      const query = e.target.value.trim().toLowerCase();
+      const activePanel = document.querySelector('[data-mail-panel]:not([hidden])');
+      let visible = 0;
+      activePanel?.querySelectorAll(".message-row").forEach((row) => {
+        const match = !query || (row.dataset.messageSearch || "").includes(query);
+        row.hidden = !match;
+        if (match) visible += 1;
+      });
+      const empty = t("#messageSearchEmpty");
+      if (empty) empty.hidden = visible > 0;
+    }
   }),
   document.addEventListener("submit", async (t) => {
     t.preventDefault();
@@ -1355,15 +1407,28 @@ function H() {
         );
       }
       if ("messageForm" === a.id) {
-        u(
-          await e.rpc("send_private_message", {
+        if (s.p.role === "owner") {
+          const scope = r.get("recipient_scope");
+          const ids = r.getAll("recipient_ids");
+          if (["selected_people", "selected_assessors", "selected_residents"].includes(scope) && !ids.length)
+            throw new Error("Choose at least one recipient");
+          const result = u(await e.rpc("owner_send_group_message", {
+            p_scope: scope,
+            p_recipient_ids: ids.length ? ids : null,
+            p_residency_year: r.get("residency_year") ? Number(r.get("residency_year")) : null,
+            p_subject: r.get("subject") || null,
+            p_body: r.get("body"),
+          }));
+          b(`Message sent to ${result} recipient${result === 1 ? "" : "s"}`);
+        } else {
+          u(await e.rpc("send_private_message", {
             p_receiver_id: r.get("receiver_id"),
             p_subject: r.get("subject") || null,
             p_body: r.get("body"),
-          }),
-        );
+          }));
+          b("Message sent");
+        }
         i.close();
-        b("Message sent");
         return void (await inboxPage());
       }
       if ("logbookForm" === a.id) {
