@@ -5,9 +5,11 @@ async function authenticate(form, reviewAccess = false) {
   const button = form.querySelector("button");
   const formData = new FormData(form);
 
-  const identifier = String(
+  const email = String(
     formData.get("identifier") || "",
-  ).trim();
+  )
+    .trim()
+    .toLowerCase();
 
   const password = String(
     formData.get("password") || "",
@@ -17,52 +19,63 @@ async function authenticate(form, reviewAccess = false) {
   button.disabled = true;
 
   try {
-    const { data, error } = await sb.functions.invoke(
-      "admin-users",
-      {
-        body: {
-          action: "login",
-          identifier,
-          password,
-        },
-      },
-    );
+    if (!email.includes("@")) {
+      throw new Error(
+        "Please use your email temporarily. Username login will be restored after access is working.",
+      );
+    }
+
+    const { data, error } =
+      await sb.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (error) throw error;
-    if (data?.error) throw new Error(data.error);
+    if (!data.user) {
+      throw new Error("Unable to sign in.");
+    }
 
-    if (
-      !data?.access_token ||
-      !data?.refresh_token ||
-      !data?.role
-    ) {
-      throw new Error("Unable to create the login session.");
+    const { data: profile, error: profileError } =
+      await sb
+        .from("profiles")
+        .select("role,is_active")
+        .eq("id", data.user.id)
+        .single();
+
+    if (profileError || !profile) {
+      throw new Error("Unable to load your account profile.");
+    }
+
+    if (!profile.is_active) {
+      await sb.auth.signOut();
+      throw new Error(
+        "Account inactive. Contact the owner.",
+      );
     }
 
     if (
       reviewAccess &&
-      !["observer", "assessor"].includes(data.role)
+      !["observer", "assessor"].includes(profile.role)
     ) {
       throw new Error(
         "Review access is available only to observers and assessors.",
       );
     }
 
-    if (!reviewAccess && data.role === "observer") {
+    if (
+      !reviewAccess &&
+      profile.role === "observer"
+    ) {
       throw new Error(
-        "Observers must use the Write a Review sign-in section.",
+        "Observers must use the Write a Review section.",
       );
     }
 
-    const { error: sessionError } =
-      await sb.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-      });
-
-    if (sessionError) throw sessionError;
-
-    if (reviewAccess && data.role === "assessor") {
+    if (
+      reviewAccess &&
+      profile.role === "assessor"
+    ) {
       location.replace("app.html#write-review");
       return;
     }
