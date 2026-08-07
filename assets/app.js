@@ -58,6 +58,7 @@ const s = {
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
       ["logbook", "My logbook"],
+      ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
       ["profile", "My profile"],
     ],
@@ -65,6 +66,7 @@ const s = {
       ["dashboard", "Write a review"],
       ["reviews", "My previous reviews"],
       ["logbook", "Logbook approvals"],
+      ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
       ["profile", "My profile"],
     ],
@@ -75,6 +77,7 @@ const s = {
       ["assessments", "Assessments"],
       ["comments", "Observer comments"],
       ["logbook", "Resident logbooks"],
+      ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
       ["profile", "My profile"],
     ],
@@ -88,6 +91,7 @@ const s = {
       ["comments", "Observer reviews"],
       ["assignments", "Assessor assignments"],
       ["logbook", "Resident logbooks"],
+      ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
       ["profile", "My profile"],
     ],
@@ -130,7 +134,7 @@ function f() {
     (t("#nav").innerHTML = p[e.role]
       .map(
         ([e, s]) =>
-          `<button data-go="${e}"><span>${o(s)}</span>${e === "inbox" ? '<span class="nav-badge" data-inbox-badge hidden>0</span>' : ""}</button>`,
+          `<button data-go="${e}"><span>${o(s)}</span>${e === "inbox" ? '<span class="nav-badge" data-inbox-badge hidden>0</span>' : e === "logbook-requests" ? '<span class="nav-badge" data-logbook-badge hidden>0</span>' : ""}</button>`,
       )
       .join("")),
     (t("#loading").hidden = !0),
@@ -138,14 +142,19 @@ function f() {
     q());
 }
 async function q() {
-  const { data, error } = await e.rpc("get_private_messages", {
-    p_box: "inbox",
-  });
-  if (error) return;
-  const count = (data || []).filter((message) => !message.is_read).length;
+  const [normalResult, logbookResult] = await Promise.all([
+    e.rpc("get_private_messages", { p_box: "inbox" }),
+    e.rpc("get_logbook_messages", { p_view: "received" }),
+  ]);
+  const count = (normalResult.data || []).filter((message) => !message.is_read).length;
   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
     badge.textContent = count;
     badge.hidden = count === 0;
+  });
+  const logbookCount = (logbookResult.data || []).filter((message) => !message.is_read && !message.logbook_action_taken).length;
+  document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
+    badge.textContent = logbookCount;
+    badge.hidden = logbookCount === 0;
   });
 }
 async function $() {
@@ -495,6 +504,7 @@ const w = {
           : v("No assessment windows have been scheduled."))));
   },
   inbox: inboxPage,
+  "logbook-requests": logbookRequestsPage,
   "write-review": reviewPage,
   password: x,
 };
@@ -570,6 +580,51 @@ async function inboxPage() {
       <div class="mail-panel" data-mail-panel="inbox"><div class="message-list">${rows(inbox, "inbox")}</div></div>
       <div class="mail-panel" data-mail-panel="sent" hidden><div class="message-list">${rows(sent, "sent")}</div></div>
       <div id="messageSearchEmpty" class="mail-empty" hidden>No messages match your search.</div>
+    </section>`;
+}
+
+async function logbookRequestsPage() {
+  t("#title").textContent = "Logbook requests";
+  const [receivedResult, sentResult, updatesResult] = await Promise.all([
+    e.rpc("get_logbook_messages", { p_view: "received" }),
+    e.rpc("get_logbook_messages", { p_view: "sent" }),
+    e.rpc("get_logbook_messages", { p_view: "updates" }),
+  ]);
+  const received = u(receivedResult) || [], sent = u(sentResult) || [], updates = u(updatesResult) || [];
+  const activityLabel = (message) => o(message.logbook_title || "Logbook activity");
+  const statusTitle = (message) => message.subject === "Logbook approval"
+    ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>Approved · ${activityLabel(message)}</span></span>`
+    : message.subject === "Logbook rejection"
+      ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Rejected · ${activityLabel(message)}</span></span>`
+      : `Approval request · ${activityLabel(message)}`;
+  const approvalButtons = (message) => !message.logbook_action_taken
+    ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${activityLabel(message)}">Reject</button></div>`
+    : `<span class="tag">Action completed</span>`;
+  const rows = (items, view) => items.length ? items.map((message) => `
+    <article class="message-row ${view === "sent" ? "sent-message" : message.is_read ? "read" : "unread"}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""}`.toLowerCase())}">
+      <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
+        <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
+        <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
+      </button>${view === "received" ? approvalButtons(message) : ""}
+    </article>`).join("") : '<div class="mail-empty">No logbook items here.</div>';
+  window.logbookMessages = new Map([
+    ...received.map((message) => [`logbook-${message.id}`, message]),
+    ...updates.map((message) => [`logbook-${message.id}`, message]),
+    ...sent.map((message) => [`logbook-sent-${message.id}`, message]),
+  ]);
+  window.logbookInboxButtons = approvalButtons;
+  a.innerHTML = h("Logbook requests", "Approval work is kept separate from normal messages.") + `
+    <section class="card mailbox">
+      <div class="mailbox-tabs" role="tablist">
+        <button class="mailbox-tab active" data-logbook-tab="received">Received <span class="nav-badge inline-badge" ${received.filter((item) => !item.is_read && !item.logbook_action_taken).length ? "" : "hidden"}>${received.filter((item) => !item.is_read && !item.logbook_action_taken).length}</span></button>
+        <button class="mailbox-tab" data-logbook-tab="sent">Sent <span class="tag">${sent.length}</span></button>
+        <button class="mailbox-tab" data-logbook-tab="updates">Updates <span class="tag">${updates.length}</span></button>
+      </div>
+      <div class="mail-tools"><input id="messageSearch" type="search" placeholder="Search resident, intervention, conference or status"></div>
+      <div class="mail-panel" data-mail-panel="received"><div class="message-list">${rows(received, "received")}</div></div>
+      <div class="mail-panel" data-mail-panel="sent" hidden><div class="message-list">${rows(sent, "sent")}</div></div>
+      <div class="mail-panel" data-mail-panel="updates" hidden><div class="message-list">${rows(updates, "updates")}</div></div>
+      <div id="messageSearchEmpty" class="mail-empty" hidden>No logbook items match your search.</div>
     </section>`;
 }
 
@@ -1179,6 +1234,12 @@ function H() {
         const search = t("#messageSearch");
         if (search) { search.value = ""; search.dispatchEvent(new Event("input", { bubbles: true })); }
       })(),
+      a.dataset.logbookTab && (() => {
+        document.querySelectorAll("[data-logbook-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.logbookTab === a.dataset.logbookTab));
+        document.querySelectorAll("[data-mail-panel]").forEach((panel) => panel.hidden = panel.dataset.mailPanel !== a.dataset.logbookTab);
+        const search = t("#messageSearch");
+        if (search) { search.value = ""; search.dispatchEvent(new Event("input", { bubbles: true })); }
+      })(),
       a.hasAttribute("data-mark-all-read") && (async () => {
         u(await e.rpc("mark_all_private_messages_read"));
         await q();
@@ -1213,17 +1274,17 @@ function H() {
             p_note: "",
           }));
           await q();
-          await inboxPage();
+          await logbookRequestsPage();
         })(),
       a.dataset.messageId &&
         (async () => {
-          const key =
-            a.dataset.messageBox === "sent"
-              ? `sent-${a.dataset.messageId}`
-              : a.dataset.messageId;
-          const message = window.residentMessages?.get(String(key));
+          const isLogbook = a.dataset.messageBox?.startsWith("logbook");
+          const key = isLogbook
+            ? `${a.dataset.messageBox}-${a.dataset.messageId}`
+            : a.dataset.messageBox === "sent" ? `sent-${a.dataset.messageId}` : a.dataset.messageId;
+          const message = isLogbook ? window.logbookMessages?.get(String(key)) : window.residentMessages?.get(String(key));
           if (!message) return;
-          if (a.dataset.messageBox === "inbox" && !message.is_read)
+          if ((a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook") && !message.is_read)
             (await e.rpc("mark_private_message_read", {
               p_message_id: Number(message.id),
             }), await q());
@@ -1232,11 +1293,12 @@ function H() {
             : message.subject === "Logbook rejection"
               ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Logbook rejection</span></span>`
               : o(message.subject || "No subject");
-          const approvalActions = a.dataset.messageBox === "inbox"
+          const approvalActions = a.dataset.messageBox === "logbook"
             ? window.logbookInboxButtons?.(message, "modal") || ""
             : "";
+          const incoming = a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook";
           y(
-            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${a.dataset.messageBox === "inbox" ? "From" : "To"} ${o(a.dataset.messageBox === "inbox" ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><p>${o(message.body).replace(/\n/g, "<br>")}</p>${a.dataset.messageBox === "inbox" ? `<div class="actions">${approvalActions}<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button></div>` : ""}</article>`,
+            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><p>${o(message.body).replace(/\n/g, "<br>")}</p>${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
           );
         })(),
       a.dataset.replyTo && (i.close(), openComposer(a.dataset.replyTo)),
