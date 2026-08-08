@@ -1039,25 +1039,42 @@ function renderReviewThreadTimeline(thread) {
   const review = thread.review || {};
   const domain = String(review.category || "").toLowerCase() === "attitude" ? "Behavioural" : "Clinical";
   const type = String(review.sentiment || "positive").toLowerCase() === "negative" ? "Negative" : "Positive";
+  const currentUserId = String(s.p?.id || "");
   const timeline = thread.messages.map((message) => {
     const linked = window.inboxReviewActions?.get(String(message.id));
-    const body = linked ? linkedReviewMessage(message, linked) : `<div class="message-body">${messageBody(message)}</div>`;
-    return `<div class="review-thread-event ${message.is_read ? "read" : "unread"}">
-      <div class="review-thread-event-head"><b>${o(message.subject || "Review update")}</b><small>${l(message.created_at)}</small></div>
-      <div class="review-thread-event-from">From ${o(message.sender_name || "System")}</div>
-      ${body}
+    const purpose = String(linked?.purpose || "");
+    const mine = String(message.sender_id || "") === currentUserId;
+    let compactText = String(message.body || "").trim();
+    if (purpose === "reconsideration_requested" && linked?.reconsideration_text) compactText = linked.reconsideration_text;
+    if ((purpose === "resident_resolution" || purpose === "owner_resolution" || purpose === "assessor_resolution") && linked?.reconsideration_status === "accepted") {
+      compactText = `Modified review: ${linked.comment || review.comment || ""}`;
+    }
+    if (!compactText && linked?.comment) compactText = linked.comment;
+    const subject = String(message.subject || "Review update")
+      .replace(/resident review/ig, "Review")
+      .replace(/review reconsideration requested/ig, "Reconsideration requested");
+    return `<div class="review-chat-line ${mine ? "mine" : "theirs"} ${message.is_read ? "read" : "unread"}">
+      <div class="review-chat-bubble">
+        <div class="review-chat-meta"><b>${o(message.sender_name || (mine ? "You" : "System"))}</b><small>${l(message.created_at)}</small></div>
+        <span class="review-chat-subject">${o(subject)}</span>
+        <p>${o(compactText || "Review update").replace(/\n/g, "<br>")}</p>
+      </div>
     </div>`;
   }).join("");
+  const currentStatus = review.reconsideration_status === "accepted"
+    ? "💡 Modified"
+    : review.reconsideration_status === "requested"
+      ? "Reconsideration pending"
+      : review.reconsideration_status === "upheld"
+        ? "Original upheld"
+        : "";
   return `<article class="modal message-view review-thread-modal">
-    <div class="modal-head"><div><span class="eyebrow">Review conversation</span><h2>${o(review.resident_name || "Resident review")}</h2></div><button type="button" data-close>×</button></div>
-    <div class="review-thread-summary">
-      <span class="tag">${o(domain)}</span><span class="tag ${type === "Positive" ? "success" : "danger"}">${o(type)}</span>
-      ${review.reconsideration_status === "accepted" ? '<span class="tag success">💡 Modified after reconsideration</span>' : ""}
-      ${review.reconsideration_status === "requested" ? '<span class="tag warning">Reconsideration pending</span>' : ""}
-      ${review.reconsideration_status === "upheld" ? '<span class="tag neutral">Original upheld</span>' : ""}
+    <div class="modal-head review-thread-head">
+      <div><span class="eyebrow">Review thread</span><h2>${o(review.resident_name || "Resident review")}</h2><small>${o(domain)} · ${o(type)}${currentStatus ? ` · ${o(currentStatus)}` : ""}</small></div>
+      <button type="button" data-close aria-label="Close">×</button>
     </div>
-    <div class="review-thread-current"><span>Current review</span><b>${o(review.comment || "")}</b></div>
-    <div class="review-thread-timeline">${timeline}</div>
+    ${review.comment ? `<div class="review-thread-current-compact"><span>Current review</span><b>${o(review.comment)}</b></div>` : ""}
+    <div class="review-thread-chat" aria-label="Review conversation">${timeline}</div>
     ${reviewThreadActions(review)}
   </article>`;
 }

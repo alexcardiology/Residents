@@ -4349,3 +4349,163 @@ form .password-eye-button,
   .thread-preview { max-width: 100%; white-space: normal; }
   .review-thread-event-head { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
+
+/* v1.0.63 — compact chat-style review threads */
+dialog:has(.review-thread-modal) {
+  width: min(620px, calc(100vw - 24px));
+  max-width: 620px;
+  max-height: min(82vh, 720px);
+  overflow: hidden;
+}
+.review-thread-modal {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 18px;
+  overflow: hidden;
+}
+.review-thread-head {
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.review-thread-head h2 {
+  margin: 2px 0 2px;
+  font-size: 1.35rem;
+}
+.review-thread-head small {
+  color: var(--muted);
+  font-weight: 700;
+}
+.review-thread-head > button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+.review-thread-summary,
+.review-thread-current,
+.review-thread-timeline {
+  display: none !important;
+}
+.review-thread-current-compact {
+  display: grid;
+  gap: 2px;
+  margin: 10px 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #f7faff;
+  min-width: 0;
+}
+.review-thread-current-compact span {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.review-thread-current-compact b {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: .88rem;
+  line-height: 1.35;
+}
+.review-thread-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: min(48vh, 430px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 3px 6px 0;
+  scrollbar-width: thin;
+}
+.review-chat-line {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+.review-chat-line.theirs { justify-content: flex-start; }
+.review-chat-line.mine { justify-content: flex-end; }
+.review-chat-bubble {
+  width: fit-content;
+  max-width: 78%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 14px 4px;
+  background: #f4f8fc;
+  box-shadow: 0 2px 8px #0b244010;
+  overflow-wrap: anywhere;
+}
+.review-chat-line.mine .review-chat-bubble {
+  border-radius: 14px 14px 4px 14px;
+  background: #e9f3ff;
+  border-color: #bfdcff;
+}
+.review-chat-line.unread .review-chat-bubble {
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+.review-chat-line.mine.unread .review-chat-bubble {
+  box-shadow: inset -3px 0 0 #f59e0b;
+}
+.review-chat-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.review-chat-meta b {
+  font-size: .72rem;
+  color: var(--muted);
+}
+.review-chat-meta small {
+  color: var(--muted);
+  font-size: .64rem;
+  white-space: nowrap;
+}
+.review-chat-subject {
+  display: block;
+  margin-bottom: 3px;
+  font-size: .72rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+.review-chat-bubble p {
+  margin: 0;
+  font-size: .84rem;
+  line-height: 1.4;
+  color: var(--ink);
+  white-space: normal;
+}
+.review-thread-modal .thread-review-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.review-thread-modal .thread-review-actions .btn {
+  min-height: 38px;
+}
+@media (max-width: 560px) {
+  dialog:has(.review-thread-modal) {
+    width: calc(100vw - 14px);
+    max-height: 86vh;
+  }
+  .review-thread-modal { padding: 13px; }
+  .review-thread-head h2 { font-size: 1.15rem; }
+  .review-thread-current-compact { margin-top: 8px; }
+  .review-thread-chat { max-height: 52vh; }
+  .review-chat-bubble { max-width: 88%; }
+  .review-chat-meta { gap: 6px; }
+  .review-chat-meta small { font-size: .58rem; }
+  .review-thread-modal .thread-review-actions .btn { flex: 1 1 140px; }
+}

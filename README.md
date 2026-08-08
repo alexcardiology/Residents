@@ -1,15 +1,19 @@
-# Resident Training & Assessment v1.0.62
+# Resident Training & Assessment — v1.0.63
 
-## Review Inbox threading
+Frontend-only update after v1.0.62.
 
-Review-related Inbox notifications are now grouped by the underlying review. The original review alert, resident reconsideration request, and later modified/upheld outcome appear as **one Review conversation** rather than separate Inbox rows.
+## Review Inbox thread redesign
 
-Opening the thread shows a chronological timeline and the current review state. Existing linked messages are backfilled by the SQL migration. The Inbox badge counts unread review conversations as one thread instead of counting every update separately.
+Review conversations now open as a compact chat-style thread instead of a wide report modal.
 
-## Install after v1.0.61
+- Narrow centered modal (maximum ~620 px).
+- Messages are shown as left/right chat bubbles.
+- Each bubble contains sender, time, short event title and message text.
+- The current review is shown only as a compact two-line summary.
+- No large metadata grid and no horizontal scrolling.
+- Review actions remain available at the bottom.
+- Mobile uses the same chat layout with wider bubbles.
 
-1. Run `sql/resident_training_v1.0.62.sql` in Supabase SQL Editor.
-2. Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`.
-3. Hard refresh the site.
+## Installation
 
-No reviews or messages are deleted. This migration only adds/repairs links between existing review notifications and their review topic.
+No SQL migration is required. Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`, then hard-refresh.
