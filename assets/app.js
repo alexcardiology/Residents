@@ -628,6 +628,7 @@ const w = {
   "owner-logbook-center": ownerLogbookCenterPage,
   "owner-intervention-audit": ownerInterventionAuditPage,
   "owner-tools": ownerToolsPage,
+  "owner-test-reset": ownerTestResetPage,
   "write-review": reviewPage,
   password: x,
 };
@@ -1594,9 +1595,65 @@ async function ownerToolsPage() {
   a.innerHTML = h("More owner tools", "Less-used tools live here so the side drawer stays short.") + `<div class="dashboard-grid dashboard-grid-4 hub-grid">
     ${dashboardTile("Observer reviews", "Reviews", "Signed observer comments", "comments")}
     ${dashboardTile("Message cleanup", "Cleanup", "Delete message categories safely", "message-cleanup")}
+    ${dashboardTile("Test-period reset", "RESET", "Clear test reviews and resident learning progress", "owner-test-reset", "warning-tile")}
     ${dashboardTile("My profile", "Profile", "Photo, contact details and password", "profile")}
     ${dashboardTile("Assessment centre", "Open", "Schedule and program progression", "owner-assessment-center")}
   </div>`;
+}
+
+async function ownerTestResetPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "Test-period reset";
+  const preview = u(await e.rpc("owner_test_period_reset_preview_v1058")) || {};
+  const reviewCount = Number(preview.reviews || 0);
+  const knowledgeCount = Number(preview.knowledge_progress || 0);
+  const skillLevelCount = Number(preview.skill_levels || 0);
+  const skillLogCount = Number(preview.skill_logs || 0);
+  a.innerHTML = h(
+    "End test period / start clean",
+    "Owner-only reset controls for removing trial data before residents begin the real program.",
+    '<button class="btn secondary" data-go="owner-tools">Back to More</button>',
+  ) + `
+    <section class="card test-reset-warning">
+      <div><span class="test-reset-warning-icon">!</span></div>
+      <div><h3>These actions are permanent</h3><p>They are intentionally separate from normal administration. Curriculum chapters and item definitions are preserved.</p></div>
+    </section>
+    <div class="test-reset-grid">
+      <section class="card test-reset-card">
+        <div class="test-reset-card-head"><div><span class="eyebrow">Reviews</span><h3>Reset all reviews</h3></div><strong>${reviewCount}</strong></div>
+        <p>Deletes every clinical/behavioural review, review reconsideration state, and review-related Inbox notification created during testing.</p>
+        <ul><li>Does not delete residents or accounts.</li><li>Does not delete assessments.</li><li>Does not delete resident e-logbooks.</li></ul>
+        <button class="btn danger" type="button" data-open-test-reset="reviews">Reset ALL reviews</button>
+      </section>
+      <section class="card test-reset-card">
+        <div class="test-reset-card-head"><div><span class="eyebrow">Knowledge & skills</span><h3>Reset all resident learning progress</h3></div><strong>${knowledgeCount + skillLevelCount + skillLogCount}</strong></div>
+        <div class="test-reset-mini-stats"><span><b>${knowledgeCount}</b> knowledge checks</span><span><b>${skillLevelCount}</b> skill levels</span><span><b>${skillLogCount}</b> skill performances</span></div>
+        <p>Clears resident Knowledge checkmarks, selected Skill levels, and chapter Skill performance logs so every resident starts from zero.</p>
+        <p class="form-note"><b>Preserved:</b> the Knowledge/Skill curriculum itself, assessments, accounts, e-logbook interventions/conferences and schedules.</p>
+        <button class="btn danger" type="button" data-open-test-reset="learning">Reset ALL knowledge & skills progress</button>
+      </section>
+    </div>
+    <section class="card test-reset-all-card">
+      <div><span class="eyebrow rose">Complete trial-data cleanup</span><h3>Reset reviews + knowledge & skills together</h3><p>Use this once when your testing period is finished and you want all users to begin their real training data from a clean review and learning-progress state.</p></div>
+      <button class="btn danger danger-button" type="button" data-open-test-reset="all">RESET BOTH</button>
+    </section>`;
+}
+
+function openOwnerTestResetConfirmation(scope) {
+  if (s.p.role !== "owner") return;
+  const config = {
+    reviews: { title: "Reset ALL reviews", phrase: "RESET REVIEWS", detail: "All review records, reconsideration data and review-related messages will be permanently removed." },
+    learning: { title: "Reset ALL knowledge & skills progress", phrase: "RESET LEARNING", detail: "All resident knowledge progress, skill levels and chapter skill-performance logs will be permanently removed." },
+    all: { title: "Reset reviews + learning progress", phrase: "RESET TEST DATA", detail: "All reviews plus every resident's knowledge/skill progress will be permanently removed." },
+  }[scope];
+  if (!config) return;
+  y(`<form id="ownerTestResetForm" class="modal owner-test-reset-modal">
+    <div class="modal-head"><div><span class="eyebrow rose">Owner-only destructive action</span><h2>${o(config.title)}</h2></div><button type="button" data-close>×</button></div>
+    <div class="danger-confirmation-box"><b>This cannot be undone.</b><p>${o(config.detail)}</p><p>Accounts, curriculum definitions, formal assessments and resident e-logbooks are not part of this reset.</p></div>
+    <label>Type <b>${o(config.phrase)}</b> to confirm<input name="confirmation" autocomplete="off" required placeholder="${o(config.phrase)}"></label>
+    <input type="hidden" name="scope" value="${o(scope)}">
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn danger danger-button">Confirm permanent reset</button></div>
+  </form>`);
 }
 
 function A(e) {
@@ -2395,6 +2452,9 @@ function H() {
     if (a.hasAttribute("data-owner-reset-all")) {
       await resetOwnerLogbooks([], true);
     }
+    if (a.dataset.openTestReset) {
+      openOwnerTestResetConfirmation(a.dataset.openTestReset);
+    }
     var r, d;
     if (
       (a.dataset.log &&
@@ -3068,6 +3128,20 @@ function H() {
         b(`${count} message${count === 1 ? "" : "s"} deleted. Resident logbooks were not changed.`);
         await q();
         return void (await ownerMessageCleanupPage());
+      }
+      if ("ownerTestResetForm" === a.id) {
+        const scope = String(r.get("scope") || "");
+        const confirmation = String(r.get("confirmation") || "");
+        const result = u(await e.rpc("owner_reset_test_period_v1058", {
+          p_scope: scope,
+          p_confirmation: confirmation,
+        })) || {};
+        i.close();
+        await q();
+        const removedReviews = Number(result.reviews_deleted || 0);
+        const removedLearning = Number(result.learning_rows_deleted || 0);
+        b(`Reset complete · ${removedReviews} review${removedReviews === 1 ? "" : "s"} · ${removedLearning} learning-progress row${removedLearning === 1 ? "" : "s"}`);
+        return void (await ownerTestResetPage());
       }
       if ("messageForm" === a.id) {
         if (s.p.role === "owner") {
