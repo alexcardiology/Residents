@@ -2708,7 +2708,7 @@ input[type="radio"] {
 }
 
 /* =========================================================
-   Chapter skills matrix, curriculum export and review merge — v1.0.42
+   Chapter skills matrix, curriculum export and review merge — v1.0.43
 ========================================================= */
 .compact-section-head { align-items: center; }
 .compact-section-head h3 { margin: 0 0 3px; }
@@ -2861,4 +2861,51 @@ input[type="radio"] {
   .chapter-knowledge-card .section-actions { width: 100%; }
   .chapter-knowledge-card .section-actions .btn { flex: 1; }
   .curriculum-export-list { grid-template-columns: 1fr; }
+}
+
+
+/* Review message readability + resilient reviews loading — v1.0.43 */
+.reconsideration-message-summary {
+  margin: 22px 0;
+  overflow: hidden;
+  border: 1px solid #d9e4ef;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+.reconsideration-summary-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0,1fr);
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5edf5;
+}
+.reconsideration-summary-row span,
+.reconsideration-summary-reason > span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.reconsideration-summary-reason { padding: 17px 18px 19px; }
+.reconsideration-summary-reason p {
+  margin: 8px 0 0;
+  padding: 14px 16px;
+  border-left: 4px solid var(--amber);
+  border-radius: 10px;
+  background: #fff8e9;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.review-reconsideration-decision > p { margin-bottom: 14px; }
+.review-load-error { max-width: 720px; margin-inline: auto; text-align: center; }
+.review-load-error h3 { margin-top: 0; }
+.review-load-error p { color: var(--muted); }
+@media (max-width: 620px) {
+  .reconsideration-summary-row { grid-template-columns: 1fr; gap: 4px; padding: 12px 14px; }
+  .reconsideration-summary-reason { padding: 14px; }
+  .reconsideration-summary-reason p { font-size: .94rem; }
 }
