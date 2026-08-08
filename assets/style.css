@@ -3252,3 +3252,174 @@ input[type="radio"] {
   .embedded-reconsideration-actions { min-width: 0; }
   .embedded-reconsideration-actions .btn { flex: 1; }
 }
+
+/* v1.0.48 — clearer reconsideration editing + cleaner embedded logbook decision */
+dialog:has(.review-edit-reconsideration-modal) {
+  width: min(94vw, 820px);
+}
+.review-edit-reconsideration-modal {
+  display: grid;
+  gap: 18px;
+}
+.review-edit-reconsideration-modal .modal-head { margin-bottom: 0; }
+.review-request-callout {
+  padding: 14px 16px;
+  border: 1px solid #cfe0f2;
+  border-radius: 14px;
+  background: #f6faff;
+}
+.review-request-callout > span,
+.review-original-comment > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.review-request-callout p,
+.review-original-comment p {
+  margin: 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.review-updated-comment { gap: 8px; }
+.review-updated-comment textarea {
+  min-height: 132px;
+  padding: 14px;
+}
+.review-original-comment {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid #94a3b8;
+  border-radius: 13px;
+  background: #f8fafc;
+}
+.review-original-comment p {
+  color: #31445a;
+  font-weight: 650;
+}
+
+/* pending logbook reconsideration: full-width context header + balanced two-column body */
+.message-row.has-embedded-reconsideration > .embedded-reconsideration {
+  flex: 0 0 calc(100% - 24px);
+  margin: 0 12px 12px;
+}
+.embedded-reconsideration.pending {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #dbe6f1;
+  border-left: 5px solid #f59e0b;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(8,28,53,.045);
+}
+.embedded-reconsideration-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e8eef5;
+  background: #fffaf0;
+}
+.embedded-reconsideration-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.embedded-reconsideration-head b {
+  font-size: 1.04rem;
+  line-height: 1.25;
+}
+.embedded-reconsideration-head small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+.embedded-reconsideration-head .embedded-original-decision {
+  flex: 0 0 auto;
+  margin: 0;
+  white-space: nowrap;
+}
+.embedded-reconsideration-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(330px, .75fr);
+  gap: 16px;
+  padding: 16px;
+  align-items: stretch;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-reason {
+  min-height: 126px;
+  justify-content: flex-start;
+  padding: 16px;
+  border: 1px solid #f0d7a6;
+  border-radius: 14px;
+  background: #fffaf2;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-reason > span {
+  color: #8b650e;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-reason p {
+  margin-top: 5px;
+  color: #17263a;
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.55;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-decisionbox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-note {
+  display: grid;
+  gap: 5px;
+  font-size: .78rem;
+  font-weight: 850;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-note > span {
+  color: var(--ink);
+}
+.embedded-reconsideration.pending .embedded-reconsideration-note small {
+  color: var(--rose);
+  font-size: .68rem;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-note textarea {
+  min-height: 82px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #fff;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 9px;
+  min-width: 0;
+  margin-top: auto;
+}
+.embedded-reconsideration.pending .embedded-reconsideration-actions .btn {
+  width: 100%;
+  min-height: 44px;
+}
+
+@media (max-width: 920px) {
+  .embedded-reconsideration-body {
+    grid-template-columns: 1fr;
+  }
+  .embedded-reconsideration.pending .embedded-reconsideration-reason { min-height: 0; }
+}
+@media (max-width: 620px) {
+  .review-edit-reconsideration-modal { gap: 14px; }
+  .review-updated-comment textarea { min-height: 110px; }
+  .embedded-reconsideration-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+    padding: 12px;
+  }
+  .embedded-reconsideration-body { padding: 12px; gap: 12px; }
+  .embedded-reconsideration-head .embedded-original-decision { white-space: normal; }
+}
