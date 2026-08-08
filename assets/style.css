@@ -3873,7 +3873,7 @@ dialog:has(.review-edit-reconsideration-modal) {
   .review-message-actions .btn { flex: 1 1 150px; }
 }
 
-/* v1.0.52 — compact review/logbook history tables + reconsideration visuals */
+/* v1.0.53 — compact review/logbook history tables + reconsideration visuals */
 .after-reconsideration-badge,
 .after-reconsideration-lamp {
   display: inline-grid;
@@ -4004,3 +4004,68 @@ dialog:has(.review-edit-reconsideration-modal) {
   .logbook-history-filters input:first-child { grid-column: auto; }
 }
 .review-domain-behavioural { color: #6d28d9; background: #f1eafe; }
+
+/* v1.0.53 — paired reconsideration icon + password visibility eye */
+.decision-icon-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.decision-icon-pair .decision-icon,
+.decision-icon-pair .after-reconsideration-badge {
+  margin: 0;
+}
+.decision-icon-pair .after-reconsideration-badge {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+  font-size: 13px;
+}
+.reconsideration-approved-title .decision-icon-pair {
+  align-self: center;
+}
+
+.password-input-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.password-input-wrap > input {
+  width: 100%;
+  padding-right: 50px !important;
+}
+form .password-eye-button,
+.password-eye-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: var(--navy);
+  background: transparent;
+  box-shadow: none;
+  z-index: 2;
+}
+.password-eye-button:hover,
+.password-eye-button:focus-visible {
+  color: var(--blue);
+  background: #eaf2fb;
+}
+.password-eye-button:focus-visible {
+  outline: 2px solid #1670d255;
+  outline-offset: 1px;
+}
+.password-eye-button svg {
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
