@@ -3872,3 +3872,135 @@ dialog:has(.review-edit-reconsideration-modal) {
   .review-message-actions { width: 100%; padding: 0 12px 12px 42px; }
   .review-message-actions .btn { flex: 1 1 150px; }
 }
+
+/* v1.0.52 — compact review/logbook history tables + reconsideration visuals */
+.after-reconsideration-badge,
+.after-reconsideration-lamp {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 50%;
+  background: #fff7d6;
+  color: #9a6700;
+  font-size: 15px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.reconsideration-approved-title {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.reconsidered-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.review-table-card,
+.logbook-history-table-card {
+  min-width: 0;
+  padding: 20px;
+}
+.review-table-card .panel-heading,
+.logbook-history-table-card .panel-heading {
+  margin-bottom: 14px;
+}
+.review-table-card .panel-heading p,
+.logbook-history-table-card .panel-heading p {
+  margin: 4px 0 0;
+}
+.review-table-filters,
+.logbook-history-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(145px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.logbook-history-filters {
+  grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(145px, 1fr));
+}
+.review-table-filters input,
+.review-table-filters select,
+.logbook-history-filters input,
+.logbook-history-filters select {
+  min-width: 0;
+}
+.review-data-table,
+.logbook-history-table {
+  width: 100%;
+  min-width: 1180px;
+}
+.logbook-history-table { min-width: 1180px; }
+.review-data-table th,
+.review-data-table td,
+.logbook-history-table th,
+.logbook-history-table td {
+  padding: 11px 10px;
+}
+.review-data-table td,
+.logbook-history-table td {
+  vertical-align: middle;
+}
+.review-data-table small,
+.logbook-history-table small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.review-table-comment {
+  min-width: 240px;
+  max-width: 420px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.review-table-tone {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.review-table-tone.positive { color: #0f7a50; }
+.review-table-tone.negative { color: #b32941; }
+.review-request-preview {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-data-table .table-row-actions,
+.logbook-history-table .table-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 130px;
+}
+.logbook-history-table td[data-label="Status"] {
+  white-space: nowrap;
+}
+.logbook-history-table td[data-label="Status"] .after-reconsideration-lamp {
+  margin-left: 6px;
+}
+@media (max-width: 1180px) {
+  .review-table-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .logbook-history-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .review-table-card,
+  .logbook-history-table-card { padding: 13px; }
+  .review-table-filters,
+  .logbook-history-filters { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .review-table-filters input:first-child,
+  .logbook-history-filters input:first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .review-table-filters,
+  .logbook-history-filters { grid-template-columns: 1fr; }
+  .review-table-filters input:first-child,
+  .logbook-history-filters input:first-child { grid-column: auto; }
+}
+.review-domain-behavioural { color: #6d28d9; background: #f1eafe; }
