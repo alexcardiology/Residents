@@ -2451,3 +2451,258 @@ dialog:has(.ai-guideline-modal) {
   font-weight: 800;
   text-transform: uppercase;
 }
+
+/* =========================================================
+   Resident dashboard evidence split + full residency colours — v1.0.39
+========================================================= */
+.dashboard-tile.year-tile {
+  border: 0;
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(8, 28, 53, .16);
+}
+.dashboard-tile.year-tile.year-1 { background: linear-gradient(145deg, #6d28d9, #7c3aed); }
+.dashboard-tile.year-tile.year-2 { background: linear-gradient(145deg, #166534, #16a34a); }
+.dashboard-tile.year-tile.year-3 { background: linear-gradient(145deg, #081c35, #173b78); }
+.dashboard-tile.year-tile.year-4 { background: linear-gradient(145deg, #92400e, #d97706); }
+.dashboard-tile.year-tile.year-5 { background: linear-gradient(145deg, #9f1239, #be123c); }
+.dashboard-tile.year-tile > span,
+.dashboard-tile.year-tile > strong,
+.dashboard-tile.year-tile > small {
+  color: #fff;
+}
+.dashboard-tile.year-tile > span,
+.dashboard-tile.year-tile > small { opacity: .86; }
+.dashboard-tile.year-tile .year-chip {
+  width: max-content;
+  color: #fff;
+  background: rgba(255, 255, 255, .16);
+  border-color: rgba(255, 255, 255, .42);
+  box-shadow: none;
+}
+.dashboard-tile.year-tile:hover {
+  border-color: transparent;
+  box-shadow: 0 15px 32px rgba(8, 28, 53, .22);
+}
+
+.evidence-dashboard-tile {
+  align-content: stretch;
+}
+.evidence-dashboard-tile > span {
+  align-self: start;
+}
+.evidence-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  margin: 1px 0;
+  border: 1px solid #e5edf5;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #f8fbfe;
+}
+.evidence-split > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 11px 12px;
+}
+.evidence-split > div + div {
+  border-left: 1px solid #dce6f0;
+}
+.evidence-split b {
+  color: var(--navy);
+  font-size: 1.55rem;
+  line-height: 1;
+}
+.evidence-split small {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+@media (max-width: 600px) {
+  .evidence-split > div { padding: 9px 8px; }
+  .evidence-split b { font-size: 1.2rem; }
+  .evidence-split small { font-size: .61rem; }
+}
+
+/* =========================================================
+   Curriculum + reviews + compact check lines — v1.0.40
+========================================================= */
+
+/* Visible checkboxes/radios stay immediately to the left of their text. */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+}
+.check-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  line-height: 1.35;
+}
+.check-line input { margin-top: 1px; }
+.knowledge-progress-item { display: block; }
+.knowledge-progress-item > p { margin: 7px 0 0 27px; }
+.reason-check { margin: 6px 0; font-weight: 650; }
+.check-row,
+.cleanup-users label,
+.chapter-selector label,
+.owner-logbook-resident {
+  align-items: flex-start;
+}
+.check-row > input[type="checkbox"],
+.cleanup-users label > input[type="checkbox"],
+.chapter-selector label > input[type="checkbox"],
+.owner-logbook-resident > input[type="checkbox"] {
+  margin-top: 1px;
+}
+
+/* Current vs past curriculum for senior residents. */
+.chapter-group { display: grid; gap: 12px; }
+.chapter-group + .chapter-group { margin-top: 26px; }
+.chapter-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.chapter-group-head h2 { margin: 3px 0 0; font-size: 1.35rem; }
+.chapter-group-head > small { color: var(--muted); font-weight: 700; }
+.past-chapter-group {
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.past-chapters .chapter { background: #fbfcfe; }
+.past-chapters .chapter p { color: #77879a; }
+
+/* Owner curriculum destructive controls. */
+.admin-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+.admin-item-actions .btn { min-width: 70px; }
+.lead-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+/* Review author / sentiment selection cards. */
+.review-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.review-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 72px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+.review-choice input { margin: 0; }
+.review-choice > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.review-choice small { color: var(--muted); font-size: .72rem; font-weight: 600; line-height: 1.35; }
+.review-choice-icon { font-size: 1.5rem; line-height: 1; }
+.review-choice:has(input:checked) {
+  border-color: #6faee9;
+  background: #f1f8ff;
+  box-shadow: 0 0 0 2px rgba(22,112,210,.08);
+}
+.review-choice.positive:has(input:checked) { border-color: #86d5b4; background: #effaf5; }
+.review-choice.negative:has(input:checked) { border-color: #f0a6b1; background: #fff5f6; }
+
+.review-cards { display: grid; gap: 12px; }
+.review-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 20px;
+}
+.review-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: #16a34a;
+}
+.review-card.negative-review::before { background: #dc2626; }
+.review-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.review-card-head h3 { margin: 7px 0 0; }
+.review-sentiment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .76rem;
+  font-weight: 850;
+}
+.review-sentiment.positive { color: #0f6d49; }
+.review-sentiment.negative { color: #a9293f; }
+.review-comment { margin: 15px 0 10px; line-height: 1.6; font-size: .94rem; }
+.review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 7px 14px;
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 650;
+}
+.owner-identity-note {
+  display: block;
+  margin-top: 9px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  color: #744210;
+  background: #fff7df;
+  font-weight: 750;
+}
+.review-workflow {
+  display: grid;
+  gap: 6px;
+  margin-top: 13px;
+  padding: 11px 12px;
+  border: 1px solid #dce5ef;
+  border-radius: 11px;
+  background: #f7f9fc;
+}
+.review-workflow p { margin: 0; line-height: 1.45; }
+.review-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+.participation-options { grid-template-columns: repeat(2, minmax(0,1fr)); }
+
+@media (max-width: 720px) {
+  .chapter-group-head { align-items: flex-start; }
+  .chapter-group-head h2 { font-size: 1.15rem; }
+  .admin-item-actions { width: 100%; }
+  .admin-item-actions .btn { flex: 1; }
+  .review-choice-grid { grid-template-columns: 1fr; }
+  .review-choice { min-height: 60px; padding: 10px 11px; }
+  .review-card { padding: 14px 14px 14px 17px; }
+  .review-card-head h3 { font-size: 1rem; }
+  .review-actions .btn { flex: 1 1 150px; }
+  .participation-options { grid-template-columns: 1fr; }
+  .knowledge-progress-item > p { margin-left: 27px; }
+}
