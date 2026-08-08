@@ -114,7 +114,6 @@ const s = {
       ["residents", "Assigned residents"],
       ["write-review", "Reviews"],
       ["assessments", "Assessments"],
-      ["comments", "Observer comments"],
       ["logbook", "Resident logbooks"],
       ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
@@ -372,6 +371,7 @@ const w = {
   profile: x,
   reviews: async function () {
     if (!["observer", "assessor", "resident"].includes(s.p.role)) return g("dashboard");
+    if (s.p.role === "assessor") return g("write-review");
     t("#title").textContent = "My reviews";
     const reviewResult = await reviewRpcResult(s.p.role === "resident" ? s.p.id : null);
     if (reviewResult.error) {
@@ -463,7 +463,8 @@ const w = {
       ` <div class="grid g3 top-gap"> ${_("Knowledge complete", c.data?.length || 0, "topics")} ${_("Skill logs", d.data?.length || 0, "performances")} ${_("Previous assessments", u.data?.length || 0, "records")} </div> <div class="top-gap">${renderCommentsTable(n.data || [])}</div> <div class="grid top-gap">${u.data?.map(A).join("") || v("No previous assessments.")}</div>`;
   },
   comments: async function () {
-    if (!["owner", "assessor"].includes(s.p.role)) return g("dashboard");
+    if (s.p.role === "assessor") return g("write-review");
+    if (s.p.role !== "owner") return g("dashboard");
     const rows = u(await reviewRpcResult(null)) || [];
     window.observerReviewRows = new Map(rows.map((row) => [String(row.id), row]));
     a.innerHTML =
@@ -631,24 +632,69 @@ const w = {
 async function reviewPage() {
   if (!["observer", "assessor"].includes(s.p.role)) return g("dashboard");
   t("#title").textContent = s.p.role === "assessor" ? "Reviews" : "Write a review";
-  let historyHtml = "";
-  if (s.p.role === "assessor") {
-    const visible = u(await reviewRpcResult(null)) || [];
-    const mine = visible.filter((row) => String(row.observer_id) === String(s.p.id));
-    historyHtml = `<section class="top-gap reviewer-history-section"><div class="lead compact-lead"><div><h2>My previous reviews</h2><p>Your old reviews and any reconsideration requests stay in this same tab.</p></div></div>${renderCommentsTable(mine, "author")}</section>`;
+
+  if (s.p.role === "observer") {
+    a.innerHTML =
+      h(
+        "Record a clinical observation",
+        "Choose any resident, then choose positive or developmental feedback and whether your identity is shown.",
+      ) +
+      `<section class="card"><div class="form-grid">
+        <label>Search resident<input id="findResident" placeholder="Name or username"></label>
+        <label>Residency year<select id="findYear"><option value="">All years</option>${n.map((year) => `<option>${year}</option>`).join("")}</select></label>
+      </div><div id="results" class="top-gap">${v("Loading residents…")}</div></section>`;
+    await R();
+    return;
   }
+
+  const reviewResult = await reviewRpcResult(null);
+  if (reviewResult.error) {
+    a.innerHTML = h("Reviews", "Submit and navigate clinical reviews from one workspace.") +
+      `<section class="card review-load-error"><h3>Reviews could not load</h3><p>${o(reviewResult.error.message || "Temporary connection problem")}</p><button class="btn" data-retry-reviews>Try again</button></section>`;
+    return;
+  }
+
+  const visible = reviewResult.data || [];
+  const mine = visible.filter((row) => row.is_mine === true || String(row.observer_id || "") === String(s.p.id));
+  const others = visible.filter((row) => !(row.is_mine === true || String(row.observer_id || "") === String(s.p.id)));
+  const mineHtml = renderCommentsTable(mine, "author");
+  const othersHtml = renderCommentsTable(others, "assessor");
+  window.observerReviewRows = new Map(visible.map((row) => [String(row.id), row]));
+
   a.innerHTML =
     h(
-      "Record a clinical observation",
-      "Choose any resident, then choose positive or developmental feedback and whether your identity is shown.",
+      "Reviews",
+      "Submit a review, revisit your previous reviews, or browse reviews written by others about residents assigned to you.",
     ) +
-    `
-    <section class="card"><div class="form-grid">
-      <label>Search resident<input id="findResident" placeholder="Name or username"></label>
-      <label>Residency year<select id="findYear"><option value="">All years</option>${n.map((year) => `<option>${year}</option>`).join("")}</select></label>
-    </div><div id="results" class="top-gap">${v("Loading residents…")}</div></section>${historyHtml}`;
+    `<section class="card review-workspace">
+      <div class="review-workspace-tabs" role="tablist" aria-label="Review workspace">
+        <button type="button" class="review-workspace-tab active" data-review-section="submit"><span>Submit a review</span><small>Write new</small></button>
+        <button type="button" class="review-workspace-tab" data-review-section="mine"><span>My previous reviews</span><small>${mine.length}</small></button>
+        <button type="button" class="review-workspace-tab" data-review-section="assigned"><span>Others' reviews on assigned residents</span><small>${others.length}</small></button>
+      </div>
+
+      <div class="review-workspace-panel" data-review-panel="submit">
+        <div class="review-section-heading"><div><span class="eyebrow">Submit a review</span><h2>Record a clinical observation</h2><p>Choose a resident, then write positive or developmental feedback. You may publish it with your name or anonymously.</p></div></div>
+        <div class="form-grid compact-form-grid">
+          <label>Search resident<input id="findResident" placeholder="Name or username"></label>
+          <label>Residency year<select id="findYear"><option value="">All years</option>${n.map((year) => `<option>${year}</option>`).join("")}</select></label>
+        </div>
+        <div id="results" class="top-gap">${v("Loading residents…")}</div>
+      </div>
+
+      <div class="review-workspace-panel" data-review-panel="mine" hidden>
+        <div class="review-section-heading"><div><span class="eyebrow">My previous reviews</span><h2>Reviews written by you</h2><p>Your prior reviews and any reconsideration requests are kept here.</p></div><span class="tag">${mine.length}</span></div>
+        ${mineHtml}
+      </div>
+
+      <div class="review-workspace-panel" data-review-panel="assigned" hidden>
+        <div class="review-section-heading"><div><span class="eyebrow">Assigned residents</span><h2>Reviews written by others</h2><p>Only reviews about residents within your assigned cohorts are shown. Anonymous reviewer identity remains hidden.</p></div><span class="tag">${others.length}</span></div>
+        ${othersHtml}
+      </div>
+    </section>`;
   await R();
 }
+
 
 
 
@@ -1267,7 +1313,7 @@ async function k() {
         ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "residents")}
         ${dashboardTile("Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", "assessments", nextAssessment ? "accent-tile" : "")}
         ${dashboardTile("Assessments done", String(assessmentsResult.count || 0), "Your submitted assessments", "assessments")}
-        ${dashboardTile("Observer comments", String((commentsResult.data || []).length), "For assigned residents", "comments")}
+        ${dashboardTile("Reviews", String((commentsResult.data || []).length), "Mine + assigned residents", "write-review")}
         ${dashboardTile("Logbook requests", String(pendingApprovals), pendingApprovals ? "Waiting for your decision" : "Nothing waiting", "logbook", pendingApprovals ? "warning-tile" : "")}
         ${dashboardTile("Write a review", "＋", "Positive/negative · named or anonymous", "write-review", "accent-tile")}
       </div>`;
@@ -1946,6 +1992,13 @@ function H() {
         b(`Chapter reset: ${result?.knowledge || 0} knowledge and ${result?.skills || 0} skills hidden`);
         await w.curriculum(String(a.dataset.resetChapterCurriculum));
       }
+    }
+    if (a.dataset.reviewSection) {
+      const section = a.dataset.reviewSection;
+      document.querySelectorAll("[data-review-section]").forEach((tab) => tab.classList.toggle("active", tab.dataset.reviewSection === section));
+      document.querySelectorAll("[data-review-panel]").forEach((panel) => {
+        panel.hidden = panel.dataset.reviewPanel !== section;
+      });
     }
     if (a.dataset.reviewReconsider) {
       const row = window.observerReviewRows?.get(String(a.dataset.reviewReconsider));
