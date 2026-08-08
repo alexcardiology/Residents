@@ -68,6 +68,7 @@ const s = {
       ["dashboard", "Dashboard"],
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
+      ["reviews", "My reviews"],
       ["logbook", "My logbook"],
       ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
@@ -86,6 +87,7 @@ const s = {
       ["dashboard", "Dashboard"],
       ["residents", "Assigned residents"],
       ["write-review", "Write a review"],
+      ["reviews", "My reviews"],
       ["assessments", "Assessments"],
       ["comments", "Observer comments"],
       ["logbook", "Resident logbooks"],
@@ -120,6 +122,8 @@ const s = {
     `<span class="year-chip ${yearClass(year)}">${o(label || `Year ${year}`)}</span>`,
   dashboardTile = (title, valueHtml, meta, go, extraClass = "") =>
     `<button type="button" class="dashboard-tile ${extraClass}" ${go ? `data-go="${o(go)}"` : ""}><span>${o(title)}</span><strong>${valueHtml}</strong><small>${o(meta || "")}</small></button>`,
+  evidenceDashboardTile = (knowledgeCount, skillCount) =>
+    `<button type="button" class="dashboard-tile evidence-dashboard-tile" data-go="chapters"><span>Knowledge & skills</span><div class="evidence-split"><div><b>${o(knowledgeCount)}</b><small>Knowledge complete</small></div><div><b>${o(skillCount)}</b><small>Skills tracked</small></div></div><small>Open curriculum and update your progress</small></button>`,
   weakPointSummary = (assessment) => {
     if (!assessment) return "No formal assessment yet";
     const weak = [];
@@ -128,6 +132,14 @@ const s = {
     Number(assessment.attitude_score) < 8 && weak.push(`Attitude ${assessment.attitude_score}/10`);
     return weak.length ? `Focus: ${weak.join(" · ")}` : assessment.overall_pass ? "Passed" : "Review assessor feedback";
   },
+  participationLabel = (value) =>
+    ({
+      attended: "Attended",
+      assisted: "Performed with assistance",
+      solo_guided: "Performed solo under guidance",
+      solo_unguided: "Performed solo without guidance",
+      solo: "Performed solo without guidance",
+    })[value] || String(value || "—"),
   b = (e) => {
     const s = t("#toast");
     ((s.textContent = e),
@@ -205,12 +217,18 @@ const w = {
       .eq("is_active", !0)
       .order("year_from")
       .order("sort_order");
+    const currentYear = Number(s.p.residency_year);
+    const accessible = i || [];
+    const current = accessible.filter((chapter) => Number(chapter.year_from) <= currentYear && Number(chapter.year_to || chapter.year_from) >= currentYear);
+    const past = accessible.filter((chapter) => Number(chapter.year_to || chapter.year_from) < currentYear);
+    const chapterCards = (rows) => rows.map((chapter) => ` <article class="card chapter" data-chapter="${chapter.id}"> ${yearChip(chapter.year_from, "Year " + chapter.year_from + (chapter.year_to > chapter.year_from ? "–" + chapter.year_to : ""))} <h3>${o(chapter.title)}</h3> <p>${o(chapter.description)}</p> </article>`).join("");
     a.innerHTML =
       h(
         "Your cardiology curriculum",
-        "Access is cumulative: current and preceding years remain open.",
+        "Your current-year chapters are kept at the top. Earlier curriculum remains available below for revision.",
       ) +
-      `<div class="chapters">${(i || []).map((e) => ` <article class="card chapter" data-chapter="${e.id}"> ${yearChip(e.year_from, "Year " + e.year_from + (e.year_to > e.year_from ? "–" + e.year_to : ""))} <h3>${o(e.title)}</h3> <p>${o(e.description)}</p> </article>`).join("")}</div>`;
+      `<section class="chapter-group current-chapter-group"><div class="chapter-group-head"><div><span class="eyebrow">Current active curriculum</span><h2>Year ${currentYear} chapters</h2></div>${yearChip(currentYear)}</div><div class="chapters">${chapterCards(current) || v("No active chapters are assigned to your current year.")}</div></section>` +
+      (past.length ? `<section class="chapter-group past-chapter-group top-gap"><div class="chapter-group-head"><div><span class="eyebrow">Previous curriculum</span><h2>Past chapters</h2></div><small>Still available for revision</small></div><div class="chapters past-chapters">${chapterCards(past)}</div></section>` : "");
   },
   chapter: async function (i) {
     const r = await Promise.all([
@@ -241,7 +259,7 @@ const w = {
         d.description,
         '<button class="btn secondary" data-go="chapters">All chapters</button>',
       ) +
-      ` <section class="card"> <h3>Five levels of independence</h3> <div class="scale"> ${["1 Observer", "2 Direct supervision", "3 Limited supervision", "4 Independent", "5 Expert / supervisor"].map((e) => `<div>${e}</div>`).join("")} </div> </section> <div class="grid g2 top-gap"> <section class="card"> <h3>Knowledge</h3> <div class="items">${l.map((e) => ` <label class="item"> <input class="auto-width" type="checkbox" data-k="${e.id}" ${"completed" === _.get(e.id) ? "checked" : ""}> <b>${o(e.title)}</b> <p>${o(e.description)}</p> </label>`).join("")}</div> </section> <section class="card"> <h3>Skills and logbook</h3> <div class="items">${c.map((e) => ` <article class="item"> <h4>${o(e.title)} <span class="tag">${v?.filter((s) => s.skill_id === e.id).length || 0} logs</span></h4> <p>${o(e.description)}</p> <div class="inline-actions"> <select data-level="${e.id}"> <option value="">Level</option> ${n.map((s) => `<option ${b.get(e.id) === s ? "selected" : ""}>${s}</option>`).join("")} </select> <button class="btn" data-log="${e.id}" data-name="${o(e.title)}">Add performance</button> </div> </article>`).join("")}</div> </section> </div>`;
+      ` <section class="card"> <h3>Five levels of independence</h3> <div class="scale"> ${["1 Observer", "2 Direct supervision", "3 Limited supervision", "4 Independent", "5 Expert / supervisor"].map((e) => `<div>${e}</div>`).join("")} </div> </section> <div class="grid g2 top-gap"> <section class="card"> <h3>Knowledge</h3> <div class="items">${l.map((e) => ` <label class="item knowledge-progress-item"><span class="check-line"><input class="auto-width" type="checkbox" data-k="${e.id}" ${"completed" === _.get(e.id) ? "checked" : ""}><b>${o(e.title)}</b></span><p>${o(e.description)}</p> </label>`).join("")}</div> </section> <section class="card"> <h3>Skills and logbook</h3> <div class="items">${c.map((e) => ` <article class="item"> <h4>${o(e.title)} <span class="tag">${v?.filter((s) => s.skill_id === e.id).length || 0} logs</span></h4> <p>${o(e.description)}</p> <div class="inline-actions"> <select data-level="${e.id}"> <option value="">Level</option> ${n.map((s) => `<option ${b.get(e.id) === s ? "selected" : ""}>${s}</option>`).join("")} </select> <button class="btn" data-log="${e.id}" data-name="${o(e.title)}">Add performance</button> </div> </article>`).join("")}</div> </section> </div>`;
   },
   assessments: async function () {
     if ("observer" === s.p.role) return g("dashboard");
@@ -303,14 +321,15 @@ const w = {
   logbook: P,
   profile: x,
   reviews: async function () {
-    if ("observer" !== s.p.role) return g("dashboard");
+    if (!["observer", "assessor", "resident"].includes(s.p.role)) return g("dashboard");
     t("#title").textContent = "My reviews";
-    const { data: i } = await e.rpc("get_my_observer_reviews");
-    a.innerHTML =
-      h(
-        "Comments written by you",
-        "No observer can see another observer’s private history.",
-      ) + renderCommentsTable(i || [], !0);
+    const rows = u(await e.rpc("get_visible_observer_reviews", {
+      p_resident_id: s.p.role === "resident" ? s.p.id : null,
+    })) || [];
+    window.observerReviewRows = new Map(rows.map((row) => [String(row.id), row]));
+    a.innerHTML = s.p.role === "resident"
+      ? h("Clinical reviews about you", "Positive and developmental feedback appears here. You can request reconsideration of any review.") + renderCommentsTable(rows, "resident")
+      : h("Comments written by you", "Your review history. Anonymous reviews remain anonymous to the resident and other assigned assessors, but the Program Owner can identify the author.") + renderCommentsTable(rows, "author");
   },
   residents: async function () {
     if ("assessor" !== s.p.role) return g("dashboard");
@@ -336,7 +355,7 @@ const w = {
     const [i] = t.split("~"),
       [r, n, d, c, u, p] = await Promise.all([
         e.from("profiles").select("*").eq("id", i).single(),
-        e.from("observer_reviews").select("*").eq("resident_id", i),
+        e.rpc("get_visible_observer_reviews", { p_resident_id: i }),
         e.from("skill_logs").select("*").eq("resident_id", i),
         e
           .from("knowledge_progress")
@@ -391,15 +410,15 @@ const w = {
   },
   comments: async function () {
     if (!["owner", "assessor"].includes(s.p.role)) return g("dashboard");
-    const { data: t } = await e
-      .from("observer_reviews")
-      .select("*")
-      .order("observed_on", { ascending: !1 });
+    const rows = u(await e.rpc("get_visible_observer_reviews", { p_resident_id: null })) || [];
+    window.observerReviewRows = new Map(rows.map((row) => [String(row.id), row]));
     a.innerHTML =
       h(
         "Observer comments",
-        "Signed clinical observations in your permitted scope.",
-      ) + renderCommentsTable(t || []);
+        s.p.role === "owner"
+          ? "All clinical reviews, including the real author of anonymous reviews and every reconsideration outcome."
+          : "Clinical reviews for your assigned residents. Anonymous authors remain hidden from assessors.",
+      ) + renderCommentsTable(rows, s.p.role === "owner" ? "owner" : "assessor");
   },
   users: async function () {
     if ("owner" !== s.p.role) return g("dashboard");
@@ -481,12 +500,14 @@ const w = {
         .from("knowledge_items")
         .select("*")
         .eq("chapter_id", i)
+        .eq("is_active", true)
         .order("sort_order")
         .order("id"),
       e
         .from("skills")
         .select("*")
         .eq("chapter_id", i)
+        .eq("is_active", true)
         .order("sort_order")
         .order("id"),
     ]).then((e) => e.map(u));
@@ -494,8 +515,8 @@ const w = {
     a.innerHTML =
       h(
         r.title,
-        "Add, edit, reorder or hide curriculum items without removing resident history.",
-        `<div class="lead-actions"><button class="btn bulk-paste-btn" data-bulk-curriculum>Bulk add any chapter</button><button class="btn ai-btn" data-ai-curriculum="${r.id}">AI from European guideline</button><button class="btn secondary" data-go="curriculum">All chapters</button></div>`,
+        "Add, edit or delete current curriculum items. Items linked to resident evidence are safely archived rather than destroying history.",
+        `<div class="lead-actions"><button class="btn bulk-paste-btn" data-bulk-curriculum>Bulk add any chapter</button><button class="btn ai-btn" data-ai-curriculum="${r.id}">AI from European guideline</button><button class="btn danger" data-reset-chapter-curriculum="${r.id}" data-chapter-title="${o(r.title)}">Reset chapter</button><button class="btn secondary" data-go="curriculum">All chapters</button></div>`,
       ) +
       ` <section class="card ai-guideline-callout"><div><span class="eyebrow">AI curriculum assistant</span><h3>Generate knowledge and skills from a European guideline</h3><p>Upload the guideline PDF. AI creates a reviewable draft only; nothing is added until you select and import the items.</p></div><button class="btn ai-btn" data-ai-curriculum="${r.id}">Generate draft</button></section> <div class="grid g2 curriculum-columns top-gap"> <section class="card"> <div class="section-head"> <div><h3>Knowledge points</h3><p>${n.length} items</p></div><div class="section-actions"><button class="btn secondary" data-bulk-curriculum-kind="knowledge" data-chapter-id="${r.id}">Bulk paste</button><button class="btn" data-curriculum-add="knowledge" data-chapter-id="${r.id}">Add one</button></div> </div> <div class="items">${n.map((e) => L("knowledge", e)).join("") || v("No knowledge points yet.")}</div> </section> <section class="card"> <div class="section-head"> <div><h3>Skills</h3><p>${d.length} items</p></div><div class="section-actions"><button class="btn secondary" data-bulk-curriculum-kind="skill" data-chapter-id="${r.id}">Bulk paste</button><button class="btn" data-curriculum-add="skill" data-chapter-id="${r.id}">Add one</button></div> </div> <div class="items">${d.map((e) => L("skill", e)).join("") || v("No skills yet.")}</div> </section> </div>`;
   },
@@ -559,7 +580,7 @@ async function reviewPage() {
   a.innerHTML =
     h(
       "Record a clinical observation",
-      "Choose any resident, then write a signed knowledge, skill or attitude comment.",
+      "Choose any resident, then choose positive or developmental feedback and whether your identity is shown.",
     ) +
     `
     <section class="card"><div class="form-grid">
@@ -1030,10 +1051,11 @@ async function k() {
   t("#crumb").textContent = m(i.role);
 
   if ("resident" === i.role) {
-    const [chaptersResult, logsResult, knowledgeResult, assessmentsResult, scheduleResult] = await Promise.all([
+    const [chaptersResult, logsResult, knowledgeResult, skillLevelsResult, assessmentsResult, scheduleResult] = await Promise.all([
       e.from("chapters").select("id,title").lte("year_from", i.residency_year).eq("is_active", !0),
       e.from("skill_logs").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id),
       e.from("knowledge_progress").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id).eq("status", "completed"),
+      e.from("skill_levels").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id),
       e.from("assessments").select("*").eq("resident_id", i.id).order("assessment_date", { ascending: !1 }).limit(1),
       e.from("assessment_schedules").select("id,title,starts_at,ends_at,location,assessment_type").eq("is_active", !0).eq("residency_year", i.residency_year).gte("ends_at", new Date().toISOString()).order("starts_at").limit(1),
     ]);
@@ -1047,7 +1069,7 @@ async function k() {
       `<div class="dashboard-grid dashboard-grid-6">
         ${dashboardTile("Current residency", yearChip(i.residency_year), i.progression_status === "reassessment_required" ? `Reassessment due ${d(i.reassessment_due)}` : "Current training cohort", "chapters", `year-tile ${yearClass(i.residency_year)}`)}
         ${dashboardTile("My chapters", String(chaptersResult.data?.length || 0), "Cumulative curriculum access", "chapters")}
-        ${dashboardTile("Knowledge complete", String(knowledgeResult.count || 0), "Self-recorded topics", "chapters")}
+        ${evidenceDashboardTile(String(knowledgeResult.count || 0), String(skillLevelsResult.count || 0))}
         ${dashboardTile("Logbook activity", String(logsResult.count || 0), "Supervised performances", "logbook")}
         ${dashboardTile("Next assessment", upcoming ? o(d(upcoming.starts_at)) : "—", upcoming ? upcoming.title : "No upcoming window", "assessments", upcoming ? "accent-tile" : "")}
         ${dashboardTile("Latest outcome", latest ? `${o(latest.total_score)}/30` : "—", resultMeta, "assessments", i.progression_status === "reassessment_required" ? "warning-tile" : latest?.overall_pass ? "success-tile" : "")}
@@ -1057,7 +1079,7 @@ async function k() {
 
   if ("observer" === i.role) {
     const [reviewsResult, logbookResult, inboxResult] = await Promise.all([
-      e.rpc("get_my_observer_reviews"),
+      e.rpc("get_visible_observer_reviews", { p_resident_id: null }),
       e.rpc("get_logbook_messages", { p_view: "received" }),
       e.rpc("get_private_messages", { p_box: "inbox" }),
     ]);
@@ -1069,8 +1091,8 @@ async function k() {
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Four quick areas for observations, approvals and communication.") +
       `<div class="dashboard-grid dashboard-grid-4">
-        ${dashboardTile("Write a review", "＋", "Add a signed clinical observation", "write-review", "accent-tile")}
-        ${dashboardTile("My reviews", String(reviews.length), "Previous signed observations", "reviews")}
+        ${dashboardTile("Write a review", "＋", "Positive/negative · named or anonymous", "write-review", "accent-tile")}
+        ${dashboardTile("My reviews", String(reviews.length), "Your previous clinical reviews", "reviews")}
         ${dashboardTile("Logbook approvals", String(pendingApprovals), pendingApprovals ? "Waiting for your decision" : "Nothing waiting", "logbook", pendingApprovals ? "warning-tile" : "")}
         ${dashboardTile("Inbox", String(unread), unread ? "Unread messages" : "No unread messages", "inbox")}
       </div>`;
@@ -1083,7 +1105,7 @@ async function k() {
     const [scheduleResult, assessmentsResult, commentsResult, logbookResult] = await Promise.all([
       e.rpc("my_assessor_schedule"),
       e.from("assessments").select("resident_id", { head: !0, count: "exact" }).eq("assessor_id", i.id),
-      residentIds.length ? e.from("observer_reviews").select("id", { head: !0, count: "exact" }).in("resident_id", residentIds) : Promise.resolve({ count: 0 }),
+      e.rpc("get_visible_observer_reviews", { p_resident_id: null }),
       e.rpc("get_logbook_messages", { p_view: "received" }),
     ]);
     const nextAssessment = (scheduleResult.data || []).filter((item) => item.schedule_status !== "finished").sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at))[0];
@@ -1094,9 +1116,9 @@ async function k() {
         ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "residents")}
         ${dashboardTile("Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", "assessments", nextAssessment ? "accent-tile" : "")}
         ${dashboardTile("Assessments done", String(assessmentsResult.count || 0), "Your submitted assessments", "assessments")}
-        ${dashboardTile("Observer comments", String(commentsResult.count || 0), "For assigned residents", "comments")}
+        ${dashboardTile("Observer comments", String((commentsResult.data || []).length), "For assigned residents", "comments")}
         ${dashboardTile("Logbook requests", String(pendingApprovals), pendingApprovals ? "Waiting for your decision" : "Nothing waiting", "logbook", pendingApprovals ? "warning-tile" : "")}
-        ${dashboardTile("Write a review", "＋", "Signed knowledge, skill or attitude note", "write-review", "accent-tile")}
+        ${dashboardTile("Write a review", "＋", "Positive/negative · named or anonymous", "write-review", "accent-tile")}
       </div>`;
     return;
   }
@@ -1189,8 +1211,34 @@ async function ownerToolsPage() {
 function A(e) {
   return ` <article class="card"> <div class="lead"> <div> <h2>Year ${e.assessed_year} ${o(e.assessment_type)}</h2> <p>${d(e.assessment_date)} · Assessor: ${o(e.assessor_signature)}</p> </div> <span class="tag ${e.overall_pass ? "success" : "danger"}">${e.overall_pass ? "Passed" : "Failed"}</span> </div> <div class="score"> <div><b>${e.knowledge_score}/10</b><small>Knowledge</small></div> <div><b>${e.skills_score}/10</b><small>Skills</small></div> <div><b>${e.attitude_score}/10</b><small>Attitude</small></div> <div><b>${e.total_score}/30</b><small>Total</small></div> </div> ${["knowledge", "skills", "attitude"].map((s) => (e[`${s}_justification`] ? `<p><b>${s}:</b> ${o(e[`${s}_justification`])}</p>` : "")).join("")} ${e.overall_pass ? "" : `<p class="warning">Reassessment due ${d(e.reassessment_due)}</p>`} </article>`;
 }
-function renderCommentsTable(e, s = !1) {
-  return ` <section class="card table-card"> <div class="table-scroll"> <table class="table"> <thead><tr> <th>Resident</th><th>Category</th><th>Comment</th><th>Date / place</th>${s ? "" : "<th>Observer</th>"} </tr></thead> <tbody>${e.map((e) => ` <tr> <td>${o(e.resident_name || e.resident?.display_name || "Resident")}</td> <td><span class="tag">${o(e.category)}</span></td> <td>${o(e.comment)}</td> <td>${d(e.observed_on)}<br>${o(e.place)}</td> ${s ? "" : `<td>${o(e.observer_signature)}</td>`} </tr>`).join("")}</tbody> </table> </div> </section>`;
+function renderCommentsTable(rows, mode = "viewer") {
+  const list = rows || [];
+  window.observerReviewRows = new Map(list.map((row) => [String(row.id), row]));
+  if (!list.length) return v("No clinical reviews are available yet.");
+  return `<section class="review-cards">${list.map((row) => {
+    const positive = row.sentiment !== "negative";
+    const sentiment = positive ? "👍 Positive" : "👎 Negative";
+    const status = row.reconsideration_status || "none";
+    const displayObserver = row.observer_signature || row.display_observer || (row.is_anonymous ? "Anonymous reviewer" : "Reviewer");
+    const residentAction = mode === "resident" && status === "none"
+      ? `<button class="btn small secondary" data-review-reconsider="${o(row.id)}">Request to reconsider</button>`
+      : "";
+    const authorActions = mode === "author" && status === "requested"
+      ? `<button class="btn small success-button" data-review-resolve="${o(row.id)}" data-review-decision="accepted">Accept / edit review</button><button class="btn small danger-button" data-review-resolve="${o(row.id)}" data-review-decision="upheld">Keep original review</button>`
+      : "";
+    const statusText = status === "requested" ? "Reconsideration requested" : status === "accepted" ? "Reconsideration accepted" : status === "upheld" ? "Original review upheld" : "";
+    const ownerIdentity = mode === "owner" && row.actual_observer_name && row.is_anonymous
+      ? `<small class="owner-identity-note">Anonymous to resident/assessor · actual author: ${o(row.actual_observer_name)}</small>`
+      : "";
+    return `<article class="card review-card ${positive ? "positive-review" : "negative-review"}">
+      <div class="review-card-head"><div><span class="review-sentiment ${positive ? "positive" : "negative"}">${sentiment}</span><h3>${o(row.resident_name || "Resident")}</h3></div><span class="tag">${o(row.category || "review")}</span></div>
+      <p class="review-comment">${o(row.comment || "")}</p>
+      <div class="review-meta"><span>${d(row.observed_on)}${row.place ? ` · ${o(row.place)}` : ""}</span><span>By ${o(displayObserver)}</span></div>
+      ${ownerIdentity}
+      ${statusText ? `<div class="review-workflow"><b>${o(statusText)}</b>${row.reconsideration_text ? `<p><b>Resident request:</b> ${o(row.reconsideration_text)}</p>` : ""}${row.reconsideration_note ? `<p><b>Reviewer response:</b> ${o(row.reconsideration_note)}</p>` : ""}</div>` : ""}
+      ${(residentAction || authorActions) ? `<div class="review-actions">${residentAction}${authorActions}</div>` : ""}
+    </article>`;
+  }).join("")}</section>`;
 }
 async function S() {
   return e.rpc("assessor_assigned_residents");
@@ -1259,7 +1307,7 @@ function L(e, t) {
   const a = `${e}~${t.id}`;
   return (
     s.curriculumItems.set(a, t),
-    ` <article class="item admin-item ${t.is_active ? "" : "inactive-item"}"> <div> <div class="item-title-row"> <h4>${o(t.title)}</h4> <span class="tag ${t.is_active ? "success" : "danger"}">${t.is_active ? "Active" : "Hidden"}</span> </div> <p>${o(t.description || "No description")}</p> <small>Order ${t.sort_order || 0}${"skill" === e ? ` · Expected level ${t.expected_level}` : ""}</small> </div> <button class="btn secondary" data-curriculum-edit="${a}">Edit</button> </article>`
+    ` <article class="item admin-item ${t.is_active ? "" : "inactive-item"}"> <div> <div class="item-title-row"> <h4>${o(t.title)}</h4> <span class="tag ${t.is_active ? "success" : "danger"}">${t.is_active ? "Active" : "Hidden"}</span> </div> <p>${o(t.description || "No description")}</p> <small>Order ${t.sort_order || 0}${"skill" === e ? ` · Expected level ${t.expected_level}` : ""}</small> </div><div class="admin-item-actions"><button class="btn secondary" data-curriculum-edit="${a}">Edit</button><button class="btn danger" data-curriculum-delete="${a}" data-item-title="${o(t.title)}">Delete</button></div> </article>`
   );
 }
 function T(e, s, t = null) {
@@ -1352,7 +1400,7 @@ function B(e) {
     (isConference || e.senior_status === "approved");
   const conferenceDetail = isConference
     ? `<p><b>Conference activity:</b> ${e.conference_participation === "gave_speech" ? "Gave a speech" : "Attended the conference"}</p><p><b>Conference name:</b> ${o(e.title)}</p>`
-    : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(e.participation_mode)}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>`;
+    : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(participationLabel(e.participation_mode))}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>`;
   const approvalDetail = isConference
     ? `<div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div>`
     : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${o(e.senior_resident_name)} <span class="tag">${o(e.senior_status)}</span>${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
@@ -1405,9 +1453,7 @@ function printOwnerLogbooks(residentIds = null) {
             ? entry.conference_participation === "gave_speech"
               ? "Presenter"
               : "Attendee"
-            : entry.participation_mode === "solo"
-              ? "Solo"
-              : "Assisted";
+            : participationLabel(entry.participation_mode);
           return `<tr>
             <td>${index + 1}</td>
             <td>${conference ? "Conference" : "Manual intervention"}</td>
@@ -1512,9 +1558,7 @@ function printApprovedLogbook() {
         ? entry.conference_participation === "gave_speech"
           ? "Presenter"
           : "Attendee"
-        : entry.participation_mode === "solo"
-          ? "Solo"
-          : "Assisted";
+        : participationLabel(entry.participation_mode);
       return `<tr>
         <td>${index + 1}</td>
         <td>${o(entry.resident_name)}</td>
@@ -1646,7 +1690,7 @@ async function P() {
   const todayValue = today.toISOString().slice(0, 10);
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Pericardiocentesis", "Coronary angiography", "PCI"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks"><label><input type="radio" name="participation_mode" value="solo" required><span>Solo</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Assisted</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
+      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "Pericardiocentesis", "Coronary angiography", "PCI", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Rotablation", "IVUS"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
   const pending =
     "resident" === s.p.role
@@ -1713,6 +1757,37 @@ function H() {
     if (a.hasAttribute("data-bulk-curriculum")) await openBulkCurriculumPaste();
     if (a.dataset.bulkCurriculumKind) await openBulkCurriculumPaste(a.dataset.bulkCurriculumKind, a.dataset.chapterId);
     if (a.dataset.aiCurriculum) openGuidelineGenerator(a.dataset.aiCurriculum);
+    if (a.dataset.curriculumDelete) {
+      const [kind, itemId] = a.dataset.curriculumDelete.split("~");
+      const title = a.dataset.itemTitle || "this curriculum item";
+      if (confirm(`Delete ${title}? If residents already have linked evidence, it will be archived instead of destroying their history.`)) {
+        const result = u(await e.rpc("owner_delete_curriculum_item", { p_kind: kind, p_item_id: String(itemId) }));
+        b(result === "deleted" ? "Curriculum item deleted" : "Curriculum item archived; resident history preserved");
+        await w.curriculum(String(s.curriculumChapter?.id || ""));
+      }
+    }
+    if (a.dataset.resetChapterCurriculum) {
+      const chapterTitle = a.dataset.chapterTitle || "this chapter";
+      const typed = prompt(`Reset ALL knowledge and skills in ${chapterTitle}? Previous resident evidence will be preserved. Type RESET to continue.`);
+      if (typed === "RESET") {
+        const result = u(await e.rpc("owner_reset_chapter_curriculum", { p_chapter_id: Number(a.dataset.resetChapterCurriculum) }));
+        b(`Chapter reset: ${result?.knowledge || 0} knowledge and ${result?.skills || 0} skills hidden`);
+        await w.curriculum(String(a.dataset.resetChapterCurriculum));
+      }
+    }
+    if (a.dataset.reviewReconsider) {
+      const row = window.observerReviewRows?.get(String(a.dataset.reviewReconsider));
+      y(`<form id="reviewReconsiderForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Review reconsideration</span><h2>Request to reconsider</h2></div><button type="button" data-close>×</button></div><p>${o(row?.comment || "Clinical review")}</p><label>Why should this review be reconsidered?<textarea name="justification" minlength="10" maxlength="3000" required></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewReconsider)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request</button></div></form>`);
+    }
+    if (a.dataset.reviewResolve) {
+      const row = window.observerReviewRows?.get(String(a.dataset.reviewResolve));
+      const decision = a.dataset.reviewDecision;
+      if (decision === "accepted") {
+        y(`<form id="reviewResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Reconsideration</span><h2>Accept and edit review</h2></div><button type="button" data-close>×</button></div><div class="review-workflow"><p><b>Resident request:</b> ${o(row?.reconsideration_text || "")}</p></div><fieldset class="choice-field"><legend>Updated type</legend><div class="review-choice-grid"><label class="review-choice positive"><input type="radio" name="sentiment" value="positive" ${row?.sentiment !== "negative" ? "checked" : ""}><span class="review-choice-icon">👍</span><span><b>Positive</b></span></label><label class="review-choice negative"><input type="radio" name="sentiment" value="negative" ${row?.sentiment === "negative" ? "checked" : ""}><span class="review-choice-icon">👎</span><span><b>Negative</b></span></label></div></fieldset><label>Updated comment<textarea name="comment" minlength="10" required>${o(row?.comment || "")}</textarea></label><label>Response note<textarea name="note" minlength="2" required placeholder="Explain what you changed or why you accept the request"></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewResolve)}"><input type="hidden" name="decision" value="accepted"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save accepted reconsideration</button></div></form>`);
+      } else {
+        y(`<form id="reviewResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Reconsideration</span><h2>Keep original review</h2></div><button type="button" data-close>×</button></div><div class="review-workflow"><p><b>Resident request:</b> ${o(row?.reconsideration_text || "")}</p><p><b>Original review:</b> ${o(row?.comment || "")}</p></div><label>Response note<textarea name="note" minlength="2" required placeholder="Explain why the original review remains appropriate"></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewResolve)}"><input type="hidden" name="decision" value="upheld"><input type="hidden" name="comment" value="${o(row?.comment || "")}"><input type="hidden" name="sentiment" value="${o(row?.sentiment || "positive")}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="danger-button">Keep original review</button></div></form>`);
+      }
+    }
     if ((a.hasAttribute("data-schedule-add") && O(), a.dataset.scheduleEdit)) {
       const e = s.schedules.get(a.dataset.scheduleEdit);
       e && O(e);
@@ -1749,7 +1824,7 @@ function H() {
         ((r = a.dataset.review),
         (d = a.dataset.name),
         y(
-          ` <form id="reviewForm" class="modal"> <div class="modal-head"><h2>Review ${o(d)}</h2><button type="button" data-close>×</button></div> <div class="form-grid"> <label>Category<select name="category"><option>knowledge</option><option>skill</option><option>attitude</option></select></label> <label>Date<input type="date" name="observed_on" value="${new Date().toISOString().slice(0, 10)}" required></label> <label class="full">Place<input name="place" required></label> <label class="full">Comment<textarea name="comment" minlength="10" required></textarea></label> </div> <input type="hidden" name="resident_id" value="${r}"> <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit signed review</button></div> </form>`,
+          ` <form id="reviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Clinical review</span><h2>Review ${o(d)}</h2></div><button type="button" data-close>×</button></div> <div class="form-grid"> <label>Category<select name="category"><option value="knowledge">Knowledge</option><option value="skill">Skill</option><option value="attitude">Attitude</option></select></label> <label>Date<input type="date" name="observed_on" value="${new Date().toISOString().slice(0, 10)}" required></label> <label class="full">Place<input name="place" required></label> <fieldset class="full choice-field"><legend>Comment type</legend><div class="review-choice-grid"><label class="review-choice positive"><input type="radio" name="sentiment" value="positive" checked required><span class="review-choice-icon">👍</span><span><b>Positive</b><small>Good performance / reinforcement</small></span></label><label class="review-choice negative"><input type="radio" name="sentiment" value="negative" required><span class="review-choice-icon">👎</span><span><b>Negative</b><small>Concern / point needing improvement</small></span></label></div></fieldset> <fieldset class="full choice-field"><legend>Identity</legend><div class="review-choice-grid"><label class="review-choice"><input type="radio" name="identity_mode" value="named" checked required><span class="review-choice-icon">👤</span><span><b>Show my name</b><small>Resident and assessor can see who wrote it</small></span></label><label class="review-choice"><input type="radio" name="identity_mode" value="anonymous" required><span class="review-choice-icon">◉</span><span><b>Anonymous</b><small>Your name is hidden from resident and assessor; owner can still audit it</small></span></label></div></fieldset> <label class="full">Comment<textarea name="comment" minlength="10" required></textarea></label> </div> <input type="hidden" name="resident_id" value="${r}"> <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit review</button></div> </form>`,
         )),
       a.dataset.candidate && g(`candidate:${a.dataset.candidate}`),
       a.dataset.assess &&
@@ -1771,7 +1846,7 @@ function H() {
                       .filter((s) => s.domain === e)
                       .map(
                         (s) =>
-                          ` <label><input class="auto-width" type="checkbox" name="${e}_reasons" value="${s.id}"> ${o(s.label)}</label>`,
+                          ` <label class="check-line reason-check"><input class="auto-width" type="checkbox" name="${e}_reasons" value="${s.id}"><span>${o(s.label)}</span></label>`,
                       )
                       .join(
                         "",
@@ -2099,18 +2174,6 @@ function H() {
               notes: r.get("notes") || null,
             }),
           ),
-        "reviewForm" === a.id &&
-          u(
-            await e.from("observer_reviews").insert({
-              observer_id: s.p.id,
-              resident_id: r.get("resident_id"),
-              category: r.get("category"),
-              observed_on: r.get("observed_on"),
-              place: r.get("place"),
-              comment: r.get("comment"),
-              observer_signature: s.p.display_name,
-            }),
-          ),
         "accountForm" === a.id)
       ) {
         const s = Object.fromEntries(r);
@@ -2122,6 +2185,41 @@ function H() {
         });
         if (a) throw a;
         if (t?.error) throw new Error(t.error);
+      }
+      if ("reviewForm" === a.id) {
+        u(await e.rpc("submit_observer_review_v2", {
+          p_resident_id: r.get("resident_id"),
+          p_category: r.get("category"),
+          p_observed_on: r.get("observed_on"),
+          p_place: r.get("place"),
+          p_comment: r.get("comment"),
+          p_sentiment: r.get("sentiment"),
+          p_is_anonymous: r.get("identity_mode") === "anonymous",
+        }));
+        i.close();
+        b("Review submitted and the resident and Program Owner were notified");
+        return void g(s.p.role === "assessor" ? "comments" : "reviews");
+      }
+      if ("reviewReconsiderForm" === a.id) {
+        u(await e.rpc("resident_request_review_reconsideration", {
+          p_review_id: String(r.get("review_id")),
+          p_justification: r.get("justification"),
+        }));
+        i.close();
+        b("Request to reconsider sent to the reviewer and Program Owner");
+        return void (await w.reviews());
+      }
+      if ("reviewResolveForm" === a.id) {
+        u(await e.rpc("reviewer_resolve_review_reconsideration", {
+          p_review_id: String(r.get("review_id")),
+          p_decision: r.get("decision"),
+          p_comment: r.get("comment") || null,
+          p_sentiment: r.get("sentiment") || null,
+          p_note: r.get("note") || null,
+        }));
+        i.close();
+        b(r.get("decision") === "accepted" ? "Reconsideration accepted and review updated" : "Original review upheld");
+        return void (await w.reviews());
       }
       if ("ownerAccountEditForm" === a.id) {
         const role = String(r.get("role") || "");
@@ -2157,8 +2255,8 @@ function H() {
         if (parsed.errors.length) throw new Error(`Please fix the pasted rows:\n${parsed.errors.slice(0, 8).join("\n")}${parsed.errors.length > 8 ? `\n…and ${parsed.errors.length - 8} more.` : ""}`);
         if (!parsed.rows.length) throw new Error("No valid curriculum rows were found.");
         const [knowledgeExisting, skillsExisting] = await Promise.all([
-          e.from("knowledge_items").select("chapter_id,title,sort_order"),
-          e.from("skills").select("chapter_id,title,sort_order"),
+          e.from("knowledge_items").select("chapter_id,title,sort_order").eq("is_active", true),
+          e.from("skills").select("chapter_id,title,sort_order").eq("is_active", true),
         ]).then((results) => results.map(u));
         const maxKnowledge = new Map(), maxSkills = new Map(), existingKnowledge = new Set(), existingSkills = new Set();
         (knowledgeExisting || []).forEach((item) => {
