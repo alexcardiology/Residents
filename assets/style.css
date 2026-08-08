@@ -2706,3 +2706,159 @@ input[type="radio"] {
   .participation-options { grid-template-columns: 1fr; }
   .knowledge-progress-item > p { margin-left: 27px; }
 }
+
+/* =========================================================
+   Chapter skills matrix, curriculum export and review merge — v1.0.41
+========================================================= */
+.compact-section-head { align-items: center; }
+.compact-section-head h3 { margin: 0 0 3px; }
+.compact-section-head p { margin: 0; }
+.knowledge-progress-list { margin-top: 14px; }
+.chapter-knowledge-card .section-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+
+.skill-level-guidance {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 12px 0 8px;
+}
+.skill-level-guidance > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 1px solid #dce5ef;
+  border-radius: 9px;
+  background: #f7f9fc;
+  color: #42556d;
+  font-size: .7rem;
+  font-weight: 700;
+  text-align: center;
+}
+.skill-level-guidance b {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--navy2);
+  font-size: .72rem;
+}
+.skill-level-scroll { width: 100%; }
+.skill-level-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  overflow: hidden;
+}
+.skill-level-table th,
+.skill-level-table td {
+  padding: 10px 8px;
+  border-right: 1px solid #e7edf3;
+  border-bottom: 1px solid #e7edf3;
+  text-align: center;
+  vertical-align: middle;
+}
+.skill-level-table th:last-child,
+.skill-level-table td:last-child { border-right: 0; }
+.skill-level-table tbody tr:last-child td { border-bottom: 0; }
+.skill-level-table th {
+  background: #f4f7fb;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+.skill-level-table th:first-child,
+.skill-level-table td:first-child {
+  width: 52%;
+  text-align: left;
+}
+.skill-name-cell { min-width: 280px; }
+.skill-name-cell b,
+.skill-name-cell small { display: block; }
+.skill-name-cell small { margin-top: 4px; color: var(--muted); line-height: 1.35; }
+.skill-log-link { margin-top: 5px; padding: 0; font-size: .72rem; }
+.skill-level-cell { width: 9.6%; }
+.skill-level-choice {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin: auto;
+  cursor: pointer;
+}
+.skill-level-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.skill-level-choice span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #cbd7e4;
+  border-radius: 50%;
+  background: #fff;
+  color: #5b6b7e;
+  font-size: .78rem;
+  font-weight: 850;
+  transition: .15s ease;
+}
+.skill-level-choice input:checked + span {
+  border-color: var(--blue);
+  color: #fff;
+  background: var(--blue);
+  box-shadow: 0 0 0 3px rgba(22,112,210,.12);
+}
+
+.reviewer-history-section { padding-top: 4px; }
+.compact-lead { margin-bottom: 12px; }
+.review-head-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.modified-review-tag { color: #5b21b6; background: #ede9fe; }
+.review-reconsideration-decision { border-color: #b9d7c8; background: #f1faf5; }
+
+.curriculum-export-modal { width: min(92vw, 760px); }
+.curriculum-export-tools { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0; }
+.curriculum-export-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 48vh;
+  overflow: auto;
+  padding: 2px;
+}
+.curriculum-export-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  cursor: pointer;
+}
+.curriculum-export-row input { margin-top: 2px; }
+.curriculum-export-row > span { display: grid; gap: 3px; min-width: 0; }
+.curriculum-export-row small { color: var(--muted); font-size: .72rem; }
+
+@media (max-width: 720px) {
+  .skill-level-guidance {
+    grid-template-columns: repeat(5, 92px);
+    overflow-x: auto;
+    padding-bottom: 3px;
+  }
+  .skill-level-guidance > div { flex-direction: column; gap: 3px; min-height: 58px; }
+  .chapter-knowledge-card .section-head { align-items: flex-start; flex-direction: column; }
+  .chapter-knowledge-card .section-actions { width: 100%; }
+  .chapter-knowledge-card .section-actions .btn { flex: 1; }
+  .curriculum-export-list { grid-template-columns: 1fr; }
+}
