@@ -202,16 +202,19 @@ function f() {
 }
 async function q() {
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
-  const [normalResult, logbookResult] = await Promise.all([
+  const [normalResult, logbookResult, reconsiderationResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_logbook_messages", { p_view: juniorResident ? "updates" : "received" }),
+    e.rpc("get_my_logbook_reconsiderations_v1044"),
   ]);
   const count = (normalResult.data || []).filter((message) => !message.is_read).length;
   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
     badge.textContent = count;
     badge.hidden = count === 0;
   });
-  const logbookCount = (logbookResult.data || []).filter((message) => juniorResident ? !message.is_read : !message.logbook_action_taken).length;
+  const messageCount = (logbookResult.data || []).filter((message) => juniorResident ? !message.is_read : !message.logbook_action_taken).length;
+  const reconsiderationCount = (reconsiderationResult.data || []).filter((row) => String(row.reviewer_id) === String(s.p.id) && row.status === "requested").length;
+  const logbookCount = messageCount + reconsiderationCount;
   document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
     badge.textContent = logbookCount;
     badge.hidden = logbookCount === 0;
@@ -1029,23 +1032,36 @@ async function ownerMessageCleanupPage() {
 async function logbookRequestsPage() {
   t("#title").textContent = "Logbook requests";
   a.classList.add("mail-content");
-  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult] = await Promise.all([
+  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult, reconsiderationResult] = await Promise.all([
     e.rpc("get_logbook_messages", { p_view: "received" }),
     e.rpc("get_logbook_messages", { p_view: "sent" }),
     e.rpc("get_logbook_messages", { p_view: "updates" }),
     e.rpc("get_logbook_messages", { p_view: "trash" }),
     e.rpc("get_hidden_logbook_message_ids"),
+    e.rpc("get_my_logbook_reconsiderations_v1044"),
   ]);
   const hiddenIds = new Set((u(hiddenResult) || []).map((row) => String(row.message_id)));
   const keepVisible = (items) => (u(items) || []).filter((message) => !hiddenIds.has(String(message.id)));
   const received = keepVisible(receivedResult),
     sent = keepVisible(sentResult),
     updates = keepVisible(updatesResult),
-    trash = keepVisible(trashResult);
+    trash = keepVisible(trashResult),
+    reconsiderations = u(reconsiderationResult) || [];
+  window.logbookReconsiderationRows = new Map(reconsiderations.map((row) => [String(row.id), row]));
+  const reviewerReconsiderations = reconsiderations.filter((row) => String(row.reviewer_id) === String(s.p.id));
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
   const seniorResident = s.p.role === "resident" && Number(s.p.residency_year) >= 3;
   const assessor = s.p.role === "assessor";
-  const views = juniorResident ? ["updates"] : assessor ? ["received","trash"] : s.p.role === "observer" ? ["received"] : seniorResident ? ["received","sent","updates"] : ["received","sent","updates"];
+  const hasReviewerReconsiderations = reviewerReconsiderations.length > 0;
+  const views = juniorResident
+    ? ["updates"]
+    : assessor
+      ? ["received", "reconsiderations", "trash"]
+      : s.p.role === "observer"
+        ? hasReviewerReconsiderations ? ["received", "reconsiderations"] : ["received"]
+        : seniorResident
+          ? hasReviewerReconsiderations ? ["received", "reconsiderations", "sent", "updates"] : ["received", "sent", "updates"]
+          : ["received", "sent", "updates"];
   const firstView = views[0];
   const activityLabel = (message) => o(message.logbook_title || "Logbook activity");
   const statusTitle = (message) => message.subject === "Logbook approval"
@@ -1053,17 +1069,46 @@ async function logbookRequestsPage() {
     : message.subject === "Logbook rejection"
       ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Rejected request · ${o(message.sender_name)} rejected your ${activityLabel(message)}</span></span>`
       : `Approval request · ${activityLabel(message)}`;
-  const approvalButtons = (message) => !message.logbook_action_taken
-    ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${activityLabel(message)}">Reject</button></div>`
-    : `<span class="tag">Action completed</span>`;
+  const approvalButtons = (message) => {
+    if (!message.logbook_action_taken)
+      return `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${activityLabel(message)}">Reject</button></div>`;
+    const current = String(message.request_status || "").toLowerCase();
+    const cls = current === "rejected" ? "danger" : current === "approved" ? "success" : "neutral";
+    const label = current === "rejected" ? "Original decision: Rejected" : current === "approved" ? "Original decision: Approved" : "Original decision completed";
+    return `<span class="tag ${cls}">${label}</span>`;
+  };
+  const residentReconsiderationFor = (message) => reconsiderations.find((row) =>
+    String(row.entry_id) === String(message.logbook_entry_id) &&
+    String(row.reviewer_id) === String(message.sender_id) &&
+    String(row.resident_id) === String(s.p.id)
+  );
+  const residentReconsiderationAction = (message, view) => {
+    if (view !== "updates" || s.p.role !== "resident" || !message.logbook_entry_id || !(message.can_reclaim || message.request_status === "rejected" || message.subject === "Logbook rejection")) return "";
+    const rec = residentReconsiderationFor(message);
+    if (rec?.status === "requested") return `<div class="message-actions"><span class="tag warning">Reconsideration pending</span></div>`;
+    if (rec?.status === "approved") return `<div class="message-actions"><span class="tag success">Reconsideration approved</span></div>`;
+    if (rec?.status === "rejected") return `<div class="message-actions"><span class="tag danger">Reconsideration rejected</span></div>`;
+    return `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer-id="${o(message.sender_id || "")}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>`;
+  };
   const rows = (items, view) => items.length ? items.map((message) => `
     <article class="message-row ${message.is_read ? "read" : "unread"}" data-request-resident="${o(message.resident_id || "")}" data-request-status="${o(message.request_status || "pending")}" data-request-type="${o(`${message.activity_category || ""}:${message.activity_kind || ""}`)}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.resident_name || ""} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""} ${message.request_status || ""}`.toLowerCase())}">
       <input class="message-select logbook-message-select" type="checkbox" value="${message.id}" aria-label="Select logbook message">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
         <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
-      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${view === "updates" && s.p.role === "resident" && message.logbook_entry_id && (message.can_reclaim || message.request_status === "rejected" || message.subject === "Logbook rejection") ? `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer-id="${o(message.sender_id || "")}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>` : ""}
+      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${residentReconsiderationAction(message, view)}
     </article>`).join("") : '<div class="mail-empty">No logbook items here.</div>';
+  const reconsiderationRows = reviewerReconsiderations.length ? reviewerReconsiderations
+    .sort((x,y) => (x.status === "requested" ? -1 : 1) - (y.status === "requested" ? -1 : 1) || new Date(y.created_at) - new Date(x.created_at))
+    .map((row) => {
+      const pending = row.status === "requested";
+      const statusClass = pending ? "warning" : row.status === "approved" ? "success" : "danger";
+      const activity = row.activity_title || row.procedure_name || "Logbook activity";
+      return `<article class="message-row reconsideration-request-row ${pending ? "unread" : "read"}" data-request-resident="${o(row.resident_id || "")}" data-request-status="${pending ? "pending" : o(row.status)}" data-request-type="${o(`${row.activity_category || ""}:${row.procedure_name || row.activity_title || ""}`)}" data-message-search="${o(`${row.resident_name || ""} ${activity} ${row.reason || ""} ${row.status || ""}`.toLowerCase())}">
+        <div class="message-open reconsideration-row-main"><span class="message-person"><span class="message-direction">Resident</span>${o(row.resident_name || "Resident")}</span><span class="message-subject"><b>${o(activity)}</b><small class="reconsideration-inline-reason">Reason: ${o(row.reason || "—")}</small></span><small>${d(row.activity_date)}<br><span class="tag ${statusClass}">${pending ? "Decision needed" : o(row.status)}</span></small></div>
+        <div class="message-actions approval-actions">${pending ? `<button class="btn small danger-button" data-logbook-reconsideration-resolve="${o(row.id)}" data-reconsideration-decision="rejected">Reject</button><button class="btn small success-button" data-logbook-reconsideration-resolve="${o(row.id)}" data-reconsideration-decision="approved">Approve</button>` : `<span class="tag ${statusClass}">Resolved</span>`}</div>
+      </article>`;
+    }).join("") : '<div class="mail-empty">No reconsideration requests.</div>';
   window.logbookMessages = new Map([
     ...received.map((message) => [`logbook-${message.id}`, message]),
     ...updates.map((message) => [`logbook-${message.id}`, message]),
@@ -1071,20 +1116,24 @@ async function logbookRequestsPage() {
     ...trash.map((message) => [`logbook-${message.id}`, message]),
   ]);
   window.logbookInboxButtons = approvalButtons;
-  a.innerHTML = h("Logbook requests", "Approval work is kept separate from normal messages. You can clean message copies without deleting the resident logbook record.") + `
+  const allResidentSources = [...received,...sent,...updates,...trash,...reconsiderations.map((r) => ({resident_id:r.resident_id,resident_name:r.resident_name}))];
+  const allTypeSources = [...received,...sent,...updates,...trash,...reconsiderations.map((r) => ({activity_category:r.activity_category,activity_kind:r.procedure_name || r.activity_title}))];
+  a.innerHTML = h("Logbook requests", "Approval requests and reconsiderations are separated clearly. Message cleanup never deletes the resident logbook record.") + `
     <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
         ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${received.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${received.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
+        ${views.includes("reconsiderations") ? `<button class="mailbox-tab ${firstView === "reconsiderations" ? "active" : ""}" data-logbook-tab="reconsiderations">Reconsiderations <span class="nav-badge inline-badge" ${reviewerReconsiderations.filter(item=>item.status === "requested").length ? "" : "hidden"}>${reviewerReconsiderations.filter(item=>item.status === "requested").length}</span></button>` : ""}
         ${views.includes("sent") ? `<button class="mailbox-tab ${firstView === "sent" ? "active" : ""}" data-logbook-tab="sent">Sent <span class="nav-badge inline-badge" ${sent.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${sent.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
         ${views.includes("updates") ? `<button class="mailbox-tab ${firstView === "updates" ? "active" : ""}" data-logbook-tab="updates">Updates <span class="nav-badge inline-badge" ${updates.filter(item=>!item.is_read).length ? "" : "hidden"}>${updates.filter(item=>!item.is_read).length}</span></button>` : ""}
         ${views.includes("trash") ? `<button class="mailbox-tab ${firstView === "trash" ? "active" : ""}" data-logbook-tab="trash">Trash <span class="tag">${trash.length}</span></button>` : ""}
       </div>
-      <div class="mail-safety-note"><b>Protected logbook:</b> deleting these message copies only hides them from your message view. It does not delete the resident activity from My logbook.</div>
+      <div class="mail-safety-note"><b>Protected logbook:</b> deleting message copies only hides messages. It never deletes the resident activity from My logbook.</div>
       <div class="mail-tools logbook-mail-tools">
-        <div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map([...received,...sent,...updates,...trash].filter(x=>x.resident_id).map(x=>[x.resident_id,x.resident_name])).entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>`<option value="${id}">${o(name)}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set([...received,...sent,...updates,...trash].map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div>
+        <div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map(allResidentSources.filter(x=>x.resident_id).map(x=>[String(x.resident_id),x.resident_name])).entries()].sort((a,b)=>String(a[1]||"").localeCompare(String(b[1]||""))).map(([id,name])=>`<option value="${o(id)}">${o(name || "Resident")}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set(allTypeSources.map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div>
         <div class="mail-bulk-actions logbook-bulk-actions"><label class="bulk-check"><input id="selectVisibleLogbookMessages" type="checkbox"> Select visible</label><button class="btn danger" data-hide-logbook-selected>Delete selected</button></div>
       </div>
       ${views.includes("received") ? `<div class="mail-panel" data-mail-panel="received" ${firstView === "received" ? "" : "hidden"}><div class="message-list">${rows(received, "received")}</div></div>` : ""}
+      ${views.includes("reconsiderations") ? `<div class="mail-panel" data-mail-panel="reconsiderations" ${firstView === "reconsiderations" ? "" : "hidden"}><div class="message-list reconsideration-request-list">${reconsiderationRows}</div></div>` : ""}
       ${views.includes("sent") ? `<div class="mail-panel" data-mail-panel="sent" ${firstView === "sent" ? "" : "hidden"}><div class="message-list">${rows(sent, "sent")}</div></div>` : ""}
       ${views.includes("updates") ? `<div class="mail-panel" data-mail-panel="updates" ${firstView === "updates" ? "" : "hidden"}><div class="message-list notification-lines">${rows(updates, "updates")}</div></div>` : ""}
       ${views.includes("trash") ? `<div class="mail-panel" data-mail-panel="trash" ${firstView === "trash" ? "" : "hidden"}><div class="message-list">${rows(trash, "trash")}</div></div>` : ""}
@@ -1509,6 +1558,92 @@ function B(e) {
   return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_category)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details">${conferenceDetail}${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""}${approvalDetail}</div> ${canReviewSenior || canReviewAssessor ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
 }
 
+
+function logbookDecisionBadge(status) {
+  const value = String(status || "pending").toLowerCase();
+  const cls = value === "approved" ? "success" : value === "rejected" ? "danger" : "warning";
+  return `<span class="tag ${cls}">${o(value)}</span>`;
+}
+function renderAssessorLogbookTable(entries) {
+  const rows = entries || [];
+  window.logbookEntryRows = new Map(rows.map((entry) => [String(entry.id), entry]));
+  const residents = [...new Map(rows.map((entry) => [String(entry.resident_id), entry.resident_name])).entries()]
+    .sort((a, b) => String(a[1] || "").localeCompare(String(b[1] || "")));
+  const activities = [...new Set(rows.map((entry) => entry.activity_category === "conference" ? entry.title : (entry.procedure_name || entry.title)).filter(Boolean))].sort();
+  const participations = [...new Set(rows.map((entry) => entry.activity_category === "conference" ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode)).filter(Boolean))].sort();
+  const body = rows.map((entry) => {
+    const isConference = entry.activity_category === "conference";
+    const activity = isConference ? entry.title : (entry.procedure_name || entry.title);
+    const participation = isConference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
+    const canReviewSenior = entry.senior_resident_id === s.p.id && entry.senior_status === "pending";
+    const canReviewAssessor = entry.assessor_id === s.p.id && entry.assessor_status === "pending" && (isConference || entry.senior_status === "approved");
+    const canAct = canReviewSenior || canReviewAssessor;
+    const myDecision = entry.assessor_id === s.p.id ? entry.assessor_status : entry.senior_resident_id === s.p.id ? entry.senior_status : "—";
+    return `<tr class="assessor-logbook-row" data-resident="${o(String(entry.resident_id || ""))}" data-resident-name="${o(String(entry.resident_name || "").toLowerCase())}" data-category="${o(entry.activity_category || "")}" data-activity="${o(String(activity || "").toLowerCase())}" data-participation="${o(String(participation || "").toLowerCase())}" data-status="${o(entry.status || "pending")}">
+      <td data-label="Resident"><b>${o(entry.resident_name || "Resident")}</b><small>${yearChip(entry.residency_year)}</small></td>
+      <td data-label="Activity"><b>${o(activity || "Activity")}</b><small>${isConference ? "Conference" : "Intervention"}</small></td>
+      <td data-label="Participation">${o(participation || "—")}</td>
+      <td data-label="Date">${d(entry.activity_date)}</td>
+      <td data-label="Senior">${isConference ? "—" : `${o(entry.senior_resident_name || "—")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
+      <td data-label="My decision">${myDecision === "—" ? "—" : logbookDecisionBadge(myDecision)}</td>
+      <td data-label="Overall">${logbookDecisionBadge(entry.status)}</td>
+      <td data-label="Actions"><div class="table-row-actions">${canAct ? `<button class="btn small" data-logbook-table-review="${entry.id}" data-logbook-title="${o(entry.title)}">Review</button>` : ""}<button class="btn small secondary" data-logbook-detail="${entry.id}">Details</button></div></td>
+    </tr>`;
+  }).join("");
+  return `<section class="card assessor-logbook-table-card no-print">
+    <div class="panel-heading"><div><h3>Resident activity table</h3></div><span class="tag">${rows.length} records</span></div>
+    <div class="assessor-logbook-filters">
+      <input id="assessorLogbookResidentSearch" type="search" placeholder="Search resident name">
+      <select id="assessorLogbookResidentFilter"><option value="">All residents</option>${residents.map(([id,name]) => `<option value="${o(id)}">${o(name || "Resident")}</option>`).join("")}</select>
+      <select id="assessorLogbookActivityFilter"><option value="">All interventions / conferences</option>${activities.map((name) => `<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
+      <select id="assessorLogbookCategoryFilter"><option value="">All types</option><option value="manual_intervention">Interventions</option><option value="conference">Conferences</option></select>
+      <select id="assessorLogbookParticipationFilter"><option value="">All participation</option>${participations.map((name) => `<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
+      <select id="assessorLogbookStatusFilter"><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+    </div>
+    <div class="table-scroll"><table class="table assessor-logbook-table"><thead><tr><th>Resident</th><th>Activity</th><th>Participation</th><th>Date</th><th>Senior</th><th>My decision</th><th>Overall</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="8">No logbook records are available.</td></tr>'}</tbody></table></div>
+    <div id="assessorLogbookEmpty" class="mail-empty" hidden>No records match these filters.</div>
+  </section>`;
+}
+function filterAssessorLogbookTable() {
+  const search = (t("#assessorLogbookResidentSearch")?.value || "").trim().toLowerCase();
+  const resident = t("#assessorLogbookResidentFilter")?.value || "";
+  const activity = t("#assessorLogbookActivityFilter")?.value || "";
+  const category = t("#assessorLogbookCategoryFilter")?.value || "";
+  const participation = t("#assessorLogbookParticipationFilter")?.value || "";
+  const status = t("#assessorLogbookStatusFilter")?.value || "";
+  let visible = 0;
+  document.querySelectorAll(".assessor-logbook-row").forEach((row) => {
+    const match = (!search || (row.dataset.residentName || "").includes(search)) &&
+      (!resident || row.dataset.resident === resident) &&
+      (!activity || row.dataset.activity === activity) &&
+      (!category || row.dataset.category === category) &&
+      (!participation || row.dataset.participation === participation) &&
+      (!status || row.dataset.status === status);
+    row.hidden = !match;
+    if (match) visible += 1;
+  });
+  const empty = t("#assessorLogbookEmpty");
+  if (empty) empty.hidden = visible > 0;
+}
+function openLogbookEntryDetail(entry) {
+  if (!entry) return;
+  const isConference = entry.activity_category === "conference";
+  const activity = isConference ? entry.title : (entry.procedure_name || entry.title);
+  const participation = isConference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
+  y(`<article class="modal"><div class="modal-head"><div><span class="eyebrow">${isConference ? "Conference" : "Intervention"}</span><h2>${o(activity || "Logbook activity")}</h2></div><button type="button" data-close>×</button></div>
+    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div><div><span>Overall status</span>${logbookDecisionBadge(entry.status)}</div>${isConference ? "" : `<div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
+    ${entry.senior_note ? `<div class="message-body"><b>Senior note</b><br>${o(entry.senior_note)}</div>` : ""}${entry.assessor_note ? `<div class="message-body"><b>Assessor note</b><br>${o(entry.assessor_note)}</div>` : ""}${entry.description ? `<div class="message-body"><b>Resident notes / evidence</b><br>${o(entry.description)}</div>` : ""}
+    <div class="actions"><button class="btn secondary" type="button" data-close>Close</button></div></article>`);
+}
+function openLogbookReconsiderationDecision(row, decision) {
+  if (!row) return;
+  const approved = decision === "approved";
+  y(`<form id="logbookReconsiderationResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Logbook reconsideration</span><h2>${approved ? "Approve reconsideration" : "Reject reconsideration"}</h2></div><button type="button" data-close>×</button></div>
+    <div class="reconsideration-message-summary"><div class="reconsideration-summary-row"><span>Resident</span><b>${o(row.resident_name || "Resident")}</b></div><div class="reconsideration-summary-row"><span>Activity</span><b>${o(row.activity_title || "Logbook activity")}</b></div><div class="reconsideration-summary-reason"><span>Reason</span><p>${o(row.reason || "No reason provided")}</p></div></div>
+    <p class="form-note">${approved ? "Your original rejection will change to approval. The final logbook status will then be recalculated from all required reviewers." : "Your original rejection will remain. The resident will be notified that reconsideration was not accepted."}</p>
+    <label>Response note<textarea name="note" maxlength="3000" placeholder="Optional response"></textarea></label><input type="hidden" name="reconsideration_id" value="${o(row.id)}"><input type="hidden" name="decision" value="${approved ? "approved" : "rejected"}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn ${approved ? "success-button" : "danger-button"}">${approved ? "Approve reconsideration" : "Reject reconsideration"}</button></div></form>`);
+}
+
 function ownerSelectedLogbookResidentIds() {
   return [...document.querySelectorAll(".owner-logbook-resident-check:checked")].map(
     (input) => input.value,
@@ -1713,22 +1848,32 @@ async function P() {
             (entry.assessor_id === s.p.id &&
               entry.assessor_status === "pending"),
         );
-  a.innerHTML =
-    h(
-      "resident" === s.p.role
-        ? "Resident e-logbook"
-        : "Clinical activity logbooks",
-      "resident" === s.p.role
-        ? "Record procedures, conference attendance and lectures. Entries become verified after supervisor approval."
-        : "Review assigned approval requests and monitor verified resident activity.",
-      s.p.role === "owner" ? "" : '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
-    ) +
-    ownerLogbookManager +
-    submitCard +
-    (pending.length
-      ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
-      : "") +
-    ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>Pending requests and newest activities appear first; older records remain below.</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="manual_intervention">Manual interventions</option><option value="conference">Conferences</option></select></div></div><div class="logbook-order-label">Pending & recent</div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
+  if (s.p.role === "assessor") {
+    a.innerHTML =
+      h(
+        "Resident logbooks",
+        "Filter resident activity by resident, intervention, participation and status. Review pending items directly from the table.",
+        '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
+      ) +
+      renderAssessorLogbookTable(visible);
+  } else {
+    a.innerHTML =
+      h(
+        "resident" === s.p.role
+          ? "Resident e-logbook"
+          : "Clinical activity logbooks",
+        "resident" === s.p.role
+          ? "Record procedures, conference attendance and lectures. Entries become verified after supervisor approval."
+          : "Review assigned approval requests and monitor verified resident activity.",
+        s.p.role === "owner" ? "" : '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
+      ) +
+      ownerLogbookManager +
+      submitCard +
+      (pending.length
+        ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
+        : "") +
+      ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>Pending requests and newest activities appear first; older records remain below.</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="manual_intervention">Manual interventions</option><option value="conference">Conferences</option></select></div></div><div class="logbook-order-label">Pending & recent</div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
+  }
   const seniorSelect = document.querySelector('select[name="senior_resident_id"]');
   if (seniorSelect) {
     seniorSelect.options[0].textContent = "Choose senior resident";
@@ -1913,6 +2058,8 @@ function H() {
       a.dataset.logbookTab && (() => {
         document.querySelectorAll("[data-logbook-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.logbookTab === a.dataset.logbookTab));
         document.querySelectorAll("[data-mail-panel]").forEach((panel) => panel.hidden = panel.dataset.mailPanel !== a.dataset.logbookTab);
+        const bulk = document.querySelector(".logbook-bulk-actions");
+        if (bulk) bulk.hidden = a.dataset.logbookTab === "reconsiderations";
         const search = t("#messageSearch");
         if (search) { search.value = ""; search.dispatchEvent(new Event("input", { bubbles: true })); }
       })(),
@@ -1971,6 +2118,17 @@ function H() {
         a.dataset.reclaimReviewer,
         a.dataset.reclaimReviewerId,
       ),
+      a.dataset.logbookDetail && openLogbookEntryDetail(window.logbookEntryRows?.get(String(a.dataset.logbookDetail))),
+      a.dataset.logbookTableReview &&
+        openLogbookDecision(
+          a.dataset.logbookTableReview,
+          a.dataset.logbookTitle,
+        ),
+      a.dataset.logbookReconsiderationResolve &&
+        openLogbookReconsiderationDecision(
+          window.logbookReconsiderationRows?.get(String(a.dataset.logbookReconsiderationResolve)),
+          a.dataset.reconsiderationDecision,
+        ),
       a.dataset.logbookReview &&
         openLogbookDecision(
           a.dataset.logbookReview,
@@ -2134,6 +2292,7 @@ function H() {
     if (a.id === "accountRoleFilter") filterAccountRows();
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
+      (["assessorLogbookResidentFilter","assessorLogbookActivityFilter","assessorLogbookCategoryFilter","assessorLogbookParticipationFilter","assessorLogbookStatusFilter"].includes(a.id)) && filterAssessorLogbookTable(),
       ("requestResidentFilter" === a.id || "requestStatusFilter" === a.id || "requestTypeFilter" === a.id) && filterLogbookRequestRows(),
       "messageCategoryFilter" === a.id && filterPrivateMessageRows(),
       "selectVisibleMessages" === a.id && (() => {
@@ -2198,6 +2357,10 @@ function H() {
       (window.residentSearchTimer = setTimeout(R, 250)));
     if (e.target.id === "ownerLogbookSearch") filterOwnerLogbookResidents();
     if (e.target.id === "accountSearch") filterAccountRows();
+    if (e.target.id === "assessorLogbookResidentSearch") {
+      filterAssessorLogbookTable();
+      return;
+    }
     if (e.target.id === "messageSearch") {
       if (t("#requestResidentFilter")) return filterLogbookRequestRows();
       filterPrivateMessageRows();
@@ -2510,6 +2673,17 @@ function H() {
         );
         await q();
       }
+      if ("logbookReconsiderationResolveForm" === a.id) {
+        const finalStatus = u(await e.rpc("resolve_logbook_reconsideration_v1044", {
+          p_reconsideration_id: r.get("reconsideration_id"),
+          p_decision: r.get("decision"),
+          p_note: r.get("note") || null,
+        }));
+        i.close();
+        await q();
+        b(`${r.get("decision") === "approved" ? "Reconsideration approved" : "Reconsideration rejected"} · final logbook status: ${finalStatus || "updated"}`);
+        return void (await logbookRequestsPage());
+      }
       if ("logbookReclaimForm" === a.id) {
         const reviewerId = String(r.get("reviewer_id") || "");
         if (!reviewerId) throw new Error("The rejecting reviewer could not be identified. Refresh Logbook requests and try again.");
@@ -2519,7 +2693,7 @@ function H() {
           p_justification: r.get("justification"),
         }));
         i.close();
-        b("Request to reconsider sent to the rejecting reviewer and copied to the Program Owner");
+        b("Reconsideration is now waiting for the rejecting reviewer");
         return void (await logbookRequestsPage());
       }
       if ("scheduleForm" === a.id) {
