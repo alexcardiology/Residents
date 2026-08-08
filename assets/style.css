@@ -3501,3 +3501,286 @@ dialog:has(.review-edit-reconsideration-modal) {
   .resident-review-tone-grid { grid-template-columns: 1fr; }
   .resident-review-domain { padding: 14px; }
 }
+
+/* v1.0.50 — hard containment fix for Logbook Requests / mailbox layouts */
+
+/* Never allow a mailbox child to enlarge the page beyond the workspace. */
+#content.mail-content,
+#content.mail-content > *,
+.wide-mailbox,
+.wide-mailbox > *,
+.mail-panel,
+.message-list,
+.message-row,
+.message-open,
+.logbook-mail-tools,
+.request-filters,
+.mail-bulk-actions,
+.embedded-reconsideration,
+.embedded-reconsideration * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#content.mail-content {
+  overflow-x: clip;
+}
+
+.wide-mailbox {
+  overflow: hidden;
+}
+
+/* Filters + bulk controls must share available width instead of adding widths together. */
+.logbook-mail-tools {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+}
+
+.logbook-mail-tools .request-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1.25fr)
+    minmax(150px, .9fr)
+    minmax(190px, 1fr)
+    minmax(190px, 1fr);
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.logbook-mail-tools .request-filters > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.logbook-mail-tools .mail-bulk-actions {
+  width: auto;
+  min-width: 0;
+  max-width: 230px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.logbook-mail-tools .bulk-check,
+.logbook-mail-tools .btn {
+  max-width: 100%;
+}
+
+/* Base logbook request row: everything remains inside one responsive grid. */
+.message-row {
+  overflow: hidden;
+}
+
+.message-row.has-embedded-reconsideration {
+  display: grid !important;
+  grid-template-columns: 24px minmax(0, 1fr) max-content;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 0;
+  width: 100%;
+  padding: 0 12px 12px;
+  overflow: hidden;
+}
+
+.message-row.has-embedded-reconsideration > .logbook-message-select,
+.message-row.has-embedded-reconsideration > .message-select {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+}
+
+.message-row.has-embedded-reconsideration > .message-open {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.message-row.has-embedded-reconsideration > .message-actions,
+.message-row.has-embedded-reconsideration > .tag {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+  max-width: 190px;
+}
+
+/* This is the key fix: reconsideration belongs to the FULL request width, not the 24px checkbox column. */
+.message-row.has-embedded-reconsideration > .embedded-reconsideration {
+  grid-column: 1 / -1 !important;
+  grid-row: 2;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 8px 0 0 !important;
+  flex: none !important;
+}
+
+.embedded-reconsideration.pending {
+  width: 100%;
+  max-width: 100%;
+}
+
+.embedded-reconsideration-head {
+  width: 100%;
+}
+
+.embedded-reconsideration-body {
+  width: 100%;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
+}
+
+.embedded-reconsideration.pending .embedded-reconsideration-reason,
+.embedded-reconsideration.pending .embedded-reconsideration-decisionbox,
+.embedded-reconsideration.pending .embedded-reconsideration-note {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.embedded-reconsideration.pending .embedded-reconsideration-note textarea {
+  width: 100%;
+  max-width: 100%;
+  resize: vertical;
+}
+
+.embedded-reconsideration.pending .embedded-reconsideration-actions {
+  width: 100%;
+}
+
+/* Long names/status labels/dates wrap instead of forcing horizontal overflow. */
+.message-person,
+.message-subject,
+.decision-title,
+.embedded-reconsideration-head b,
+.embedded-reconsideration-head small,
+.embedded-reconsideration-reason p,
+.embedded-reconsideration-response p {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.message-open > small {
+  min-width: 0;
+  white-space: normal;
+}
+
+@media (max-width: 1320px) {
+  .logbook-mail-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .logbook-mail-tools .mail-bulk-actions {
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .logbook-mail-tools .request-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .message-row.has-embedded-reconsideration {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .message-row.has-embedded-reconsideration > .message-open {
+    grid-column: 2;
+  }
+
+  .message-row.has-embedded-reconsideration > .message-actions,
+  .message-row.has-embedded-reconsideration > .tag {
+    grid-column: 2;
+    grid-row: auto;
+    justify-self: start;
+    margin: 0 0 8px;
+    max-width: 100%;
+  }
+
+  .message-row.has-embedded-reconsideration > .embedded-reconsideration {
+    grid-column: 1 / -1 !important;
+  }
+
+  .embedded-reconsideration-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  #content.mail-content {
+    padding-inline: 10px;
+  }
+
+  .mailbox-tabs {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .mailbox-tab {
+    flex: 0 0 auto;
+  }
+
+  .logbook-mail-tools {
+    padding: 12px;
+  }
+
+  .logbook-mail-tools .request-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .logbook-mail-tools .mail-bulk-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .logbook-mail-tools .bulk-check,
+  .logbook-mail-tools .btn {
+    width: 100%;
+  }
+
+  .message-row.has-embedded-reconsideration {
+    grid-template-columns: 22px minmax(0, 1fr);
+    padding: 0 8px 10px;
+  }
+
+  .message-row.has-embedded-reconsideration > .message-open {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 12px 2px 8px;
+  }
+
+  .embedded-reconsideration-head,
+  .embedded-reconsideration-body {
+    padding: 12px;
+  }
+
+  .embedded-reconsideration-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .embedded-reconsideration-head .embedded-original-decision {
+    white-space: normal;
+  }
+
+  .embedded-reconsideration.pending .embedded-reconsideration-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .embedded-reconsideration.pending .embedded-reconsideration-actions {
+    grid-template-columns: 1fr;
+  }
+}
