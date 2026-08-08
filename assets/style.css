@@ -3034,3 +3034,129 @@ input[type="radio"] {
   .review-section-heading { margin-bottom: 14px; }
   .review-section-heading h2 { font-size: 1.12rem; }
 }
+
+/* v1.0.46 — reconsideration stays inside the original logbook request */
+.message-row.has-embedded-reconsideration {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.message-row.has-embedded-reconsideration > .embedded-reconsideration {
+  flex: 0 0 calc(100% - 28px);
+  margin: 0 14px 14px;
+}
+.embedded-reconsideration {
+  display: grid;
+  grid-template-columns: minmax(170px,.85fr) minmax(240px,1.15fr) minmax(220px,1fr) auto;
+  gap: 12px;
+  align-items: stretch;
+  padding: 14px;
+  border: 1px solid #f2cf8e;
+  border-radius: 14px;
+  background: #fffaf0;
+}
+.embedded-reconsideration.pending {
+  border-left: 5px solid #f59e0b;
+}
+.embedded-reconsideration.resolved.approved {
+  border-color: #b8e2ce;
+  border-left: 5px solid #16a34a;
+  background: #f1fbf6;
+}
+.embedded-reconsideration.resolved.rejected {
+  border-color: #f4c4cc;
+  border-left: 5px solid #dc2626;
+  background: #fff5f6;
+}
+.embedded-reconsideration-context,
+.embedded-reconsideration-reason,
+.embedded-reconsideration-response {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+.embedded-reconsideration-context b { font-size: .95rem; }
+.embedded-reconsideration-context small { color: var(--muted); line-height: 1.4; }
+.embedded-reconsideration-reason,
+.embedded-reconsideration-response {
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: #fff;
+  border: 1px solid rgba(8,28,53,.08);
+}
+.embedded-reconsideration-reason > span,
+.embedded-reconsideration-response > span {
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 900;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+.embedded-reconsideration-reason p,
+.embedded-reconsideration-response p {
+  margin: 0;
+  font-weight: 750;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.embedded-reconsideration-note {
+  align-content: start;
+  font-size: .76rem;
+}
+.embedded-reconsideration-note small {
+  color: var(--rose);
+  font-weight: 750;
+}
+.embedded-reconsideration-note textarea {
+  min-height: 66px;
+  padding: 9px 10px;
+  resize: vertical;
+  background: #fff;
+}
+.embedded-reconsideration-actions {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+.embedded-reconsideration-actions .btn {
+  min-width: 82px;
+  padding-inline: 12px;
+}
+.orphan-reconsideration-row {
+  padding: 14px;
+  border-left: 5px solid #f59e0b;
+}
+.orphan-request-context {
+  flex: 0 0 100%;
+  display: grid;
+  gap: 4px;
+  padding: 0 2px 10px;
+}
+.orphan-request-context small { color: var(--muted); }
+.orphan-reconsideration-row > .embedded-reconsideration {
+  flex-basis: 100%;
+  margin: 0;
+}
+@media (max-width: 1050px) {
+  .embedded-reconsideration {
+    grid-template-columns: 1fr 1fr;
+  }
+  .embedded-reconsideration-actions {
+    align-items: stretch;
+  }
+  .embedded-reconsideration-actions .btn { flex: 1; }
+}
+@media (max-width: 650px) {
+  .message-row.has-embedded-reconsideration > .embedded-reconsideration {
+    flex-basis: 100%;
+    margin: 0 8px 10px;
+  }
+  .embedded-reconsideration {
+    grid-template-columns: 1fr;
+    gap: 9px;
+    padding: 11px;
+  }
+  .embedded-reconsideration-note textarea { min-height: 58px; }
+  .embedded-reconsideration-actions { align-items: stretch; }
+}
