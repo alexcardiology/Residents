@@ -4350,7 +4350,7 @@ form .password-eye-button,
   .review-thread-event-head { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
 
-/* v1.0.63 — compact chat-style review threads */
+/* v1.0.64 — compact chat-style review threads */
 dialog:has(.review-thread-modal) {
   width: min(620px, calc(100vw - 24px));
   max-width: 620px;
@@ -4509,3 +4509,10 @@ dialog:has(.review-thread-modal) {
   .review-chat-meta small { font-size: .58rem; }
   .review-thread-modal .thread-review-actions .btn { flex: 1 1 140px; }
 }
+
+
+/* v1.0.64 - assessor resident evidence portfolio */
+.assessment-evidence-export{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;margin:0 0 14px;border:1px solid #bfd4e7;border-radius:14px;background:#f4f9fd}
+.assessment-evidence-export b{display:block;color:#0b2f52;font-size:15px}.assessment-evidence-export small{display:block;margin-top:3px;color:#64748b;line-height:1.35}.assessment-evidence-export .btn{flex:0 0 auto;white-space:nowrap}
+@media(max-width:700px){.assessment-evidence-export{align-items:stretch;flex-direction:column}.assessment-evidence-export .btn{width:100%}}
+/* 1.0.64 */

@@ -492,7 +492,7 @@ const w = {
       h(
         m.display_name || m.username,
         "Review all evidence before formal scoring.",
-        y,
+        `<button class="btn secondary" data-export-assessment-portfolio="${o(i)}">Export assessment portfolio PDF</button>${y}`,
       ) +
       f +
       ` <div class="grid g3 top-gap"> ${_("Knowledge complete", c.data?.length || 0, "topics")} ${_("Skill logs", d.data?.length || 0, "performances")} ${_("Previous assessments", u.data?.length || 0, "records")} </div> <div class="top-gap">${renderCommentsTable(n.data || [])}</div> <div class="grid top-gap">${u.data?.map(A).join("") || v("No previous assessments.")}</div>`;
@@ -797,6 +797,90 @@ async function printCurriculumPdf(chapterIds) {
   } catch (error) {
     popup.close();
     throw error;
+  }
+}
+
+
+function dependenceLevelText(level) {
+  const map = {
+    1: "Observer",
+    2: "Direct supervision",
+    3: "Limited supervision",
+    4: "Independent",
+    5: "Expert / supervisor",
+  };
+  const value = Number(level || 0);
+  return value ? `Level ${value} - ${map[value] || "Recorded"}` : "Not recorded";
+}
+function assessmentPortfolioReviewRows(rows) {
+  if (!rows.length) return '<div class="portfolio-empty">No reviews recorded.</div>';
+  return `<table class="portfolio-table reviews-table"><thead><tr><th>Date</th><th>Domain</th><th>Type</th><th>Review</th><th>Reviewer</th><th>Place</th><th>Reconsideration</th></tr></thead><tbody>${rows.map((row) => {
+    const domain = row.category === "attitude" ? "Behavioural" : row.category === "skill" ? "Clinical - Skill" : "Clinical - Knowledge";
+    const sentiment = row.sentiment === "negative" ? "Bad / Negative" : "Good / Positive";
+    const reviewer = row.display_observer || row.observer_signature || (row.is_anonymous ? "Anonymous reviewer" : "Reviewer");
+    const rec = row.reconsideration_status === "accepted" ? "Modified after reconsideration" : row.reconsideration_status === "upheld" ? "Original upheld" : row.reconsideration_status === "requested" ? "Reconsideration pending" : "—";
+    return `<tr><td>${d(row.observed_on || row.created_at)}</td><td>${o(domain)}</td><td>${o(sentiment)}</td><td>${o(row.comment || "—")}</td><td>${o(reviewer)}</td><td>${o(row.place || "—")}</td><td>${o(rec)}</td></tr>`;
+  }).join("")}</tbody></table>`;
+}
+function assessmentPortfolioAssessmentRows(rows) {
+  if (!rows.length) return '<div class="portfolio-empty">No previous formal assessments.</div>';
+  return `<table class="portfolio-table assessments-table"><thead><tr><th>Date</th><th>Knowledge</th><th>Skills</th><th>Behaviour</th><th>Total</th><th>Outcome</th><th>Assessor justification</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${d(row.assessment_date || row.created_at)}</td><td>${o(row.knowledge_score)}/10</td><td>${o(row.skills_score)}/10</td><td>${o(row.attitude_score)}/10</td><td>${o(row.total_score)}/30</td><td>${row.overall_pass ? "PASS" : "FAIL"}</td><td>${o([row.knowledge_justification,row.skills_justification,row.attitude_justification].filter(Boolean).join(" | ") || "—")}</td></tr>`).join("")}</tbody></table>`;
+}
+async function printResidentAssessmentPortfolio(residentId) {
+  if (!["assessor", "owner"].includes(s.p.role)) return alert("Assessor or Owner access required");
+  const popup = window.open("", "_blank");
+  if (!popup) return alert("Please allow pop-ups to export the resident evidence PDF.");
+  popup.opener = null;
+  popup.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:30px">Preparing resident assessment portfolio…</body></html>');
+  popup.document.close();
+  try {
+    const profile = u(await e.from("profiles").select("id,display_name,username,residency_year,role").eq("id", residentId).single());
+    if (!profile) throw new Error("Resident profile not found");
+    const chapters = u(await e.from("chapters").select("id,title,year_from,year_to,sort_order,is_active").eq("is_active", true).lte("year_from", profile.residency_year).order("year_from").order("sort_order")) || [];
+    const chapterIds = chapters.map((chapter) => Number(chapter.id));
+    const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments] = await Promise.all([
+      chapterIds.length ? e.from("knowledge_items").select("id,chapter_id,title,description,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({data:[]}),
+      e.from("knowledge_progress").select("knowledge_item_id,status").eq("resident_id", residentId),
+      chapterIds.length ? e.from("skills").select("id,chapter_id,title,description,expected_level,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({data:[]}),
+      e.from("skill_levels").select("skill_id,level").eq("resident_id", residentId),
+      e.from("skill_logs").select("skill_id").eq("resident_id", residentId),
+      e.rpc("get_logbook_entries_v2", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
+      reviewRpcResult(residentId),
+      e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
+    ]);
+    const datasets = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments];
+    const failed = datasets.find((result) => result?.error);
+    if (failed?.error) throw failed.error;
+    const kRows = knowledge.data || [], completedIds = new Set((progress.data || []).filter((row) => row.status === "completed").map((row) => Number(row.knowledge_item_id)));
+    const chapterMap = new Map(chapters.map((chapter) => [Number(chapter.id), chapter]));
+    const completed = kRows.filter((item) => completedIds.has(Number(item.id)));
+    const unchecked = kRows.filter((item) => !completedIds.has(Number(item.id)));
+    const knowledgeTable = (rows, checked) => rows.length ? `<table class="portfolio-table knowledge-table"><thead><tr><th>Status</th><th>Chapter</th><th>Knowledge point</th><th>Description</th></tr></thead><tbody>${rows.map((item) => `<tr><td class="status-cell ${checked ? "done" : "todo"}">${checked ? "✓ Checked" : "☐ Not checked"}</td><td>${o(chapterMap.get(Number(item.chapter_id))?.title || "—")}</td><td><b>${o(item.title)}</b></td><td>${o(item.description || "—")}</td></tr>`).join("")}</tbody></table>` : `<div class="portfolio-empty">${checked ? "No checked knowledge points." : "No unchecked knowledge points."}</div>`;
+    const levelMap = new Map((skillLevels.data || []).map((row) => [Number(row.skill_id), Number(row.level)]));
+    const logCount = new Map();
+    (skillLogs.data || []).forEach((row) => logCount.set(Number(row.skill_id), (logCount.get(Number(row.skill_id)) || 0) + 1));
+    const skillRows = skills.data || [];
+    const skillsHtml = skillRows.length ? `<div class="dependence-guide"><b>Level of dependence:</b> 1 Observer · 2 Direct supervision · 3 Limited supervision · 4 Independent · 5 Expert / supervisor</div><table class="portfolio-table skills-table"><thead><tr><th>Chapter</th><th>Skill</th><th>Current level of dependence</th><th>Expected</th><th>Performance logs</th></tr></thead><tbody>${skillRows.map((item) => { const level = levelMap.get(Number(item.id)); return `<tr><td>${o(chapterMap.get(Number(item.chapter_id))?.title || "—")}</td><td><b>${o(item.title)}</b>${item.description ? `<small>${o(item.description)}</small>` : ""}</td><td class="level-cell ${level ? "recorded" : "not-recorded"}">${o(dependenceLevelText(level))}</td><td>${item.expected_level ? `Level ${o(item.expected_level)}` : "—"}</td><td>${o(logCount.get(Number(item.id)) || 0)}</td></tr>`; }).join("")}</tbody></table>` : '<div class="portfolio-empty">No active skills in the resident curriculum.</div>';
+    const approvedLogbook = (logbookResult.data || []).filter((entry) => String(entry.resident_id) === String(residentId) && entry.status === "approved");
+    const reviews = reviewsResult.data || [];
+    const previousAssessments = assessments.data || [];
+    const summary = `<section class="portfolio-summary"><div><span>Residency</span><b>Year ${o(profile.residency_year || "—")}</b></div><div><span>Knowledge</span><b>${completed.length}/${kRows.length} checked</b></div><div><span>Skills</span><b>${[...levelMap.values()].length}/${skillRows.length} levels recorded</b></div><div><span>Approved logbook</span><b>${approvedLogbook.length} records</b></div><div><span>Reviews</span><b>${reviews.length}</b></div><div><span>Assessments</span><b>${previousAssessments.length}</b></div></section>`;
+    popup.document.open();
+    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${o(profile.display_name || profile.username)} - Assessment Portfolio</title><style>
+      @page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{margin:0;color:#142033;font-family:Arial,sans-serif;font-size:9px}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #0d4963;padding-bottom:7px;margin-bottom:8px}header h1{margin:0;font-size:19px;color:#081c35}header p{margin:2px 0 0;color:#5b6877}.portfolio-summary{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:8px 0 12px}.portfolio-summary div{border:1px solid #c4d0dc;border-radius:6px;padding:6px;background:#f7fafc}.portfolio-summary span{display:block;text-transform:uppercase;font-size:7px;color:#64748b;font-weight:700}.portfolio-summary b{display:block;margin-top:2px;font-size:11px;color:#0d2d50}.portfolio-section{margin:14px 0;break-inside:auto}.portfolio-section>h2{margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #aebbc8;font-size:14px;color:#0d2d50}.portfolio-section>h3{margin:9px 0 5px;font-size:11px;color:#0d4963}.portfolio-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:7px}.portfolio-table th,.portfolio-table td{border:1px solid #b8c5d2;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}.portfolio-table th{background:#0d4963;color:#fff;font-size:7.5px;text-transform:uppercase}.portfolio-table tbody tr:nth-child(even){background:#f7f9fb}.status-cell{width:11%;font-weight:800;text-align:center}.status-cell.done{color:#08783e;background:#edf9f2}.status-cell.todo{color:#7b4c00;background:#fff8e7}.skills-table th:nth-child(3),.skills-table td:nth-child(3){width:22%}.skills-table th:nth-child(4),.skills-table td:nth-child(4),.skills-table th:nth-child(5),.skills-table td:nth-child(5){width:11%;text-align:center}.skills-table small{display:block;margin-top:2px;color:#64748b}.level-cell{font-weight:800}.level-cell.recorded{color:#0b4f82}.level-cell.not-recorded{color:#9a3412}.dependence-guide{padding:6px 8px;margin-bottom:6px;border:1px solid #c9d8e5;background:#f1f7fb;border-radius:5px}.portfolio-empty{padding:10px;border:1px dashed #b8c5d2;color:#64748b}.reviews-table th:nth-child(4){width:30%}.assessments-table th:last-child{width:28%}.logbook-wrap{margin-top:6px}.logbook-wrap ${logbookExportCss().replace(/@page\{[^}]*\}/,'').replace(/body\{[^}]*\}/,'')}footer{margin-top:12px;padding-top:6px;border-top:1px solid #cbd5e1;text-align:right;color:#64748b;font-size:7px}@media print{.page-break{break-before:page;page-break-before:always}}
+    </style></head><body><header><div><h1>Resident Assessment Portfolio</h1><p>${o(profile.display_name || profile.username)} · Year ${o(profile.residency_year || "—")} · Evidence available to assessor before formal scoring</p></div><p>Generated ${d(new Date().toISOString())}</p></header>${summary}
+      <section class="portfolio-section"><h2>Knowledge evidence</h2><h3>✓ Checked knowledge</h3>${knowledgeTable(completed, true)}<h3>☐ Not checked knowledge</h3>${knowledgeTable(unchecked, false)}</section>
+      <section class="portfolio-section page-break"><h2>Skills and level of dependence</h2>${skillsHtml}</section>
+      <section class="portfolio-section page-break logbook-wrap"><h2>Approved e-logbook</h2>${logbookExportSections(approvedLogbook, false)}</section>
+      <section class="portfolio-section page-break"><h2>Clinical and behavioural reviews</h2>${assessmentPortfolioReviewRows(reviews)}</section>
+      <section class="portfolio-section"><h2>Previous formal assessments</h2>${assessmentPortfolioAssessmentRows(previousAssessments)}</section>
+      <footer>Cardiology Resident Training & Assessment · Resident evidence portfolio</footer></body></html>`);
+    popup.document.close();
+    popup.focus();
+    setTimeout(() => popup.print(), 400);
+  } catch (error) {
+    popup.close();
+    alert(error?.message || String(error));
   }
 }
 
@@ -2511,6 +2595,7 @@ function H() {
       e && T(t, e.chapter_id, e);
     }
     if (a.hasAttribute("data-export-curriculum")) await openCurriculumExport();
+    if (a.dataset.exportAssessmentPortfolio) await printResidentAssessmentPortfolio(a.dataset.exportAssessmentPortfolio);
     if (a.dataset.curriculumExportSelect) {
       const mode = a.dataset.curriculumExportSelect;
       document.querySelectorAll('#curriculumExportForm input[name="chapter_ids"]').forEach((box) => {
@@ -2647,7 +2732,7 @@ function H() {
             .eq("is_active", !0);
           ((s.reasons = d || []),
             y(
-              ` <form id="assessmentForm" class="modal"> <div class="modal-head"><h2>Assess ${o(a)}</h2><button type="button" data-close>×</button></div> ${[
+              ` <form id="assessmentForm" class="modal"> <div class="modal-head"><h2>Assess ${o(a)}</h2><button type="button" data-close>×</button></div> <section class="assessment-evidence-export"><div><b>Resident evidence portfolio</b><small>Checked and unchecked knowledge, current skill dependence levels, approved logbook, reviews and previous assessments.</small></div><button type="button" class="btn secondary" data-export-assessment-portfolio="${o(t)}">Export evidence PDF</button></section> ${[
                 ["knowledge", 6],
                 ["skills", 7],
                 ["attitude", 8],

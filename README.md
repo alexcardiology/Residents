@@ -1,19 +1,12 @@
-# Resident Training & Assessment — v1.0.63
+# Resident Training v1.0.64
 
-Frontend-only update after v1.0.62.
+Assessor assessment-evidence portfolio update.
 
-## Review Inbox thread redesign
-
-Review conversations now open as a compact chat-style thread instead of a wide report modal.
-
-- Narrow centered modal (maximum ~620 px).
-- Messages are shown as left/right chat bubbles.
-- Each bubble contains sender, time, short event title and message text.
-- The current review is shown only as a compact two-line summary.
-- No large metadata grid and no horizontal scrolling.
-- Review actions remain available at the bottom.
-- Mobile uses the same chat layout with wider bubbles.
+## New
+- Assigned assessor can export a resident **Assessment Portfolio PDF** directly from the resident record.
+- The same export button is available inside the formal assessment modal before scoring.
+- PDF order: resident summary; checked Knowledge first; unchecked Knowledge second; all Skills with current Level of Dependence and expected level; approved e-logbook with grouped interventions, intervention totals and a separate conferences table; clinical/behavioural reviews; previous formal assessments.
+- The export is read-only and does not change resident evidence.
 
 ## Installation
-
-No SQL migration is required. Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`, then hard-refresh.
+Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`, then hard-refresh. No SQL migration is required for v1.0.64.
