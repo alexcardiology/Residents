@@ -4133,3 +4133,33 @@ form .password-eye-button,
 .entry .password-toggle.is-visible .eye-off-icon {
   display: block;
 }
+
+
+/* =========================================================
+   Resident residency card emphasis — v1.0.57
+========================================================= */
+.dashboard-tile.year-tile > strong {
+  display: flex;
+  align-items: center;
+  min-height: 76px;
+}
+.dashboard-tile.year-tile .year-chip {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #fff;
+  background: transparent;
+  font-size: clamp(2.25rem, 3.2vw, 3.25rem);
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+.dashboard-tile.year-tile > small {
+  display: none;
+}
+@media (max-width: 600px) {
+  .dashboard-tile.year-tile > strong { min-height: 58px; }
+  .dashboard-tile.year-tile .year-chip {
+    font-size: clamp(1.75rem, 9vw, 2.45rem);
+  }
+}
