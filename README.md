@@ -1,50 +1,50 @@
-# Resident Training & Assessment — v1.0.58
+# Resident Training v1.0.60 — Intervention Audit Reset
 
-Incremental update after v1.0.57.
+This is a frontend update on top of v1.0.58 + the v1.0.59 reset SQL hotfix.
 
-## New Owner-only Test-period reset
+## What changed
 
-Go to **Owner → More → Test-period reset**.
+### Owner → Intervention audit
+The audit now has direct Owner-only reset controls:
 
-You can permanently reset:
+- **Reset selected residents**
+  - Opens a resident checklist.
+  - Type `RESET SELECTED` to confirm.
+  - Clears the chosen residents' complete e-logbook test data.
 
-1. **ALL reviews**
-   - Deletes all clinical/behavioural reviews.
-   - Deletes review reconsideration state.
-   - Deletes review-related Inbox notifications/messages.
+- **Reset ALL logbooks**
+  - Type `RESET LOGBOOKS` to confirm.
+  - Clears all current resident intervention and conference logbooks.
+  - The Intervention Audit therefore returns to zero.
 
-2. **ALL knowledge & skills progress**
-   - Clears resident Knowledge completion/checkmarks (`knowledge_progress`).
-   - Clears resident selected Skill levels (`skill_levels`).
-   - Clears chapter Skill performance logs (`skill_logs`).
+The reset uses the existing owner-protected `owner_bulk_reset_logbooks` RPC, so non-owners cannot invoke it successfully.
 
-3. **RESET BOTH**
-   - Performs both resets together.
+### Owner → More → Test-period reset
+A third card now appears for **Resident e-logbooks**, linking the same protected `Reset ALL logbooks` action into the test-period cleanup screen.
 
-## Preserved
+## Preserved by the logbook reset
 
-These reset actions do **not** delete:
-- Accounts/profiles
-- Chapters
-- Knowledge item definitions
-- Skill definitions
+- Accounts and residency allocations
+- Curriculum definitions
+- Reviews
 - Formal assessments
 - Assessment schedules
-- Resident e-logbook interventions/conferences
 
-The reset page shows the number of records currently present before you reset.
+## Deleted by the logbook reset
 
-## Safety
+- Resident intervention/conference logbook entries for the chosen residents
+- Their logbook approval/reconsideration workflow data handled by the existing reset routine
 
-The RPCs verify the authenticated account is an active **Program Owner**.
-Each destructive action also requires an exact typed phrase:
-- `RESET REVIEWS`
-- `RESET LEARNING`
-- `RESET TEST DATA`
+## Installation
 
-## Install
+No new SQL is required **if `owner_bulk_reset_logbooks` is already installed** (it has been part of the portal since v1.0.36).
 
-1. Run `sql/resident_training_v1.0.58.sql` in Supabase SQL Editor.
-2. Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css` with the v1.0.58 files.
-3. Keep your existing `assets/login.js` and `assets/supabase.js`.
-4. Hard-refresh the website.
+Replace:
+- `app.html`
+- `index.html`
+- `assets/app.js`
+- `assets/style.css`
+
+Then hard-refresh the portal.
+
+If you have not yet applied the v1.0.59 reset hotfix for the separate Reviews/Learning reset feature, run that SQL independently.

@@ -1511,13 +1511,16 @@ async function ownerInterventionAuditPage() {
   const procedures = [...new Map(rows.map((row) => [String(row.procedure_name), Number(row.procedure_order) || 999])).entries()]
     .sort((a,b)=>a[1]-b[1]).map(([name])=>name);
   window.ownerInterventionAuditRows = rows;
+  window.ownerInterventionAuditResidents = [...new Map(rows.map((row) => [String(row.resident_id), { id: row.resident_id, name: row.resident_name, year: Number(row.residency_year) || null }])).values()]
+    .sort((left, right) => (Number(left.year) - Number(right.year)) || String(left.name || "").localeCompare(String(right.name || "")));
 
   a.innerHTML = h(
     "Intervention fairness audit",
     "Compare verified intervention opportunities between residents. Only approved logbook entries are counted; trials exclude observation-only attendance.",
-    '<button class="btn secondary" data-go="owner-logbook-center">Back to Logbooks</button>',
+    '<div class="inline-actions audit-head-actions"><button class="btn secondary" data-go="owner-logbook-center">Back to Logbooks</button><button class="btn danger" type="button" data-audit-reset="selected">Reset selected residents</button><button class="btn danger danger-button" type="button" data-audit-reset="all">Reset ALL logbooks</button></div>',
   ) + `
     <section class="card intervention-audit-card">
+      <div class="audit-reset-explainer"><b>Test-data reset:</b><span>The audit is calculated from resident e-logbook entries. Resetting logbooks removes those test interventions/conferences and the audit returns to zero. Curriculum, reviews, assessments and accounts are not changed.</span></div>
       <div class="intervention-audit-filters">
         <label>Residency year<select id="auditYearFilter"><option value="">All years</option>${years.map((year)=>`<option value="${year}">Year ${year}</option>`).join("")}</select></label>
         <label>Intervention<select id="auditProcedureFilter"><option value="">All interventions</option>${procedures.map((name)=>`<option value="${o(name)}">${o(name)}</option>`).join("")}</select></label>
@@ -1589,6 +1592,30 @@ function renderOwnerInterventionAudit() {
     <article><span>Success rate</span><b>${totals.trials ? Math.round(totals.success*100/totals.trials) : 0}%</b></article>`;
 }
 
+function openOwnerInterventionAuditReset(mode) {
+  if (s.p.role !== "owner") return;
+  const residents = window.ownerInterventionAuditResidents || [];
+  if (mode === "all") {
+    y(`<form id="ownerAuditResetForm" class="modal owner-audit-reset-modal">
+      <div class="modal-head"><div><span class="eyebrow rose">Owner-only destructive action</span><h2>Reset ALL resident logbooks</h2></div><button type="button" data-close>×</button></div>
+      <div class="danger-confirmation-box"><b>This permanently clears all resident intervention and conference test records.</b><p>The Intervention Audit will return to zero after the reset.</p><p>Accounts, curriculum, reviews, formal assessments and schedules are preserved.</p></div>
+      <label>Type <b>RESET LOGBOOKS</b> to confirm<input name="confirmation" autocomplete="off" required placeholder="RESET LOGBOOKS"></label>
+      <input type="hidden" name="mode" value="all">
+      <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn danger danger-button">Reset ALL logbooks</button></div>
+    </form>`);
+    return;
+  }
+  y(`<form id="ownerAuditResetForm" class="modal owner-audit-reset-modal">
+    <div class="modal-head"><div><span class="eyebrow rose">Owner-only destructive action</span><h2>Reset selected resident logbooks</h2></div><button type="button" data-close>×</button></div>
+    <p>Select the residents whose test intervention/conference records should be cleared. Their accounts, curriculum progress, reviews and assessments are not changed.</p>
+    <div class="audit-reset-select-toolbar"><button class="btn secondary" type="button" data-audit-modal-select-all>Select all</button><button class="btn secondary" type="button" data-audit-modal-clear>Clear</button></div>
+    <div class="audit-reset-resident-list">${residents.map((resident) => `<label><input type="checkbox" name="resident_ids" value="${o(resident.id)}"><span><b>${o(resident.name || "Resident")}</b><small>${resident.year ? `Year ${resident.year}` : ""}</small></span></label>`).join("") || '<div class="panel-empty">No active residents found.</div>'}</div>
+    <label>Type <b>RESET SELECTED</b> to confirm<input name="confirmation" autocomplete="off" required placeholder="RESET SELECTED"></label>
+    <input type="hidden" name="mode" value="selected">
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn danger">Reset selected residents</button></div>
+  </form>`);
+}
+
 async function ownerToolsPage() {
   if (s.p.role !== "owner") return g("dashboard");
   t("#title").textContent = "More";
@@ -1631,6 +1658,12 @@ async function ownerTestResetPage() {
         <p>Clears resident Knowledge checkmarks, selected Skill levels, and chapter Skill performance logs so every resident starts from zero.</p>
         <p class="form-note"><b>Preserved:</b> the Knowledge/Skill curriculum itself, assessments, accounts, e-logbook interventions/conferences and schedules.</p>
         <button class="btn danger" type="button" data-open-test-reset="learning">Reset ALL knowledge & skills progress</button>
+      </section>
+      <section class="card test-reset-card logbook-test-reset-card">
+        <div class="test-reset-card-head"><div><span class="eyebrow">Resident e-logbooks</span><h3>Reset intervention & conference test data</h3></div><strong>LOG</strong></div>
+        <p>Clears all resident logbook interventions, conferences, approval requests and reconsideration copies created during testing. The Intervention Audit will return to zero.</p>
+        <p class="form-note"><b>Preserved:</b> accounts, curriculum definitions, reviews, assessments and schedules.</p>
+        <button class="btn danger" type="button" data-audit-reset="all">Reset ALL logbooks</button>
       </section>
     </div>
     <section class="card test-reset-all-card">
@@ -2455,6 +2488,15 @@ function H() {
     if (a.dataset.openTestReset) {
       openOwnerTestResetConfirmation(a.dataset.openTestReset);
     }
+    if (a.dataset.auditReset) {
+      openOwnerInterventionAuditReset(a.dataset.auditReset);
+    }
+    if (a.hasAttribute("data-audit-modal-select-all")) {
+      document.querySelectorAll('#ownerAuditResetForm input[name="resident_ids"]').forEach((box) => (box.checked = true));
+    }
+    if (a.hasAttribute("data-audit-modal-clear")) {
+      document.querySelectorAll('#ownerAuditResetForm input[name="resident_ids"]').forEach((box) => (box.checked = false));
+    }
     var r, d;
     if (
       (a.dataset.log &&
@@ -3128,6 +3170,26 @@ function H() {
         b(`${count} message${count === 1 ? "" : "s"} deleted. Resident logbooks were not changed.`);
         await q();
         return void (await ownerMessageCleanupPage());
+      }
+      if ("ownerAuditResetForm" === a.id) {
+        const mode = String(r.get("mode") || "selected");
+        const confirmation = String(r.get("confirmation") || "").trim().toUpperCase();
+        if (mode === "all") {
+          if (confirmation !== "RESET LOGBOOKS") throw new Error("Type RESET LOGBOOKS exactly to confirm");
+          const resetCount = u(await e.rpc("owner_bulk_reset_logbooks", { p_resident_ids: [], p_reset_all: true }));
+          i.close();
+          await q();
+          b(`${resetCount || 0} resident logbook${Number(resetCount) === 1 ? "" : "s"} reset · intervention audit cleared`);
+          return void (await ownerInterventionAuditPage());
+        }
+        const ids = r.getAll("resident_ids").map(String).filter(Boolean);
+        if (!ids.length) throw new Error("Choose at least one resident");
+        if (confirmation !== "RESET SELECTED") throw new Error("Type RESET SELECTED exactly to confirm");
+        const resetCount = u(await e.rpc("owner_bulk_reset_logbooks", { p_resident_ids: ids, p_reset_all: false }));
+        i.close();
+        await q();
+        b(`${resetCount || 0} selected resident logbook${Number(resetCount) === 1 ? "" : "s"} reset`);
+        return void (await ownerInterventionAuditPage());
       }
       if ("ownerTestResetForm" === a.id) {
         const scope = String(r.get("scope") || "");
