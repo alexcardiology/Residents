@@ -384,7 +384,7 @@ const w = {
     const rows = reviewResult.data || [];
     window.observerReviewRows = new Map(rows.map((row) => [String(row.id), row]));
     a.innerHTML = s.p.role === "resident"
-      ? h("Reviews about me", "Your clinical and behavioural feedback is grouped below into good and bad reviews. You can request reconsideration of any review.") + renderResidentReviewGroups(rows)
+      ? h("Reviews about me", "Filter your clinical and behavioural reviews in one table, including good/bad feedback and reconsideration status.") + renderResidentReviewGroups(rows)
       : h("Comments written by you", "Your review history. Anonymous reviews remain anonymous to the resident and other assigned assessors, but the Program Owner can identify the author.") + renderCommentsTable(rows, "author");
   },
   residents: async function () {
@@ -1168,7 +1168,11 @@ async function logbookRequestsPage() {
     ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>Approved request · ${o(message.sender_name)} approved your ${activityLabel(message)}</span></span>`
     : message.subject === "Logbook rejection"
       ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Rejected request · ${o(message.sender_name)} rejected your ${activityLabel(message)}</span></span>`
-      : `Approval request · ${activityLabel(message)}`;
+      : message.subject === "Reconsideration approved"
+        ? `<span class="decision-title reconsideration-approved-title"><span class="decision-icon approved">✓</span><span>Approved after reconsideration · ${o(message.sender_name)} approved your ${activityLabel(message)}</span><span class="after-reconsideration-badge" title="After reconsideration">💡</span></span>`
+        : message.subject === "Reconsideration rejected"
+          ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Reconsideration rejected · ${o(message.sender_name)} kept the rejection of your ${activityLabel(message)}</span></span>`
+          : `Approval request · ${activityLabel(message)}`;
 
   const reconsiderationForRequest = (message) => latestReconsiderationByEntry.get(String(message.logbook_entry_id || "")) || null;
 
@@ -1226,20 +1230,26 @@ async function logbookRequestsPage() {
     if (view !== "updates" || s.p.role !== "resident" || !message.logbook_entry_id || !(message.can_reclaim || message.request_status === "rejected" || message.subject === "Logbook rejection")) return "";
     const rec = residentReconsiderationFor(message);
     if (rec?.status === "requested") return `<div class="message-actions"><span class="tag warning">Reconsideration pending</span></div>`;
-    if (rec?.status === "approved") return `<div class="message-actions"><span class="tag success">Reconsideration approved</span></div>`;
+    if (rec?.status === "approved") return `<div class="message-actions"><span class="tag success reconsidered-tag"><span aria-hidden="true">💡</span> Reconsideration approved</span></div>`;
     if (rec?.status === "rejected") return `<div class="message-actions"><span class="tag danger">Reconsideration rejected</span></div>`;
     return `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer-id="${o(message.sender_id || "")}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>`;
   };
 
   const rows = (items, view) => items.length ? items.map((message) => {
     const rec = view === "received" ? reconsiderationForRequest(message) : null;
-    const effectiveStatus = rec?.status === "requested" ? "pending" : rec?.status === "approved" ? "approved" : rec?.status === "rejected" ? "rejected" : (message.request_status || "pending");
-    const extraSearch = rec ? `${rec.reason || ""} ${rec.response_note || ""} reconsideration ${rec.status || ""}` : "";
+    const residentRec = view === "updates" && s.p.role === "resident" ? residentReconsiderationFor(message) : null;
+    const effectiveStatus = rec?.status === "requested" ? "pending" : rec?.status === "approved" ? "approved" : rec?.status === "rejected" ? "rejected" : residentRec?.status === "approved" ? "approved" : residentRec?.status === "rejected" ? "rejected" : (message.request_status || "pending");
+    const extraSearch = rec ? `${rec.reason || ""} ${rec.response_note || ""} reconsideration ${rec.status || ""}` : residentRec ? `${residentRec.reason || ""} ${residentRec.response_note || ""} reconsideration ${residentRec.status || ""}` : "";
+    const titleMarkup = message.subject === "Logbook rejection" && residentRec?.status === "approved"
+      ? `<span class="decision-title reconsideration-approved-title"><span class="decision-icon approved" aria-label="Approved">✓</span><span>Approved after reconsideration · ${o(message.sender_name)} approved your ${activityLabel(message)}</span><span class="after-reconsideration-badge" title="After reconsideration" aria-label="After reconsideration">💡</span></span>`
+      : message.subject === "Logbook rejection" && residentRec?.status === "rejected"
+        ? `<span class="decision-title"><span class="decision-icon rejected" aria-label="Rejected">×</span><span>Reconsideration rejected · ${o(message.sender_name)} kept the rejection of your ${activityLabel(message)}</span></span>`
+        : statusTitle(message);
     return `<article class="message-row ${message.is_read ? "read" : "unread"} ${rec ? "has-embedded-reconsideration" : ""}" data-request-resident="${o(message.resident_id || "")}" data-request-status="${o(effectiveStatus)}" data-request-type="${o(`${message.activity_category || ""}:${message.activity_kind || ""}`)}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.resident_name || ""} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""} ${effectiveStatus} ${extraSearch}`.toLowerCase())}">
       <input class="message-select logbook-message-select" type="checkbox" value="${message.id}" aria-label="Select logbook message">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
         <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
-        <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
+        <strong>${titleMarkup}</strong><small>${l(message.created_at)}</small>
       </button>${view === "received" || view === "trash" ? approvalButtons(message, rec) : ""}${residentReconsiderationAction(message, view)}${view === "received" ? reconsiderationPanel(rec) : ""}
     </article>`;
   }).join("") : '<div class="mail-empty">No logbook items here.</div>';
@@ -1592,53 +1602,102 @@ async function ownerToolsPage() {
 function A(e) {
   return ` <article class="card"> <div class="lead"> <div> <h2>Year ${e.assessed_year} ${o(e.assessment_type)}</h2> <p>${d(e.assessment_date)} · Assessor: ${o(e.assessor_signature)}</p> </div> <span class="tag ${e.overall_pass ? "success" : "danger"}">${e.overall_pass ? "Passed" : "Failed"}</span> </div> <div class="score"> <div><b>${e.knowledge_score}/10</b><small>Knowledge</small></div> <div><b>${e.skills_score}/10</b><small>Skills</small></div> <div><b>${e.attitude_score}/10</b><small>Attitude</small></div> <div><b>${e.total_score}/30</b><small>Total</small></div> </div> ${["knowledge", "skills", "attitude"].map((s) => (e[`${s}_justification`] ? `<p><b>${s}:</b> ${o(e[`${s}_justification`])}</p>` : "")).join("")} ${e.overall_pass ? "" : `<p class="warning">Reassessment due ${d(e.reassessment_due)}</p>`} </article>`;
 }
+function registerReviewRows(rows) {
+  const current = window.observerReviewRows instanceof Map ? window.observerReviewRows : new Map();
+  (rows || []).forEach((row) => current.set(String(row.id), row));
+  window.observerReviewRows = current;
+}
+function reviewDomainLabel(row) {
+  return String(row?.category || "").toLowerCase() === "attitude" ? "Behavioural" : "Clinical";
+}
+function reviewCategoryLabel(row) {
+  const value = String(row?.category || "review").toLowerCase();
+  if (value === "attitude") return "Behavioural";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+function reviewReconsiderationLabel(status) {
+  const value = String(status || "none");
+  if (value === "requested") return '<span class="tag warning">Pending reconsideration</span>';
+  if (value === "accepted") return '<span class="tag success reconsidered-tag"><span aria-hidden="true">💡</span> Modified after reconsideration</span>';
+  if (value === "upheld") return '<span class="tag neutral">Original review upheld</span>';
+  return '<span class="muted">—</span>';
+}
 function renderCommentsTable(rows, mode = "viewer") {
   const list = rows || [];
-  window.observerReviewRows = new Map(list.map((row) => [String(row.id), row]));
+  registerReviewRows(list);
   if (!list.length) return v("No reviews are available yet.");
-  return `<section class="review-cards">${list.map((row) => {
+  const showResident = mode !== "resident";
+  const residents = [...new Set(list.map((row) => row.resident_name).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
+  const reviewers = [...new Set(list.map((row) => row.display_observer || row.observer_signature || (row.is_anonymous ? "Anonymous reviewer" : "Reviewer")).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
+  const body = list.map((row) => {
     const positive = row.sentiment !== "negative";
-    const sentiment = mode === "resident" ? (positive ? "👍 Good review" : "👎 Bad review") : (positive ? "👍 Positive" : "👎 Negative");
-    const status = row.reconsideration_status || "none";
-    const displayObserver = row.observer_signature || row.display_observer || (row.is_anonymous ? "Anonymous reviewer" : "Reviewer");
+    const status = String(row.reconsideration_status || "none");
+    const displayObserver = row.display_observer || row.observer_signature || (row.is_anonymous ? "Anonymous reviewer" : "Reviewer");
+    const domain = reviewDomainLabel(row);
+    const category = reviewCategoryLabel(row);
     const residentAction = mode === "resident" && status === "none"
       ? `<button class="btn small secondary" data-review-reconsider="${o(row.id)}">Request to reconsider</button>`
       : "";
     const authorActions = mode === "author" && status === "requested"
-      ? `<button class="btn small success-button" data-review-resolve="${o(row.id)}" data-review-decision="accepted">Accept / edit review</button><button class="btn small danger-button" data-review-resolve="${o(row.id)}" data-review-decision="upheld">Keep original review</button>`
+      ? `<button class="btn small success-button" data-review-resolve="${o(row.id)}" data-review-decision="accepted">Accept / edit</button><button class="btn small danger-button" data-review-resolve="${o(row.id)}" data-review-decision="upheld">Keep original</button>`
       : "";
-    const statusText = status === "requested" ? "Reconsideration requested" : status === "accepted" ? "Modified after reconsideration" : status === "upheld" ? "Original review upheld" : "";
+    const detailsAction = `<button class="btn small secondary" data-open-review-notification="${o(row.id)}">Details</button>`;
     const ownerIdentity = mode === "owner" && row.actual_observer_name && row.is_anonymous
-      ? `<small class="owner-identity-note">Anonymous to resident/assessor · actual author: ${o(row.actual_observer_name)}</small>`
+      ? `<small class="owner-identity-note">Actual author: ${o(row.actual_observer_name)}</small>`
       : "";
-    return `<article class="card review-card ${positive ? "positive-review" : "negative-review"}">
-      <div class="review-card-head"><div><span class="review-sentiment ${positive ? "positive" : "negative"}">${sentiment}</span><h3>${o(mode === "resident" ? (row.category === "attitude" ? "Behavioural review" : `${String(row.category || "clinical").charAt(0).toUpperCase() + String(row.category || "clinical").slice(1)} review`) : (row.resident_name || "Resident"))}</h3></div><div class="review-head-tags"><span class="tag">${o(row.category === "attitude" ? "Behavioural" : row.category || "review")}</span>${status === "accepted" ? '<span class="tag modified-review-tag">Modified</span>' : ""}</div></div>
-      <p class="review-comment">${o(row.comment || "")}</p>
-      <div class="review-meta"><span>${d(row.observed_on)}${row.place ? ` · ${o(row.place)}` : ""}</span><span>By ${o(displayObserver)}</span></div>
-      ${ownerIdentity}
-      ${statusText ? `<div class="review-workflow"><b>${o(statusText)}</b>${row.reconsideration_text ? `<p><b>Resident request:</b> ${o(row.reconsideration_text)}</p>` : ""}${row.reconsideration_note ? `<p><b>Reviewer response:</b> ${o(row.reconsideration_note)}</p>` : ""}</div>` : ""}
-      ${(residentAction || authorActions) ? `<div class="review-actions">${residentAction}${authorActions}</div>` : ""}
-    </article>`;
-  }).join("")}</section>`;
+    const searchText = `${row.resident_name || ""} ${domain} ${category} ${positive ? "good positive" : "bad negative"} ${row.comment || ""} ${row.place || ""} ${displayObserver} ${status} ${row.reconsideration_text || ""}`.toLowerCase();
+    return `<tr class="review-data-row" data-review-search="${o(searchText)}" data-review-resident="${o(String(row.resident_name || ""))}" data-review-domain="${o(domain.toLowerCase())}" data-review-tone="${positive ? "positive" : "negative"}" data-review-category="${o(String(row.category || "").toLowerCase())}" data-review-reconsideration="${o(status)}">
+      ${showResident ? `<td data-label="Resident"><b>${o(row.resident_name || "Resident")}</b></td>` : ""}
+      <td data-label="Domain"><span class="tag ${domain === "Behavioural" ? "review-domain-behavioural" : "neutral"}">${o(domain)}</span></td>
+      <td data-label="Category">${o(category)}</td>
+      <td data-label="Type"><span class="review-table-tone ${positive ? "positive" : "negative"}">${positive ? "👍 Good" : "👎 Bad"}</span></td>
+      <td data-label="Review" class="review-table-comment">${o(row.comment || "—")}</td>
+      <td data-label="Date">${d(row.observed_on)}</td>
+      <td data-label="Place">${o(row.place || "—")}</td>
+      <td data-label="Reviewer">${o(displayObserver)}${ownerIdentity}</td>
+      <td data-label="Reconsideration">${reviewReconsiderationLabel(status)}${row.reconsideration_text ? `<small class="review-request-preview">${o(row.reconsideration_text)}</small>` : ""}</td>
+      <td data-label="Actions"><div class="table-row-actions">${residentAction}${authorActions}${detailsAction}</div></td>
+    </tr>`;
+  }).join("");
+  return `<section class="card review-table-card">
+    <div class="panel-heading"><div><h3>Review table</h3><p class="muted">Filter by resident, domain, good/bad feedback or reconsideration status.</p></div><span class="tag">${list.length} reviews</span></div>
+    <div class="review-table-filters">
+      <input type="search" data-review-filter="search" placeholder="Search reviews">
+      ${showResident ? `<select data-review-filter="resident"><option value="">All residents</option>${residents.map((name)=>`<option value="${o(name)}">${o(name)}</option>`).join("")}</select>` : ""}
+      <select data-review-filter="domain"><option value="">Clinical + behavioural</option><option value="clinical">Clinical</option><option value="behavioural">Behavioural</option></select>
+      <select data-review-filter="category"><option value="">All categories</option><option value="knowledge">Knowledge</option><option value="skill">Skill</option><option value="attitude">Behavioural</option></select>
+      <select data-review-filter="tone"><option value="">Good + bad</option><option value="positive">Good reviews</option><option value="negative">Bad reviews</option></select>
+      <select data-review-filter="reconsideration"><option value="">All reconsideration states</option><option value="none">No reconsideration</option><option value="requested">Pending reconsideration</option><option value="accepted">Modified after reconsideration</option><option value="upheld">Original upheld</option></select>
+    </div>
+    <div class="table-scroll"><table class="table review-data-table"><thead><tr>${showResident ? "<th>Resident</th>" : ""}<th>Domain</th><th>Category</th><th>Type</th><th>Review</th><th>Date</th><th>Place</th><th>Reviewer</th><th>Reconsideration</th><th></th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="mail-empty" data-review-empty hidden>No reviews match these filters.</div>
+  </section>`;
 }
-
-function renderResidentReviewGroups(rows) {
-  const list = rows || [];
-  window.observerReviewRows = new Map(list.map((row) => [String(row.id), row]));
-  const buckets = {
-    clinical: { good: [], bad: [] },
-    behavioural: { good: [], bad: [] },
-  };
-  list.forEach((row) => {
-    const domain = String(row.category || "").toLowerCase() === "attitude" ? "behavioural" : "clinical";
-    const tone = row.sentiment === "negative" ? "bad" : "good";
-    buckets[domain][tone].push(row);
+function filterReviewTable(card) {
+  if (!card) return;
+  const value = (key) => card.querySelector(`[data-review-filter="${key}"]`)?.value || "";
+  const search = value("search").trim().toLowerCase();
+  const resident = value("resident");
+  const domain = value("domain");
+  const category = value("category");
+  const tone = value("tone");
+  const reconsideration = value("reconsideration");
+  let visible = 0;
+  card.querySelectorAll(".review-data-row").forEach((row) => {
+    const match = (!search || (row.dataset.reviewSearch || "").includes(search)) &&
+      (!resident || row.dataset.reviewResident === resident) &&
+      (!domain || row.dataset.reviewDomain === domain) &&
+      (!category || row.dataset.reviewCategory === category) &&
+      (!tone || row.dataset.reviewTone === tone) &&
+      (!reconsideration || row.dataset.reviewReconsideration === reconsideration);
+    row.hidden = !match;
+    if (match) visible += 1;
   });
-  const renderBucket = (title, icon, items, tone) => `<section class="resident-review-bucket ${tone}-bucket"><div class="resident-review-bucket-head"><span>${icon}</span><div><h3>${title}</h3><small>${items.length} review${items.length === 1 ? "" : "s"}</small></div></div>${items.length ? renderCommentsTable(items, "resident") : '<div class="review-bucket-empty">No reviews here.</div>'}</section>`;
-  const renderDomain = (domain, title, subtitle) => `<section class="resident-review-domain"><div class="resident-review-domain-head"><div><span class="eyebrow">${o(domain)}</span><h2>${o(title)}</h2><p>${o(subtitle)}</p></div><span class="tag">${buckets[domain].good.length + buckets[domain].bad.length}</span></div><div class="resident-review-tone-grid">${renderBucket("Good reviews", "👍", buckets[domain].good, "good")}${renderBucket("Bad reviews", "👎", buckets[domain].bad, "bad")}</div></section>`;
-  const html = `<div class="resident-review-groups">${renderDomain("clinical", "Clinical reviews", "Knowledge and practical-skill feedback.")}${renderDomain("behavioural", "Behavioural reviews", "Attitude, professionalism and behaviour feedback.")}</div>`;
-  window.observerReviewRows = new Map(list.map((row) => [String(row.id), row]));
-  return html;
+  const empty = card.querySelector("[data-review-empty]");
+  if (empty) empty.hidden = visible > 0;
+}
+function renderResidentReviewGroups(rows) {
+  return renderCommentsTable(rows || [], "resident");
 }
 async function S() {
   return e.rpc("assessor_assigned_residents");
@@ -1873,13 +1932,87 @@ function filterAssessorLogbookTable() {
   const empty = t("#assessorLogbookEmpty");
   if (empty) empty.hidden = visible > 0;
 }
+function logbookWasApprovedAfterReconsideration(entry) {
+  const notes = [entry?.senior_note, entry?.assessor_note, entry?.supervisor_note].filter(Boolean).join(" ");
+  return /reconsideration approved/i.test(notes);
+}
+function logbookHistoryStatusBadge(entry) {
+  const value = String(entry?.status || "pending").toLowerCase();
+  const cls = value === "approved" ? "success" : value === "rejected" ? "danger" : "warning";
+  const reconsidered = value === "approved" && logbookWasApprovedAfterReconsideration(entry);
+  return `<span class="tag ${cls}">${value === "approved" ? "✓ Approved" : value === "rejected" ? "× Rejected" : "Pending"}</span>${reconsidered ? '<span class="after-reconsideration-lamp" title="Approved after reconsideration" aria-label="Approved after reconsideration">💡</span>' : ""}`;
+}
+function renderLogbookHistoryTable(entries, mode = "resident") {
+  const rows = entries || [];
+  const current = window.logbookEntryRows instanceof Map ? window.logbookEntryRows : new Map();
+  rows.forEach((entry) => current.set(String(entry.id), entry));
+  window.logbookEntryRows = current;
+  const showResident = mode !== "resident";
+  const residents = [...new Set(rows.map((entry)=>entry.resident_name).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
+  const activities = [...new Set(rows.map((entry)=>entry.activity_category === "conference" ? entry.title : (entry.procedure_name || entry.title)).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
+  const participations = [...new Set(rows.map((entry)=>entry.activity_category === "conference" ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode)).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
+  const body = rows.map((entry) => {
+    const conference = entry.activity_category === "conference";
+    const activity = conference ? entry.title : (entry.procedure_name || entry.title);
+    const participation = conference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
+    const searchText = `${entry.resident_name || ""} ${activity || ""} ${participation || ""} ${entry.hospital || ""} ${entry.senior_resident_name || ""} ${entry.assessor_name || ""} ${entry.status || ""}`.toLowerCase();
+    return `<tr class="logbook-history-row" data-logbook-history-search="${o(searchText)}" data-logbook-history-resident="${o(String(entry.resident_name || ""))}" data-logbook-history-category="${o(entry.activity_category || "")}" data-logbook-history-activity="${o(String(activity || "").toLowerCase())}" data-logbook-history-participation="${o(String(participation || "").toLowerCase())}" data-logbook-history-status="${o(String(entry.status || "pending").toLowerCase())}">
+      ${showResident ? `<td data-label="Resident"><b>${o(entry.resident_name || "Resident")}</b><small>${entry.residency_year ? yearChip(entry.residency_year) : ""}</small></td>` : ""}
+      <td data-label="Activity"><b>${o(activity || "Activity")}</b><small>${conference ? "Conference" : "Intervention"}</small></td>
+      <td data-label="Participation">${o(participation || "—")}</td>
+      <td data-label="Date">${d(entry.activity_date)}</td>
+      <td data-label="Hospital">${conference ? "—" : o(entry.hospital || "—")}</td>
+      <td data-label="Senior">${conference ? "—" : `${o(entry.senior_resident_name || "—")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
+      <td data-label="Assessor">${o(entry.assessor_name || "—")}<br>${logbookDecisionBadge(entry.assessor_status)}</td>
+      <td data-label="Status">${logbookHistoryStatusBadge(entry)}</td>
+      <td data-label="Actions"><button class="btn small secondary" data-logbook-detail="${o(entry.id)}">Details</button></td>
+    </tr>`;
+  }).join("");
+  return `<section class="card logbook-history-table-card no-print">
+    <div class="panel-heading"><div><h3>${mode === "resident" ? "My activity history" : "Activity history"}</h3><p class="muted">Filter the full history without scrolling through large cards.</p></div><span class="tag">${rows.length} records</span></div>
+    <div class="logbook-history-filters">
+      <input type="search" data-logbook-history-filter="search" placeholder="Search activity${showResident ? " or resident" : ""}">
+      ${showResident ? `<select data-logbook-history-filter="resident"><option value="">All residents</option>${residents.map((name)=>`<option value="${o(name)}">${o(name)}</option>`).join("")}</select>` : ""}
+      <select data-logbook-history-filter="activity"><option value="">All interventions / conferences</option>${activities.map((name)=>`<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
+      <select data-logbook-history-filter="category"><option value="">All types</option><option value="manual_intervention">Interventions</option><option value="conference">Conferences</option></select>
+      <select data-logbook-history-filter="participation"><option value="">All participation</option>${participations.map((name)=>`<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
+      <select data-logbook-history-filter="status"><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+    </div>
+    <div class="table-scroll"><table class="table logbook-history-table"><thead><tr>${showResident ? "<th>Resident</th>" : ""}<th>Activity</th><th>Participation</th><th>Date</th><th>Hospital</th><th>Senior</th><th>Assessor</th><th>Status</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="${showResident ? 9 : 8}">No logbook activities are available yet.</td></tr>`}</tbody></table></div>
+    <div class="mail-empty" data-logbook-history-empty hidden>No activities match these filters.</div>
+  </section>`;
+}
+function filterLogbookHistoryTable(card) {
+  if (!card) return;
+  const value = (key) => card.querySelector(`[data-logbook-history-filter="${key}"]`)?.value || "";
+  const search = value("search").trim().toLowerCase();
+  const resident = value("resident");
+  const activity = value("activity");
+  const category = value("category");
+  const participation = value("participation");
+  const status = value("status");
+  let visible = 0;
+  card.querySelectorAll(".logbook-history-row").forEach((row) => {
+    const match = (!search || (row.dataset.logbookHistorySearch || "").includes(search)) &&
+      (!resident || row.dataset.logbookHistoryResident === resident) &&
+      (!activity || row.dataset.logbookHistoryActivity === activity) &&
+      (!category || row.dataset.logbookHistoryCategory === category) &&
+      (!participation || row.dataset.logbookHistoryParticipation === participation) &&
+      (!status || row.dataset.logbookHistoryStatus === status);
+    row.hidden = !match;
+    if (match) visible += 1;
+  });
+  const empty = card.querySelector("[data-logbook-history-empty]");
+  if (empty) empty.hidden = visible > 0;
+}
+
 function openLogbookEntryDetail(entry) {
   if (!entry) return;
   const isConference = entry.activity_category === "conference";
   const activity = isConference ? entry.title : (entry.procedure_name || entry.title);
   const participation = isConference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
   y(`<article class="modal"><div class="modal-head"><div><span class="eyebrow">${isConference ? "Conference" : "Intervention"}</span><h2>${o(activity || "Logbook activity")}</h2></div><button type="button" data-close>×</button></div>
-    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Your decision</span>${logbookDecisionBadge(entry.assessor_status)}</div></div>
+    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
     ${entry.senior_note ? `<div class="message-body"><b>Senior note</b><br>${o(entry.senior_note)}</div>` : ""}${entry.assessor_note ? `<div class="message-body"><b>Assessor note</b><br>${o(entry.assessor_note)}</div>` : ""}${entry.description ? `<div class="message-body"><b>Resident notes / evidence</b><br>${o(entry.description)}</div>` : ""}
     <div class="actions"><button class="btn secondary" type="button" data-close>Close</button></div></article>`);
 }
@@ -2120,7 +2253,7 @@ async function P() {
       (pending.length
         ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
         : "") +
-      ` <section class="top-gap printable-logbook"><div class="lead"><div><h2>${"resident" === s.p.role ? "My activity history" : "Visible resident activity"}</h2><p>Pending requests and newest activities appear first; older records remain below.</p></div><div class="inline-actions no-print"><select id="logbookStatus"><option value="">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select><select id="logbookType"><option value="">All activities</option><option value="manual_intervention">Manual interventions</option><option value="conference">Conferences</option></select></div></div><div class="logbook-order-label">Pending & recent</div><div id="logbookEntries" class="grid top-gap">${visible.map(B).join("") || v("No logbook activities are available yet.")}</div></section>`;
+      `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>`;
   }
   const seniorSelect = document.querySelector('select[name="senior_resident_id"]');
   if (seniorSelect) {
@@ -2603,6 +2736,8 @@ function H() {
     if (a.id === "accountRoleFilter") filterAccountRows();
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
+      a.matches?.("[data-review-filter]") && filterReviewTable(a.closest(".review-table-card")),
+      a.matches?.("[data-logbook-history-filter]") && filterLogbookHistoryTable(a.closest(".logbook-history-table-card")),
       (["assessorLogbookResidentFilter","assessorLogbookActivityFilter","assessorLogbookCategoryFilter","assessorLogbookParticipationFilter","assessorLogbookStatusFilter"].includes(a.id)) && filterAssessorLogbookTable(),
       ("requestResidentFilter" === a.id || "requestStatusFilter" === a.id || "requestTypeFilter" === a.id) && filterLogbookRequestRows(),
       ("auditYearFilter" === a.id || "auditProcedureFilter" === a.id) && renderOwnerInterventionAudit(),
@@ -2667,6 +2802,8 @@ function H() {
     "findResident" === e.target.id &&
       (clearTimeout(window.residentSearchTimer),
       (window.residentSearchTimer = setTimeout(R, 250)));
+    if (e.target.matches?.("[data-review-filter]")) filterReviewTable(e.target.closest(".review-table-card"));
+    if (e.target.matches?.("[data-logbook-history-filter]")) filterLogbookHistoryTable(e.target.closest(".logbook-history-table-card"));
     if (e.target.id === "ownerLogbookSearch") filterOwnerLogbookResidents();
     if (e.target.id === "accountSearch") filterAccountRows();
     if (e.target.id === "assessorLogbookResidentSearch") {
@@ -2746,6 +2883,7 @@ function H() {
           p_note: r.get("note") || null,
         }));
         i.close();
+        await q();
         b(r.get("decision") === "accepted" ? "Reconsideration accepted and review updated" : "Original review upheld");
         if (s.p.role === "assessor") return void (await reviewPage());
         return void (await w.reviews());
@@ -3176,3 +3314,5 @@ defaultDateInputs();
 new MutationObserver((changes) => changes.forEach((change) => change.addedNodes.forEach((node) => {
   if (node.nodeType === 1) defaultDateInputs(node);
 }))).observe(document.body, { childList: true, subtree: true });
+
+// v1.0.52 — read-on-decision, review tables, logbook-history table
