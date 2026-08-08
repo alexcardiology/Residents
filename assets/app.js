@@ -1093,20 +1093,28 @@ async function logbookRequestsPage() {
     updates = keepVisible(updatesResult),
     trash = keepVisible(trashResult),
     reconsiderations = u(reconsiderationResult) || [];
+
   window.logbookReconsiderationRows = new Map(reconsiderations.map((row) => [String(row.id), row]));
-  const reviewerReconsiderations = reconsiderations.filter((row) => String(row.reviewer_id) === String(s.p.id));
+  const reviewerReconsiderations = reconsiderations
+    .filter((row) => String(row.reviewer_id) === String(s.p.id))
+    .sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+  const latestReconsiderationByEntry = new Map();
+  reviewerReconsiderations.forEach((row) => {
+    const key = String(row.entry_id || "");
+    if (key && !latestReconsiderationByEntry.has(key)) latestReconsiderationByEntry.set(key, row);
+  });
+
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
   const seniorResident = s.p.role === "resident" && Number(s.p.residency_year) >= 3;
   const assessor = s.p.role === "assessor";
-  const hasReviewerReconsiderations = reviewerReconsiderations.length > 0;
   const views = juniorResident
     ? ["updates"]
     : assessor
-      ? ["received", "reconsiderations", "trash"]
+      ? ["received", "trash"]
       : s.p.role === "observer"
-        ? hasReviewerReconsiderations ? ["received", "reconsiderations"] : ["received"]
+        ? ["received"]
         : seniorResident
-          ? hasReviewerReconsiderations ? ["received", "reconsiderations", "sent", "updates"] : ["received", "sent", "updates"]
+          ? ["received", "sent", "updates"]
           : ["received", "sent", "updates"];
   const firstView = views[0];
   const activityLabel = (message) => o(message.logbook_title || "Logbook activity");
@@ -1115,14 +1123,47 @@ async function logbookRequestsPage() {
     : message.subject === "Logbook rejection"
       ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Rejected request · ${o(message.sender_name)} rejected your ${activityLabel(message)}</span></span>`
       : `Approval request · ${activityLabel(message)}`;
-  const approvalButtons = (message) => {
+
+  const reconsiderationForRequest = (message) => latestReconsiderationByEntry.get(String(message.logbook_entry_id || "")) || null;
+
+  const approvalButtons = (message, rec = null) => {
     if (!message.logbook_action_taken)
       return `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${activityLabel(message)}">Reject</button></div>`;
+    if (rec?.status === "approved") return `<span class="tag success">Decision: Approved after reconsideration</span>`;
+    if (rec?.status === "rejected") return `<span class="tag danger">Decision: Rejection upheld</span>`;
+    if (rec?.status === "requested") return `<span class="tag danger">Original decision: Rejected</span>`;
     const current = String(message.request_status || "").toLowerCase();
     const cls = current === "rejected" ? "danger" : current === "approved" ? "success" : "neutral";
     const label = current === "rejected" ? "Original decision: Rejected" : current === "approved" ? "Original decision: Approved" : "Original decision completed";
     return `<span class="tag ${cls}">${label}</span>`;
   };
+
+  const reconsiderationPanel = (row) => {
+    if (!row) return "";
+    const activity = row.activity_title || row.procedure_name || "Logbook activity";
+    if (row.status === "requested") {
+      return `<section class="embedded-reconsideration pending" data-reconsideration-id="${o(row.id)}">
+        <div class="embedded-reconsideration-context">
+          <span class="eyebrow">Request to reconsider</span>
+          <b>${o(activity)}</b>
+          <small>${o(row.resident_name || "Resident")} · ${d(row.activity_date)} · original decision rejected</small>
+        </div>
+        <div class="embedded-reconsideration-reason"><span>Resident's reason</span><p>${o(row.reason || "No reason provided")}</p></div>
+        <label class="embedded-reconsideration-note">Decision note <small>Required for Approve or Reject</small><textarea data-reconsideration-note maxlength="3000" required placeholder="Write a short note for your decision"></textarea></label>
+        <div class="embedded-reconsideration-actions">
+          <button class="btn danger-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="rejected">Reject</button>
+          <button class="btn success-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="approved">Approve</button>
+        </div>
+      </section>`;
+    }
+    const approved = row.status === "approved";
+    return `<section class="embedded-reconsideration resolved ${approved ? "approved" : "rejected"}">
+      <div class="embedded-reconsideration-context"><span class="eyebrow">Reconsideration resolved</span><b>${approved ? "Approved" : "Rejected"}</b><small>${o(activity)} · ${d(row.resolved_at || row.created_at)}</small></div>
+      <div class="embedded-reconsideration-reason"><span>Resident's reason</span><p>${o(row.reason || "—")}</p></div>
+      <div class="embedded-reconsideration-response"><span>Your note</span><p>${o(row.response_note || "—")}</p></div>
+    </section>`;
+  };
+
   const residentReconsiderationFor = (message) => reconsiderations.find((row) =>
     String(row.entry_id) === String(message.logbook_entry_id) &&
     String(row.reviewer_id) === String(message.sender_id) &&
@@ -1136,25 +1177,27 @@ async function logbookRequestsPage() {
     if (rec?.status === "rejected") return `<div class="message-actions"><span class="tag danger">Reconsideration rejected</span></div>`;
     return `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer-id="${o(message.sender_id || "")}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>`;
   };
-  const rows = (items, view) => items.length ? items.map((message) => `
-    <article class="message-row ${message.is_read ? "read" : "unread"}" data-request-resident="${o(message.resident_id || "")}" data-request-status="${o(message.request_status || "pending")}" data-request-type="${o(`${message.activity_category || ""}:${message.activity_kind || ""}`)}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.resident_name || ""} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""} ${message.request_status || ""}`.toLowerCase())}">
+
+  const rows = (items, view) => items.length ? items.map((message) => {
+    const rec = view === "received" ? reconsiderationForRequest(message) : null;
+    const effectiveStatus = rec?.status === "requested" ? "pending" : rec?.status === "approved" ? "approved" : rec?.status === "rejected" ? "rejected" : (message.request_status || "pending");
+    const extraSearch = rec ? `${rec.reason || ""} ${rec.response_note || ""} reconsideration ${rec.status || ""}` : "";
+    return `<article class="message-row ${message.is_read ? "read" : "unread"} ${rec ? "has-embedded-reconsideration" : ""}" data-request-resident="${o(message.resident_id || "")}" data-request-status="${o(effectiveStatus)}" data-request-type="${o(`${message.activity_category || ""}:${message.activity_kind || ""}`)}" data-message-search="${o(`${message.sender_name} ${message.receiver_name} ${message.resident_name || ""} ${message.subject || ""} ${message.body || ""} ${message.logbook_title || ""} ${effectiveStatus} ${extraSearch}`.toLowerCase())}">
       <input class="message-select logbook-message-select" type="checkbox" value="${message.id}" aria-label="Select logbook message">
       <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
         <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
-      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${residentReconsiderationAction(message, view)}
-    </article>`).join("") : '<div class="mail-empty">No logbook items here.</div>';
-  const reconsiderationRows = reviewerReconsiderations.length ? reviewerReconsiderations
-    .sort((x,y) => (x.status === "requested" ? -1 : 1) - (y.status === "requested" ? -1 : 1) || new Date(y.created_at) - new Date(x.created_at))
-    .map((row) => {
-      const pending = row.status === "requested";
-      const statusClass = pending ? "warning" : row.status === "approved" ? "success" : "danger";
-      const activity = row.activity_title || row.procedure_name || "Logbook activity";
-      return `<article class="message-row reconsideration-request-row ${pending ? "unread" : "read"}" data-request-resident="${o(row.resident_id || "")}" data-request-status="${pending ? "pending" : o(row.status)}" data-request-type="${o(`${row.activity_category || ""}:${row.procedure_name || row.activity_title || ""}`)}" data-message-search="${o(`${row.resident_name || ""} ${activity} ${row.reason || ""} ${row.status || ""}`.toLowerCase())}">
-        <div class="message-open reconsideration-row-main"><span class="message-person"><span class="message-direction">Resident</span>${o(row.resident_name || "Resident")}</span><span class="message-subject"><b>${o(activity)}</b><small class="reconsideration-inline-reason">Reason: ${o(row.reason || "—")}</small></span><small>${d(row.activity_date)}<br><span class="tag ${statusClass}">${pending ? "Decision needed" : o(row.status)}</span></small></div>
-        <div class="message-actions approval-actions">${pending ? `<button class="btn small danger-button" data-logbook-reconsideration-resolve="${o(row.id)}" data-reconsideration-decision="rejected">Reject</button><button class="btn small success-button" data-logbook-reconsideration-resolve="${o(row.id)}" data-reconsideration-decision="approved">Approve</button>` : `<span class="tag ${statusClass}">Resolved</span>`}</div>
-      </article>`;
-    }).join("") : '<div class="mail-empty">No reconsideration requests.</div>';
+      </button>${view === "received" || view === "trash" ? approvalButtons(message, rec) : ""}${residentReconsiderationAction(message, view)}${view === "received" ? reconsiderationPanel(rec) : ""}
+    </article>`;
+  }).join("") : '<div class="mail-empty">No logbook items here.</div>';
+
+  const receivedEntryIds = new Set(received.map((message) => String(message.logbook_entry_id || "")).filter(Boolean));
+  const orphanReconsiderations = reviewerReconsiderations.filter((row) => row.status === "requested" && !receivedEntryIds.has(String(row.entry_id || "")));
+  const orphanRows = orphanReconsiderations.map((row) => `<article class="message-row has-embedded-reconsideration orphan-reconsideration-row" data-request-resident="${o(row.resident_id || "")}" data-request-status="pending" data-request-type="${o(`${row.activity_category || ""}:${row.procedure_name || row.activity_title || ""}`)}" data-message-search="${o(`${row.resident_name || ""} ${row.activity_title || ""} ${row.procedure_name || ""} ${row.reason || ""} reconsideration pending`.toLowerCase())}">
+    <div class="orphan-request-context"><span class="message-direction">Original request hidden</span><b>${o(row.resident_name || "Resident")} · ${o(row.activity_title || row.procedure_name || "Logbook activity")}</b><small>The original message is no longer visible, but the reconsideration remains actionable.</small></div>
+    ${reconsiderationPanel(row)}
+  </article>`).join("");
+
   window.logbookMessages = new Map([
     ...received.map((message) => [`logbook-${message.id}`, message]),
     ...updates.map((message) => [`logbook-${message.id}`, message]),
@@ -1164,27 +1207,29 @@ async function logbookRequestsPage() {
   window.logbookInboxButtons = approvalButtons;
   const allResidentSources = [...received,...sent,...updates,...trash,...reconsiderations.map((r) => ({resident_id:r.resident_id,resident_name:r.resident_name}))];
   const allTypeSources = [...received,...sent,...updates,...trash,...reconsiderations.map((r) => ({activity_category:r.activity_category,activity_kind:r.procedure_name || r.activity_title}))];
-  a.innerHTML = h("Logbook requests", "Approval requests and reconsiderations are separated clearly. Message cleanup never deletes the resident logbook record.") + `
+  const pendingReconsiderationCount = reviewerReconsiderations.filter((item) => item.status === "requested").length;
+  const requestBadgeCount = received.filter((item) => !item.logbook_action_taken).length + pendingReconsiderationCount;
+
+  a.innerHTML = h("Logbook requests", "Each reconsideration stays attached to the original request, so the activity, original decision, resident reason and your new decision remain in one place.") + `
     <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
-        ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${received.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${received.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
-        ${views.includes("reconsiderations") ? `<button class="mailbox-tab ${firstView === "reconsiderations" ? "active" : ""}" data-logbook-tab="reconsiderations">Reconsiderations <span class="nav-badge inline-badge" ${reviewerReconsiderations.filter(item=>item.status === "requested").length ? "" : "hidden"}>${reviewerReconsiderations.filter(item=>item.status === "requested").length}</span></button>` : ""}
+        ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${requestBadgeCount ? "" : "hidden"}>${requestBadgeCount}</span></button>` : ""}
         ${views.includes("sent") ? `<button class="mailbox-tab ${firstView === "sent" ? "active" : ""}" data-logbook-tab="sent">Sent <span class="nav-badge inline-badge" ${sent.filter(item=>!item.logbook_action_taken).length ? "" : "hidden"}>${sent.filter(item=>!item.logbook_action_taken).length}</span></button>` : ""}
         ${views.includes("updates") ? `<button class="mailbox-tab ${firstView === "updates" ? "active" : ""}" data-logbook-tab="updates">Updates <span class="nav-badge inline-badge" ${updates.filter(item=>!item.is_read).length ? "" : "hidden"}>${updates.filter(item=>!item.is_read).length}</span></button>` : ""}
         ${views.includes("trash") ? `<button class="mailbox-tab ${firstView === "trash" ? "active" : ""}" data-logbook-tab="trash">Trash <span class="tag">${trash.length}</span></button>` : ""}
       </div>
       <div class="mail-safety-note"><b>Protected logbook:</b> deleting message copies only hides messages. It never deletes the resident activity from My logbook.</div>
       <div class="mail-tools logbook-mail-tools">
-        <div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map(allResidentSources.filter(x=>x.resident_id).map(x=>[String(x.resident_id),x.resident_name])).entries()].sort((a,b)=>String(a[1]||"").localeCompare(String(b[1]||""))).map(([id,name])=>`<option value="${o(id)}">${o(name || "Resident")}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set(allTypeSources.map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div>
+        <div class="request-filters"><input id="messageSearch" type="search" placeholder="Search by any word"><select id="requestResidentFilter"><option value="">All residents</option>${[...new Map(allResidentSources.filter(x=>x.resident_id).map(x=>[String(x.resident_id),x.resident_name])).entries()].sort((a,b)=>String(a[1]||"").localeCompare(String(b[1]||""))).map(([id,name])=>`<option value="${o(id)}">${o(name || "Resident")}</option>`).join("")}</select><select id="requestStatusFilter"><option value="">Approved, rejected or pending</option><option value="pending">Pending / reconsideration needed</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><select id="requestTypeFilter"><option value="">All conferences/interventions</option>${[...new Set(allTypeSources.map(x=>`${x.activity_category || ""}:${x.activity_kind || ""}`).filter(Boolean))].sort().map(value=>`<option value="${o(value)}">${o(value.split(":")[1] || value)}</option>`).join("")}</select></div>
         <div class="mail-bulk-actions logbook-bulk-actions"><label class="bulk-check"><input id="selectVisibleLogbookMessages" type="checkbox"> Select visible</label><button class="btn danger" data-hide-logbook-selected>Delete selected</button></div>
       </div>
-      ${views.includes("received") ? `<div class="mail-panel" data-mail-panel="received" ${firstView === "received" ? "" : "hidden"}><div class="message-list">${rows(received, "received")}</div></div>` : ""}
-      ${views.includes("reconsiderations") ? `<div class="mail-panel" data-mail-panel="reconsiderations" ${firstView === "reconsiderations" ? "" : "hidden"}><div class="message-list reconsideration-request-list">${reconsiderationRows}</div></div>` : ""}
+      ${views.includes("received") ? `<div class="mail-panel" data-mail-panel="received" ${firstView === "received" ? "" : "hidden"}><div class="message-list">${rows(received, "received")}${orphanRows}</div></div>` : ""}
       ${views.includes("sent") ? `<div class="mail-panel" data-mail-panel="sent" ${firstView === "sent" ? "" : "hidden"}><div class="message-list">${rows(sent, "sent")}</div></div>` : ""}
       ${views.includes("updates") ? `<div class="mail-panel" data-mail-panel="updates" ${firstView === "updates" ? "" : "hidden"}><div class="message-list notification-lines">${rows(updates, "updates")}</div></div>` : ""}
       ${views.includes("trash") ? `<div class="mail-panel" data-mail-panel="trash" ${firstView === "trash" ? "" : "hidden"}><div class="message-list">${rows(trash, "trash")}</div></div>` : ""}
       <div id="messageSearchEmpty" class="mail-empty" hidden>No logbook items match your search.</div>
     </section>`;
+  filterLogbookRequestRows();
 }
 
 function openLogbookReclaim(entryId, title, reviewer, reviewerId = "") {
@@ -1687,7 +1732,7 @@ function openLogbookReconsiderationDecision(row, decision) {
   y(`<form id="logbookReconsiderationResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Logbook reconsideration</span><h2>${approved ? "Approve reconsideration" : "Reject reconsideration"}</h2></div><button type="button" data-close>×</button></div>
     <div class="reconsideration-message-summary"><div class="reconsideration-summary-row"><span>Resident</span><b>${o(row.resident_name || "Resident")}</b></div><div class="reconsideration-summary-row"><span>Activity</span><b>${o(row.activity_title || "Logbook activity")}</b></div><div class="reconsideration-summary-reason"><span>Reason</span><p>${o(row.reason || "No reason provided")}</p></div></div>
     <p class="form-note">${approved ? "Your original rejection will change to approval. The final logbook status will then be recalculated from all required reviewers." : "Your original rejection will remain. The resident will be notified that reconsideration was not accepted."}</p>
-    <label>Response note<textarea name="note" maxlength="3000" placeholder="Optional response"></textarea></label><input type="hidden" name="reconsideration_id" value="${o(row.id)}"><input type="hidden" name="decision" value="${approved ? "approved" : "rejected"}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn ${approved ? "success-button" : "danger-button"}">${approved ? "Approve reconsideration" : "Reject reconsideration"}</button></div></form>`);
+    <label>Response note <small>Required for either decision</small><textarea name="note" maxlength="3000" required placeholder="Write a short note for your decision"></textarea></label><input type="hidden" name="reconsideration_id" value="${o(row.id)}"><input type="hidden" name="decision" value="${approved ? "approved" : "rejected"}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn ${approved ? "success-button" : "danger-button"}">${approved ? "Approve reconsideration" : "Reject reconsideration"}</button></div></form>`);
 }
 
 function ownerSelectedLogbookResidentIds() {
@@ -2177,6 +2222,35 @@ function H() {
           a.dataset.logbookTableReview,
           a.dataset.logbookTitle,
         ),
+      a.dataset.inlineLogbookReconsideration &&
+        (async () => {
+          const panel = a.closest(".embedded-reconsideration");
+          const note = String(panel?.querySelector("[data-reconsideration-note]")?.value || "").trim();
+          if (!note) return alert("Write a short decision note before approving or rejecting the reconsideration.");
+          const decision = a.dataset.reconsiderationDecision;
+          if (!['approved','rejected'].includes(decision)) return;
+          const originalText = a.textContent;
+          a.disabled = true;
+          a.textContent = decision === 'approved' ? 'Approving…' : 'Rejecting…';
+          try {
+            const finalStatus = u(await e.rpc("resolve_logbook_reconsideration_v1044", {
+              p_reconsideration_id: a.dataset.inlineLogbookReconsideration,
+              p_decision: decision,
+              p_note: note,
+            }));
+            await q();
+            b(`${decision === "approved" ? "Reconsideration approved" : "Reconsideration rejected"} · final logbook status: ${finalStatus || "updated"}`);
+            await logbookRequestsPage();
+          } catch (error) {
+            alert(error.message || "Unable to resolve reconsideration");
+            a.disabled = false;
+            a.textContent = originalText;
+          }
+        })(),
+      a.hasAttribute("data-open-logbook-reconsideration") && (() => {
+        i.open && i.close();
+        g("logbook-requests");
+      })(),
       a.dataset.logbookReconsiderationResolve &&
         openLogbookReconsiderationDecision(
           window.logbookReconsiderationRows?.get(String(a.dataset.logbookReconsiderationResolve)),
@@ -2280,7 +2354,7 @@ function H() {
             ? window.logbookInboxButtons?.(message, "modal") || ""
             : "";
           const reconsiderationActions = reconsiderationRequest
-            ? `<div class="reconsideration-decision"><p><b>Reconsideration decision</b><br><small>Approve changes your original rejection to approval. Reject keeps the original rejection.</small></p><div class="approval-actions"><button class="btn danger-button" data-reconsider-reject="${message.logbook_entry_id}" data-reconsider-message-id="${message.id}">Reject reconsideration</button><button class="btn success-button" data-reconsider-approve="${message.logbook_entry_id}" data-reconsider-message-id="${message.id}">Approve reconsideration</button></div></div>`
+            ? `<div class="reconsideration-decision"><p><b>Logbook reconsideration</b><br><small>The resident's request is attached to the original logbook request. Open it there to see the intervention, reason, original decision and enter the required decision note.</small></p><div class="approval-actions"><button class="btn" data-open-logbook-reconsideration>Open original request</button></div></div>`
             : "";
           const reviewReconsiderationActions = reviewReconsideration
             ? `<div class="reconsideration-decision review-reconsideration-decision"><p><b>Review reconsideration</b><br><small>Accepting opens the review for modification. After saving, both the resident and assigned assessor will see it as <b>Modified</b>.</small></p><div class="approval-actions"><button class="btn success-button" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="accepted">Accept & modify review</button><button class="btn secondary" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="upheld">Keep original</button></div></div>`
@@ -2727,10 +2801,12 @@ function H() {
         await q();
       }
       if ("logbookReconsiderationResolveForm" === a.id) {
+        const decisionNote = String(r.get("note") || "").trim();
+        if (!decisionNote) throw new Error("A decision note is required for both approval and rejection");
         const finalStatus = u(await e.rpc("resolve_logbook_reconsideration_v1044", {
           p_reconsideration_id: r.get("reconsideration_id"),
           p_decision: r.get("decision"),
-          p_note: r.get("note") || null,
+          p_note: decisionNote,
         }));
         i.close();
         await q();
