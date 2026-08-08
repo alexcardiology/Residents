@@ -159,6 +159,7 @@ const s = {
   participationLabel = (value) =>
     ({
       attended: "Attended",
+      failed_trial: "Failed trial",
       assisted: "Performed with assistance",
       solo_guided: "Performed solo under guidance",
       solo_unguided: "Performed solo without guidance",
@@ -625,6 +626,7 @@ const w = {
   "message-cleanup": ownerMessageCleanupPage,
   "owner-assessment-center": ownerAssessmentCenterPage,
   "owner-logbook-center": ownerLogbookCenterPage,
+  "owner-intervention-audit": ownerInterventionAuditPage,
   "owner-tools": ownerToolsPage,
   "write-review": reviewPage,
   password: x,
@@ -966,14 +968,20 @@ function syncPrivateMailboxControls() {
 async function inboxPage() {
   t("#title").textContent = "Inbox";
   a.classList.add("mail-content");
-  const [inboxResult, sentResult, trashResult] = await Promise.all([
+  const [inboxResult, sentResult, trashResult, reviewActionResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_private_messages", { p_box: "sent" }),
     e.rpc("get_private_messages", { p_box: "trash" }),
+    e.rpc("get_my_review_message_actions_v1051"),
   ]);
   const inbox = u(inboxResult) || [];
   const sent = u(sentResult) || [];
   const trash = u(trashResult) || [];
+  const reviewActions = u(reviewActionResult) || [];
+  const reviewActionMap = new Map(reviewActions.map((row) => [String(row.message_id), row]));
+  window.inboxReviewActions = reviewActionMap;
+  window.observerReviewRows ||= new Map();
+  reviewActions.forEach((row) => window.observerReviewRows.set(String(row.review_id), { ...row, id: row.review_id }));
   const statusTitle = (message) => {
     const subject = String(message.subject || "No subject").replace(/\bReclaim\b/gi, "Request to reconsider");
     if (message.subject === "Logbook approval" || subject === "Reconsideration approved")
@@ -988,6 +996,23 @@ async function inboxPage() {
     message.logbook_entry_id && !message.logbook_action_taken && !isReconsiderationRequest(message)
       ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${o(message.logbook_title || "Logbook activity")}">Reject</button></div>`
       : "";
+  const reviewButtons = (message, box) => {
+    if (box !== "inbox") return "";
+    const review = reviewActionMap.get(String(message.id));
+    if (!review) return "";
+    const id = String(review.review_id);
+    const residentOwnReview = s.p.role === "resident" && String(review.resident_id) === String(s.p.id);
+    const reconsideration = String(review.reconsideration_status || "none");
+    const openLabel = residentOwnReview ? "Open review" : "View review";
+    const openTarget = s.p.role === "resident" ? "reviews" : s.p.role === "assessor" ? "write-review" : s.p.role === "owner" ? "comments" : "reviews";
+    return `<div class="message-actions review-message-actions">
+      <button class="btn small secondary" data-open-review-notification="${o(id)}" data-review-target="${o(openTarget)}">${openLabel}</button>
+      ${residentOwnReview && reconsideration === "none" ? `<button class="btn small reclaim-button" data-review-reconsider="${o(id)}">Request to reconsider</button>` : ""}
+      ${residentOwnReview && reconsideration === "requested" ? '<span class="tag warning">Reconsideration pending</span>' : ""}
+      ${residentOwnReview && reconsideration === "accepted" ? '<span class="tag success">Modified</span>' : ""}
+      ${residentOwnReview && reconsideration === "upheld" ? '<span class="tag neutral">Original upheld</span>' : ""}
+    </div>`;
+  };
   const rows = (items, box) =>
     items.length
       ? items.map((message) => {
@@ -1002,7 +1027,7 @@ async function inboxPage() {
         <span class="message-subject">${statusTitle(message)}${category === "reconsideration" ? '<span class="tag warning">Decision needed</span>' : ""}</span>
         <small>${l(message.created_at)}</small>
       </button>
-      ${box === "inbox" ? approvalButtons(message) : ""}
+      ${box === "inbox" ? `${approvalButtons(message)}${reviewButtons(message, box)}` : ""}
     </article>`;
         }).join("")
       : '<div class="mail-empty">No messages here.</div>';
@@ -1462,11 +1487,97 @@ async function ownerLogbookCenterPage() {
   t("#title").textContent = "Logbook centre";
   a.innerHTML = h("Logbook centre", "Resident e-logbooks, approval requests, export and protected reset controls.") + `<div class="dashboard-grid dashboard-grid-4 hub-grid">
     ${dashboardTile("Resident logbooks", "Open", "Review, export or reset selected/all logbooks", "logbook")}
-    ${dashboardTile("Logbook requests", "Review", "Approval requests and status updates", "logbook-requests")}
-    ${dashboardTile("Inbox", "Messages", "Direct and system communication", "inbox")}
+    ${dashboardTile("Logbook requests", "Review", "Sequential senior → assessor approval workflow", "logbook-requests")}
+    ${dashboardTile("Intervention audit", "Fairness", "Compare exposure, trials, successes and failed trials by residency year", "owner-intervention-audit")}
     ${dashboardTile("Message cleanup", "Clean", "Clear message copies without changing resident logbooks", "message-cleanup")}
   </div>`;
 }
+async function ownerInterventionAuditPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "Intervention audit";
+  const rows = u(await e.rpc("owner_intervention_audit_v1051")) || [];
+  const years = [...new Set(rows.map((row) => Number(row.residency_year)).filter(Boolean))].sort((a,b)=>a-b);
+  const procedures = [...new Map(rows.map((row) => [String(row.procedure_name), Number(row.procedure_order) || 999])).entries()]
+    .sort((a,b)=>a[1]-b[1]).map(([name])=>name);
+  window.ownerInterventionAuditRows = rows;
+
+  a.innerHTML = h(
+    "Intervention fairness audit",
+    "Compare verified intervention opportunities between residents. Only approved logbook entries are counted; trials exclude observation-only attendance.",
+    '<button class="btn secondary" data-go="owner-logbook-center">Back to Logbooks</button>',
+  ) + `
+    <section class="card intervention-audit-card">
+      <div class="intervention-audit-filters">
+        <label>Residency year<select id="auditYearFilter"><option value="">All years</option>${years.map((year)=>`<option value="${year}">Year ${year}</option>`).join("")}</select></label>
+        <label>Intervention<select id="auditProcedureFilter"><option value="">All interventions</option>${procedures.map((name)=>`<option value="${o(name)}">${o(name)}</option>`).join("")}</select></label>
+        <label>Resident search<input id="auditResidentSearch" type="search" placeholder="Name"></label>
+      </div>
+      <div class="audit-definition-strip">
+        <span><b>Verified only</b> = approved logbook entries</span><span><b>Exposure</b> = attended + trials</span>
+        <span><b>Trials</b> = success + failed trial</span>
+        <span><b>Success</b> = performed with assistance / solo guided / solo unguided</span>
+        <span><b>Failed</b> = failed trial</span>
+      </div>
+      <div id="auditSummary" class="audit-summary-grid"></div>
+      <div class="table-scroll"><table class="table intervention-audit-table">
+        <thead><tr><th>Resident</th><th>Year</th><th>Intervention</th><th>Attended</th><th>Trials</th><th>Successful</th><th>Failed</th><th>Success %</th><th>Total exposure</th></tr></thead>
+        <tbody id="interventionAuditBody"></tbody>
+      </table></div>
+      <div id="interventionAuditEmpty" class="mail-empty" hidden>No residents match these filters.</div>
+    </section>`;
+  renderOwnerInterventionAudit();
+}
+
+function renderOwnerInterventionAudit() {
+  const rows = window.ownerInterventionAuditRows || [];
+  const year = Number(t("#auditYearFilter")?.value) || 0;
+  const procedure = t("#auditProcedureFilter")?.value || "";
+  const search = (t("#auditResidentSearch")?.value || "").trim().toLowerCase();
+  const filtered = rows.filter((row) =>
+    (!year || Number(row.residency_year) === year) &&
+    (!procedure || row.procedure_name === procedure) &&
+    (!search || String(row.resident_name || "").toLowerCase().includes(search))
+  );
+  const body = t("#interventionAuditBody");
+  const empty = t("#interventionAuditEmpty");
+  if (!body) return;
+  body.innerHTML = filtered.map((row) => {
+    const trials = Number(row.trial_count) || 0;
+    const success = Number(row.success_count) || 0;
+    const failed = Number(row.failed_count) || 0;
+    const pct = trials ? `${Math.round(success * 100 / trials)}%` : "—";
+    return `<tr>
+      <td><b>${o(row.resident_name || "Resident")}</b></td>
+      <td>${yearChip(row.residency_year)}</td>
+      <td><b>${o(row.procedure_name)}</b></td>
+      <td>${Number(row.attended_count)||0}</td>
+      <td><b>${trials}</b></td>
+      <td><span class="tag success">${success}</span></td>
+      <td><span class="tag ${failed ? "danger" : "neutral"}">${failed}</span></td>
+      <td>${pct}</td>
+      <td>${Number(row.total_exposure)||0}</td>
+    </tr>`;
+  }).join("");
+  if (empty) empty.hidden = filtered.length > 0;
+
+  const totals = filtered.reduce((acc,row)=>{
+    acc.exposure += Number(row.total_exposure)||0;
+    acc.trials += Number(row.trial_count)||0;
+    acc.success += Number(row.success_count)||0;
+    acc.failed += Number(row.failed_count)||0;
+    return acc;
+  },{exposure:0,trials:0,success:0,failed:0});
+  const residents = new Set(filtered.map((row)=>String(row.resident_id))).size;
+  const summary = t("#auditSummary");
+  if (summary) summary.innerHTML = `
+    <article><span>Residents</span><b>${residents}</b></article>
+    <article><span>Total exposure</span><b>${totals.exposure}</b></article>
+    <article><span>Trials</span><b>${totals.trials}</b></article>
+    <article><span>Successful</span><b>${totals.success}</b></article>
+    <article><span>Failed trials</span><b>${totals.failed}</b></article>
+    <article><span>Success rate</span><b>${totals.trials ? Math.round(totals.success*100/totals.trials) : 0}%</b></article>`;
+}
+
 async function ownerToolsPage() {
   if (s.p.role !== "owner") return g("dashboard");
   t("#title").textContent = "More";
@@ -1973,7 +2084,7 @@ async function P() {
   const todayValue = today.toISOString().slice(0, 10);
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>Required approvers receive separate Inbox requests.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
+      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>The senior resident receives the request first; the assessor receives it only after senior approval.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="failed_trial" required><span>Failed trial</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
   const pending =
     "resident" === s.p.role
@@ -2090,6 +2201,26 @@ function H() {
       document.querySelectorAll("[data-review-panel]").forEach((panel) => {
         panel.hidden = panel.dataset.reviewPanel !== section;
       });
+    }
+    if (a.dataset.openReviewNotification) {
+      const row = window.observerReviewRows?.get(String(a.dataset.openReviewNotification));
+      if (!row) return;
+      const positive = row.sentiment !== "negative";
+      const clinical = row.category !== "attitude";
+      const status = String(row.reconsideration_status || "none");
+      const own = s.p.role === "resident" && String(row.resident_id) === String(s.p.id);
+      y(`<article class="modal review-notification-modal">
+        <div class="modal-head"><div><span class="eyebrow">${clinical ? "Clinical review" : "Behavioural review"}</span><h2>${positive ? "👍 Good review" : "👎 Bad review"}</h2></div><button type="button" data-close>×</button></div>
+        <div class="review-notification-meta"><b>${o(row.display_observer || row.observer_signature || "Reviewer")}</b><span>${d(row.observed_on)} · ${o(row.place || "—")}</span></div>
+        <div class="message-body">${o(row.comment || "No comment")}</div>
+        <div class="actions">
+          ${own && status === "none" ? `<button class="btn reclaim-button" data-review-reconsider="${o(row.review_id || row.id)}">Request to reconsider</button>` : ""}
+          ${own && status === "requested" ? '<span class="tag warning">Reconsideration pending</span>' : ""}
+          ${own && status === "accepted" ? '<span class="tag success">Modified after reconsideration</span>' : ""}
+          ${own && status === "upheld" ? '<span class="tag neutral">Original review upheld</span>' : ""}
+          <button class="btn secondary" type="button" data-close>Close</button>
+        </div>
+      </article>`);
     }
     if (a.dataset.reviewReconsider) {
       const row = window.observerReviewRows?.get(String(a.dataset.reviewReconsider));
@@ -2323,7 +2454,7 @@ function H() {
       a.dataset.quickLogbookApprove &&
         (async () => {
           if (!confirm("Approve this logbook request?")) return;
-          u(await e.rpc("review_logbook_entry_v2", {
+          u(await e.rpc("review_logbook_entry_v1051", {
             p_entry_id: a.dataset.quickLogbookApprove,
             p_decision: "approved",
             p_note: "Approved",
@@ -2474,6 +2605,7 @@ function H() {
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
       (["assessorLogbookResidentFilter","assessorLogbookActivityFilter","assessorLogbookCategoryFilter","assessorLogbookParticipationFilter","assessorLogbookStatusFilter"].includes(a.id)) && filterAssessorLogbookTable(),
       ("requestResidentFilter" === a.id || "requestStatusFilter" === a.id || "requestTypeFilter" === a.id) && filterLogbookRequestRows(),
+      ("auditYearFilter" === a.id || "auditProcedureFilter" === a.id) && renderOwnerInterventionAudit(),
       "messageCategoryFilter" === a.id && filterPrivateMessageRows(),
       "selectVisibleMessages" === a.id && (() => {
         const panel = document.querySelector('[data-mail-panel]:not([hidden])');
@@ -2541,6 +2673,7 @@ function H() {
       filterAssessorLogbookTable();
       return;
     }
+    if (e.target.id === "auditResidentSearch") renderOwnerInterventionAudit();
     if (e.target.id === "messageSearch") {
       if (t("#requestResidentFilter")) return filterLogbookRequestRows();
       filterPrivateMessageRows();
@@ -2845,7 +2978,7 @@ function H() {
         if (decision === "rejected" && note.length < 2)
           throw new Error("A note is required when rejecting an entry");
         u(
-          await e.rpc("review_logbook_entry_v2", {
+          await e.rpc("review_logbook_entry_v1051", {
             p_entry_id: r.get("entry_id"),
             p_decision: decision,
             p_note: note,
