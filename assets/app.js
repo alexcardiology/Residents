@@ -1143,18 +1143,22 @@ async function logbookRequestsPage() {
     const activity = row.activity_title || row.procedure_name || "Logbook activity";
     if (row.status === "requested") {
       return `<section class="embedded-reconsideration pending" data-reconsideration-id="${o(row.id)}">
-        <div class="embedded-reconsideration-context">
-          <span class="eyebrow">Request to reconsider</span>
-          <b>${o(activity)}</b>
-          <small>${o(row.resident_name || "Resident")} · ${d(row.activity_date)}</small>
+        <div class="embedded-reconsideration-head">
+          <div>
+            <span class="eyebrow">Reconsideration requested</span>
+            <b>${o(activity)}</b>
+            <small>${o(row.resident_name || "Resident")} · ${d(row.activity_date)}</small>
+          </div>
           <span class="tag danger embedded-original-decision">Original decision: Rejected</span>
         </div>
-        <div class="embedded-reconsideration-reason"><span>Resident's reason</span><p>${o(row.reason || "No reason provided")}</p></div>
-        <div class="embedded-reconsideration-decisionbox">
-          <label class="embedded-reconsideration-note">Decision note <small>Required for either choice</small><textarea data-reconsideration-note maxlength="3000" required placeholder="Write your short decision note"></textarea></label>
-          <div class="embedded-reconsideration-actions">
-            <button class="btn danger-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="rejected">Reject</button>
-            <button class="btn success-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="approved">Approve</button>
+        <div class="embedded-reconsideration-body">
+          <div class="embedded-reconsideration-reason"><span>Resident's reason</span><p>${o(row.reason || "No reason provided")}</p></div>
+          <div class="embedded-reconsideration-decisionbox">
+            <label class="embedded-reconsideration-note"><span>Decision note</span><small>Required before Approve or Reject</small><textarea data-reconsideration-note maxlength="3000" required placeholder="Write a short note explaining your decision"></textarea></label>
+            <div class="embedded-reconsideration-actions">
+              <button class="btn danger-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="rejected">Reject</button>
+              <button class="btn success-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="approved">Approve</button>
+            </div>
           </div>
         </div>
       </section>`;
@@ -2056,7 +2060,7 @@ function H() {
       const row = window.observerReviewRows?.get(String(a.dataset.reviewResolve));
       const decision = a.dataset.reviewDecision;
       if (decision === "accepted") {
-        y(`<form id="reviewResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Reconsideration</span><h2>Accept and edit review</h2></div><button type="button" data-close>×</button></div><div class="review-workflow"><p><b>Resident request:</b> ${o(row?.reconsideration_text || "")}</p></div><fieldset class="choice-field"><legend>Updated type</legend><div class="review-choice-grid"><label class="review-choice positive"><input type="radio" name="sentiment" value="positive" ${row?.sentiment !== "negative" ? "checked" : ""}><span class="review-choice-icon">👍</span><span><b>Positive</b></span></label><label class="review-choice negative"><input type="radio" name="sentiment" value="negative" ${row?.sentiment === "negative" ? "checked" : ""}><span class="review-choice-icon">👎</span><span><b>Negative</b></span></label></div></fieldset><label>Updated comment<textarea name="comment" minlength="10" required>${o(row?.comment || "")}</textarea></label><label>Response note<textarea name="note" minlength="2" required placeholder="Explain what you changed or why you accept the request"></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewResolve)}"><input type="hidden" name="decision" value="accepted"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save accepted reconsideration</button></div></form>`);
+        y(`<form id="reviewResolveForm" class="modal review-edit-reconsideration-modal"><div class="modal-head"><div><span class="eyebrow">Reconsideration</span><h2>Accept and edit review</h2></div><button type="button" data-close>×</button></div><div class="review-request-callout"><span>Resident request</span><p>${o(row?.reconsideration_text || "No reason provided")}</p></div><fieldset class="choice-field"><legend>Updated type</legend><div class="review-choice-grid"><label class="review-choice positive"><input type="radio" name="sentiment" value="positive" ${row?.sentiment !== "negative" ? "checked" : ""}><span class="review-choice-icon">👍</span><span><b>Positive</b></span></label><label class="review-choice negative"><input type="radio" name="sentiment" value="negative" ${row?.sentiment === "negative" ? "checked" : ""}><span class="review-choice-icon">👎</span><span><b>Negative</b></span></label></div></fieldset><label class="review-updated-comment">Updated comment<textarea name="comment" minlength="10" required>${o(row?.comment || "")}</textarea></label><div class="review-original-comment"><span>Original comment</span><p>${o(row?.comment || "—")}</p></div><input type="hidden" name="review_id" value="${o(a.dataset.reviewResolve)}"><input type="hidden" name="decision" value="accepted"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save modified review</button></div></form>`);
       } else {
         y(`<form id="reviewResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Reconsideration</span><h2>Keep original review</h2></div><button type="button" data-close>×</button></div><div class="review-workflow"><p><b>Resident request:</b> ${o(row?.reconsideration_text || "")}</p><p><b>Original review:</b> ${o(row?.comment || "")}</p></div><label>Response note<textarea name="note" minlength="2" required placeholder="Explain why the original review remains appropriate"></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewResolve)}"><input type="hidden" name="decision" value="upheld"><input type="hidden" name="comment" value="${o(row?.comment || "")}"><input type="hidden" name="sentiment" value="${o(row?.sentiment || "positive")}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="danger-button">Keep original review</button></div></form>`);
       }
