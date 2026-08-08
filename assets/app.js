@@ -1032,7 +1032,7 @@ async function logbookRequestsPage() {
       <button class="message-open" data-message-id="${message.id}" data-message-box="${view === "sent" ? "logbook-sent" : "logbook"}">
         <span class="message-person">${o(view === "sent" ? `To: ${message.receiver_name}` : `From: ${message.sender_name}`)}</span>
         <strong>${statusTitle(message)}</strong><small>${l(message.created_at)}</small>
-      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${view === "updates" && message.can_reclaim ? `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>` : ""}
+      </button>${view === "received" || view === "trash" ? approvalButtons(message) : ""}${view === "updates" && s.p.role === "resident" && message.logbook_entry_id && (message.can_reclaim || message.request_status === "rejected" || message.subject === "Logbook rejection") ? `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer-id="${o(message.sender_id || "")}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>` : ""}
     </article>`).join("") : '<div class="mail-empty">No logbook items here.</div>';
   window.logbookMessages = new Map([
     ...received.map((message) => [`logbook-${message.id}`, message]),
@@ -1062,8 +1062,8 @@ async function logbookRequestsPage() {
     </section>`;
 }
 
-function openLogbookReclaim(entryId, title, reviewer) {
-  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Request to reconsider ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox, with drmohamedalaa90@gmail.com in CC.</p><label>Justification<textarea name="justification" minlength="10" maxlength="3000" required placeholder="Explain why this request should be reconsidered"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request to reconsider</button></div></form>`);
+function openLogbookReclaim(entryId, title, reviewer, reviewerId = "") {
+  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Request to reconsider ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox and copied to the Program Owner.</p><label>Justification<textarea name="justification" minlength="10" maxlength="3000" required placeholder="Explain why this request should be reconsidered"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="reviewer_id" value="${o(reviewerId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request to reconsider</button></div></form>`);
 }
 function filterLogbookRequestRows() {
   const query = (t("#messageSearch")?.value || "").trim().toLowerCase();
@@ -1938,6 +1938,7 @@ function H() {
         a.dataset.reclaimLogbook,
         a.dataset.logbookTitle,
         a.dataset.reclaimReviewer,
+        a.dataset.reclaimReviewerId,
       ),
       a.dataset.logbookReview &&
         openLogbookDecision(
@@ -2476,12 +2477,15 @@ function H() {
         await q();
       }
       if ("logbookReclaimForm" === a.id) {
-        u(await e.rpc("submit_logbook_reclaim", {
+        const reviewerId = String(r.get("reviewer_id") || "");
+        if (!reviewerId) throw new Error("The rejecting reviewer could not be identified. Refresh Logbook requests and try again.");
+        u(await e.rpc("submit_logbook_reconsideration_v1042", {
           p_entry_id: r.get("entry_id"),
+          p_reviewer_id: reviewerId,
           p_justification: r.get("justification"),
         }));
         i.close();
-        b("Request to reconsider sent to the reviewer and copied to the owner");
+        b("Request to reconsider sent to the rejecting reviewer and copied to the Program Owner");
         return void (await logbookRequestsPage());
       }
       if ("scheduleForm" === a.id) {
