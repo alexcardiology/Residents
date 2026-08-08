@@ -89,6 +89,27 @@ const s = {
       <div class="reconsideration-summary-reason"><span>Reason</span><p>${o(review.reconsideration_text || "No reason provided")}</p></div>
     </div>`;
   },
+  linkedReviewMessage = (message, review) => {
+    if (!review) return `<div class="message-body">${messageBody(message)}</div>`;
+    const rawCategory = String(review.category || "").toLowerCase();
+    const domain = rawCategory === "attitude" ? "Behavioural" : "Clinical";
+    const categoryLabel = rawCategory === "attitude" ? "Behaviour" : rawCategory === "skill" ? "Skill" : rawCategory === "knowledge" ? "Knowledge" : "Review";
+    const sentiment = String(review.sentiment || "positive") === "negative" ? "Negative" : "Positive";
+    const reviewer = review.display_observer || review.observer_signature || message.sender_name || "Reviewer";
+    const reconsideration = String(review.reconsideration_status || "none");
+    return `<div class="linked-review-message">
+      <div class="linked-review-grid">
+        <div><span>Resident</span><b>${o(review.resident_name || "Resident")}</b></div>
+        <div><span>Domain</span><b>${o(domain)} · ${o(categoryLabel)}</b></div>
+        <div><span>Type</span><b>${sentiment === "Negative" ? "👎" : "👍"} ${o(sentiment)}</b></div>
+        <div><span>Reviewer</span><b>${o(reviewer)}</b></div>
+        <div><span>Date</span><b>${o(d(review.observed_on))}</b></div>
+        <div><span>Place</span><b>${o(review.place || "—")}</b></div>
+      </div>
+      <div class="linked-review-content"><span>Review content</span><p>${o(review.comment || "—")}</p></div>
+      ${reconsideration !== "none" ? `<div class="linked-review-status"><span>Reconsideration</span><b>${o(reconsideration === "accepted" ? "💡 Modified after reconsideration" : reconsideration === "upheld" ? "Original review upheld" : "Pending")}</b></div>` : ""}
+    </div>`;
+  },
   p = {
     resident: [
       ["dashboard", "Dashboard"],
@@ -2688,7 +2709,6 @@ function H() {
         ),
       a.dataset.quickLogbookApprove &&
         (async () => {
-          if (!confirm("Approve this logbook request?")) return;
           u(await e.rpc("review_logbook_entry_v1051", {
             p_entry_id: a.dataset.quickLogbookApprove,
             p_decision: "approved",
@@ -2699,7 +2719,6 @@ function H() {
           else await logbookRequestsPage();
         })(),
       a.dataset.reconsiderApprove && (async () => {
-        if (!confirm("Approve this request to reconsider? The original rejecting decision will be changed to approved.")) return;
         const finalStatus = u(await e.rpc("resolve_logbook_reconsideration", {
           p_message_id: Number(a.dataset.reconsiderMessageId),
           p_entry_id: a.dataset.reconsiderApprove,
@@ -2712,7 +2731,6 @@ function H() {
         b(`Reconsideration approved · logbook status: ${finalStatus || "updated"}`);
       })(),
       a.dataset.reconsiderReject && (async () => {
-        if (!confirm("Reject this request to reconsider? The original rejection will remain in place.")) return;
         const finalStatus = u(await e.rpc("resolve_logbook_reconsideration", {
           p_message_id: Number(a.dataset.reconsiderMessageId),
           p_entry_id: a.dataset.reconsiderReject,
@@ -2774,9 +2792,12 @@ function H() {
             ? `<div class="reconsideration-decision review-reconsideration-decision"><p><b>Review reconsideration</b><br><small>Accepting opens the review for modification. After saving, both the resident and assigned assessor will see it as <b>Modified</b>.</small></p><div class="approval-actions"><button class="btn success-button" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="accepted">Accept & modify review</button><button class="btn secondary" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="upheld">Keep original</button></div></div>`
             : "";
           const incoming = a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook";
+          const linkedReview = a.dataset.messageBox === "inbox" ? window.inboxReviewActions?.get(String(message.id)) : null;
           const renderedMessageBody = reviewReconsideration
             ? reviewReconsiderationMessage(message, reviewReconsideration)
-            : `<div class="message-body">${messageBody(message)}</div>`;
+            : linkedReview
+              ? linkedReviewMessage(message, linkedReview)
+              : `<div class="message-body">${messageBody(message)}</div>`;
           y(
             `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small>${renderedMessageBody}${reconsiderationActions}${reviewReconsiderationActions}${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
           );

@@ -4243,3 +4243,13 @@ form .password-eye-button,
     grid-template-columns: 1fr;
   }
 }
+
+/* v1.0.61 — linked review content inside Inbox */
+.linked-review-message { display:grid; gap:14px; margin-top:18px; }
+.linked-review-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.linked-review-grid > div,.linked-review-content,.linked-review-status { min-width:0; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:#f8fbff; }
+.linked-review-grid span,.linked-review-content span,.linked-review-status span { display:block; margin-bottom:5px; color:var(--muted); font-size:.7rem; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
+.linked-review-grid b,.linked-review-status b { overflow-wrap:anywhere; }
+.linked-review-content { background:#fff; }
+.linked-review-content p { margin:0; color:var(--ink); font-size:1rem; font-weight:750; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+@media (max-width:650px) { .linked-review-grid { grid-template-columns:1fr; } }
