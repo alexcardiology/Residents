@@ -1,162 +1,217 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta
-      name="viewport"
-      content="width=device-width,initial-scale=1"
-    >
-    <meta name="theme-color" content="#081c35">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#081c35">
 
-    <title>Cardiology Resident Training</title>
+  <title>Cardiology Resident Training</title>
 
-    <link
-      rel="stylesheet"
-      href="assets/style.css"
-    >
-  </head>
+  <link
+    rel="stylesheet"
+    href="assets/style.css?v=1.0.54"
+  >
+</head>
 
-  <body class="landing">
-    <main>
-      <section class="hero">
-        <a class="brand">
-          <b>♥</b>
+<body class="landing">
+  <main>
+    <section class="hero">
+      <a class="brand light">
+        <b>♥</b>
 
-          <span>
-            <strong>Cardiology</strong>
-            <small>Resident Training & Assessment</small>
-          </span>
-        </a>
+        <span>
+          <strong>Cardiology</strong>
+          <small>Resident Training &amp; Assessment</small>
+        </span>
+      </a>
 
-        <div>
-          <p class="eyebrow">
-            Structured growth · Fair assessment
-          </p>
+      <div>
+        <p class="eyebrow">
+          Structured growth · Fair assessment
+        </p>
 
-          <h1>
-            From first observation to independent practice.
-          </h1>
+        <h1>
+          From first observation to independent practice.
+        </h1>
 
-          <p>
-            A secure competency portfolio for cardiology
-            residents, observers, assessors and the program
-            owner.
-          </p>
-        </div>
+        <p>
+          A secure competency portfolio for cardiology
+          residents, observers, assessors and the program
+          owner.
+        </p>
+      </div>
 
-        <footer>
-          Curriculum · Skill logbook · Signed reviews ·
-          Formal assessments
-        </footer>
-      </section>
+      <footer>
+        Curriculum · Skill logbook · Signed reviews ·
+        Formal assessments
+      </footer>
+    </section>
 
-      <section class="entry">
-        <article>
-          <i>↗</i>
+    <section class="entry">
+      <article>
+        <i>↗</i>
 
-          <p class="eyebrow blue">
-            Resident · Assessor · Owner
-          </p>
+        <p class="eyebrow blue">
+          Resident · Assessor · Owner
+        </p>
 
-          <h2>Sign in to your portal</h2>
+        <h2>Sign in to your portal</h2>
 
-          <p>
-            Sign in using either your username or email.
-            Your assigned role opens the correct workspace
-            automatically.
-          </p>
+        <p>
+          Sign in using either your username or email.
+          Your assigned role opens the correct workspace
+          automatically.
+        </p>
 
-          <form id="mainLogin">
-            <label>
-              Username or email
+        <form id="mainLogin">
+          <label>
+            Username or email
 
-              <input
-                name="identifier"
-                type="text"
-                autocomplete="username"
-                required
-              >
-            </label>
-
-            <label>
-              Password
-
-              <input
-                name="password"
-                type="password"
-                minlength="6"
-                autocomplete="current-password"
-                required
-              >
-            </label>
-
-            <p class="msg"></p>
-
-            <button type="submit">
-              Sign in
-            </button>
-          </form>
-        </article>
-
-        <hr>
-
-        <article>
-          <p class="eyebrow rose">
-            Observer or assessor access
-          </p>
-
-          <h2>Write a review</h2>
-
-          <p>
-            Observers and assessors can sign in here to
-            write a signed review for any resident.
-          </p>
-
-          <form id="reviewLogin">
-            <label>
-              Username or email
-
-              <input
-                name="identifier"
-                type="text"
-                autocomplete="username"
-                required
-              >
-            </label>
-
-            <label>
-              Password
-
-              <input
-                name="password"
-                type="password"
-                minlength="6"
-                autocomplete="current-password"
-                required
-              >
-            </label>
-
-            <p class="msg"></p>
-
-            <button
-              type="submit"
-              class="rose-btn"
+            <input
+              name="identifier"
+              type="text"
+              autocomplete="username"
+              required
             >
-              Sign in to write a review
-            </button>
-          </form>
-        </article>
+          </label>
 
-        <small>
-          Invitation-only access. There is no public
-          registration.
-        </small>
-      </section>
-    </main>
+          <label>
+            Password
 
-    <script
-      type="module"
-      src="assets/login.js?v=1.0.13"
-    ></script>
-  </body>
+            <span class="password-field">
+              <input
+                name="password"
+                type="password"
+                minlength="6"
+                autocomplete="current-password"
+                required
+              >
+
+              <button
+                class="password-toggle"
+                type="button"
+                aria-label="Show password"
+                title="Show password"
+              >
+                <svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+
+                <svg class="eye-off-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M10.7 6.1A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.6 3.2M6.1 6.3C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9.9 9.9A3 3 0 0 0 14.1 14.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </span>
+          </label>
+
+          <p class="msg"></p>
+
+          <button type="submit">
+            Sign in
+          </button>
+        </form>
+      </article>
+
+      <hr>
+
+      <article>
+        <p class="eyebrow rose">
+          Observer or assessor access
+        </p>
+
+        <h2>Write a review</h2>
+
+        <p>
+          Observers and assessors can sign in here to
+          write a signed review for any resident.
+        </p>
+
+        <form id="reviewLogin">
+          <label>
+            Username or email
+
+            <input
+              name="identifier"
+              type="text"
+              autocomplete="username"
+              required
+            >
+          </label>
+
+          <label>
+            Password
+
+            <span class="password-field">
+              <input
+                name="password"
+                type="password"
+                minlength="6"
+                autocomplete="current-password"
+                required
+              >
+
+              <button
+                class="password-toggle"
+                type="button"
+                aria-label="Show password"
+                title="Show password"
+              >
+                <svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+
+                <svg class="eye-off-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M10.7 6.1A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.6 3.2M6.1 6.3C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9.9 9.9A3 3 0 0 0 14.1 14.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </span>
+          </label>
+
+          <p class="msg"></p>
+
+          <button
+            type="submit"
+            class="rose-btn"
+          >
+            Sign in to write a review
+          </button>
+        </form>
+      </article>
+
+      <small>
+        Invitation-only access. There is no public
+        registration.
+      </small>
+    </section>
+  </main>
+
+  <script
+    type="module"
+    src="assets/login.js?v=1.0.13"
+  ></script>
+
+  <script>
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest(".password-toggle");
+      if (!button) return;
+
+      const field = button.closest(".password-field");
+      const input = field?.querySelector('input[name="password"]');
+      if (!input) return;
+
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+
+      button.classList.toggle("is-visible", !showing);
+      button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+      button.setAttribute("title", showing ? "Show password" : "Hide password");
+    });
+  </script>
+</body>
 </html>
