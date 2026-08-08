@@ -1169,7 +1169,7 @@ async function logbookRequestsPage() {
     : message.subject === "Logbook rejection"
       ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Rejected request · ${o(message.sender_name)} rejected your ${activityLabel(message)}</span></span>`
       : message.subject === "Reconsideration approved"
-        ? `<span class="decision-title reconsideration-approved-title"><span class="decision-icon approved">✓</span><span>Approved after reconsideration · ${o(message.sender_name)} approved your ${activityLabel(message)}</span><span class="after-reconsideration-badge" title="After reconsideration">💡</span></span>`
+        ? `<span class="decision-title reconsideration-approved-title"><span class="decision-icon-pair" aria-label="Approved after reconsideration"><span class="decision-icon approved">✓</span><span class="after-reconsideration-badge" title="After reconsideration" aria-hidden="true">💡</span></span><span>Approved after reconsideration · ${o(message.sender_name)} approved your ${activityLabel(message)}</span></span>`
         : message.subject === "Reconsideration rejected"
           ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>Reconsideration rejected · ${o(message.sender_name)} kept the rejection of your ${activityLabel(message)}</span></span>`
           : `Approval request · ${activityLabel(message)}`;
@@ -1230,7 +1230,7 @@ async function logbookRequestsPage() {
     if (view !== "updates" || s.p.role !== "resident" || !message.logbook_entry_id || !(message.can_reclaim || message.request_status === "rejected" || message.subject === "Logbook rejection")) return "";
     const rec = residentReconsiderationFor(message);
     if (rec?.status === "requested") return `<div class="message-actions"><span class="tag warning">Reconsideration pending</span></div>`;
-    if (rec?.status === "approved") return `<div class="message-actions"><span class="tag success reconsidered-tag"><span aria-hidden="true">💡</span> Reconsideration approved</span></div>`;
+    if (rec?.status === "approved") return `<div class="message-actions"><span class="tag success reconsidered-tag">Reconsideration approved</span></div>`;
     if (rec?.status === "rejected") return `<div class="message-actions"><span class="tag danger">Reconsideration rejected</span></div>`;
     return `<div class="message-actions"><button class="btn small reclaim-button" data-reclaim-logbook="${message.logbook_entry_id}" data-reclaim-reviewer-id="${o(message.sender_id || "")}" data-reclaim-reviewer="${o(message.sender_name)}" data-logbook-title="${activityLabel(message)}">Request to reconsider</button></div>`;
   };
@@ -1241,7 +1241,7 @@ async function logbookRequestsPage() {
     const effectiveStatus = rec?.status === "requested" ? "pending" : rec?.status === "approved" ? "approved" : rec?.status === "rejected" ? "rejected" : residentRec?.status === "approved" ? "approved" : residentRec?.status === "rejected" ? "rejected" : (message.request_status || "pending");
     const extraSearch = rec ? `${rec.reason || ""} ${rec.response_note || ""} reconsideration ${rec.status || ""}` : residentRec ? `${residentRec.reason || ""} ${residentRec.response_note || ""} reconsideration ${residentRec.status || ""}` : "";
     const titleMarkup = message.subject === "Logbook rejection" && residentRec?.status === "approved"
-      ? `<span class="decision-title reconsideration-approved-title"><span class="decision-icon approved" aria-label="Approved">✓</span><span>Approved after reconsideration · ${o(message.sender_name)} approved your ${activityLabel(message)}</span><span class="after-reconsideration-badge" title="After reconsideration" aria-label="After reconsideration">💡</span></span>`
+      ? `<span class="decision-title reconsideration-approved-title"><span class="decision-icon-pair" aria-label="Approved after reconsideration"><span class="decision-icon approved">✓</span><span class="after-reconsideration-badge" title="After reconsideration" aria-hidden="true">💡</span></span><span>Approved after reconsideration · ${o(message.sender_name)} approved your ${activityLabel(message)}</span></span>`
       : message.subject === "Logbook rejection" && residentRec?.status === "rejected"
         ? `<span class="decision-title"><span class="decision-icon rejected" aria-label="Rejected">×</span><span>Reconsideration rejected · ${o(message.sender_name)} kept the rejection of your ${activityLabel(message)}</span></span>`
         : statusTitle(message);
@@ -2653,8 +2653,10 @@ function H() {
               window.observerReviewRows.set(String(reviewReconsideration.id), reviewReconsideration);
             }
           }
-          const decisionTitle = message.subject === "Logbook approval" || message.subject === "Reconsideration approved"
-            ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>${o(message.subject)}</span></span>`
+          const decisionTitle = message.subject === "Reconsideration approved"
+            ? `<span class="decision-title reconsideration-approved-title"><span class="decision-icon-pair" aria-label="Approved after reconsideration"><span class="decision-icon approved">✓</span><span class="after-reconsideration-badge" title="After reconsideration" aria-hidden="true">💡</span></span><span>${o(message.subject)}</span></span>`
+            : message.subject === "Logbook approval"
+              ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>${o(message.subject)}</span></span>`
             : message.subject === "Logbook rejection" || message.subject === "Reconsideration rejected"
               ? `<span class="decision-title"><span class="decision-icon rejected">×</span><span>${o(message.subject)}</span></span>`
               : reconsiderationRequest
@@ -3302,6 +3304,51 @@ if (I) {
     : (await e.auth.signOut(), location.replace("index.html"));
 } else location.replace("index.html");
 
+
+
+/* v1.0.53 — password visibility eye for profile/account password fields */
+const passwordEyeSvg = (hidden = true) => hidden
+  ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`
+  : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.2A10.8 10.8 0 0 1 12 6c6.1 0 9.6 6 9.6 6a16.1 16.1 0 0 1-3.1 3.7M6.1 7.2C3.7 9.1 2.4 12 2.4 12s3.5 6 9.6 6a10.5 10.5 0 0 0 3.5-.6M9.9 9.9A3 3 0 0 0 14.1 14.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function installPasswordVisibility(root = document) {
+  root.querySelectorAll?.('input[type="password"]:not([data-password-eye-ready])').forEach((input) => {
+    input.dataset.passwordEyeReady = "true";
+    const wrapper = document.createElement("span");
+    wrapper.className = "password-input-wrap";
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "password-eye-button";
+    button.setAttribute("aria-label", "Show password");
+    button.setAttribute("title", "Show password");
+    button.innerHTML = passwordEyeSvg(true);
+    wrapper.appendChild(button);
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".password-eye-button");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const input = button.closest(".password-input-wrap")?.querySelector("input");
+  if (!input) return;
+  const willShow = input.type === "password";
+  input.type = willShow ? "text" : "password";
+  const label = willShow ? "Hide password" : "Show password";
+  button.setAttribute("aria-label", label);
+  button.setAttribute("title", label);
+  button.innerHTML = passwordEyeSvg(!willShow);
+  input.focus({ preventScroll: true });
+});
+
+installPasswordVisibility();
+new MutationObserver((changes) => changes.forEach((change) => change.addedNodes.forEach((node) => {
+  if (node.nodeType === 1) installPasswordVisibility(node);
+}))).observe(document.body, { childList: true, subtree: true });
+
 const defaultDateInputs = (root = document) => {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -3315,4 +3362,4 @@ new MutationObserver((changes) => changes.forEach((change) => change.addedNodes.
   if (node.nodeType === 1) defaultDateInputs(node);
 }))).observe(document.body, { childList: true, subtree: true });
 
-// v1.0.52 — read-on-decision, review tables, logbook-history table
+// v1.0.53 — read-on-decision, review tables, logbook-history table
