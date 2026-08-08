@@ -4253,3 +4253,99 @@ form .password-eye-button,
 .linked-review-content { background:#fff; }
 .linked-review-content p { margin:0; color:var(--ink); font-size:1rem; font-weight:750; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
 @media (max-width:650px) { .linked-review-grid { grid-template-columns:1fr; } }
+
+/* v1.0.62 — review notifications are presented as one conversation thread */
+.review-thread-row .message-open {
+  grid-template-columns: minmax(150px,.65fr) minmax(260px,1.35fr) auto;
+}
+.review-thread-row .message-subject {
+  display: grid;
+  gap: 4px;
+}
+.thread-preview {
+  display: block;
+  color: var(--muted);
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52ch;
+}
+.review-thread-row-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.review-thread-modal {
+  width: min(880px, calc(100vw - 32px));
+}
+.review-thread-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.review-thread-current {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f7faff;
+}
+.review-thread-current > span,
+.review-thread-event-from {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.review-thread-timeline {
+  display: grid;
+  gap: 12px;
+  max-height: 48vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+.review-thread-event {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px 14px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.review-thread-event::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 8px;
+  background: #60a5fa;
+}
+.review-thread-event.unread::before { background: #f59e0b; }
+.review-thread-event-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.review-thread-event-head small { color: var(--muted); }
+.thread-review-actions {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+@media (max-width: 760px) {
+  .review-thread-row .message-open { grid-template-columns: 1fr; gap: 6px; }
+  .review-thread-row-actions { width: 100%; padding: 0 12px 12px 42px; }
+  .review-thread-row-actions .btn { flex: 1 1 150px; }
+  .thread-preview { max-width: 100%; white-space: normal; }
+  .review-thread-event-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+}

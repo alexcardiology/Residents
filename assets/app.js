@@ -221,14 +221,26 @@ function f() {
     (t("#shell").hidden = !1),
     q());
 }
+function countUnreadInboxThreads(messages = [], reviewActions = []) {
+  const reviewByMessage = new Map(reviewActions.map((row) => [String(row.message_id), String(row.review_id)]));
+  const unreadKeys = new Set();
+  messages.forEach((message) => {
+    if (message.is_read) return;
+    const reviewId = reviewByMessage.get(String(message.id));
+    unreadKeys.add(reviewId ? `review:${reviewId}` : `message:${message.id}`);
+  });
+  return unreadKeys.size;
+}
+
 async function q() {
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
-  const [normalResult, logbookResult, reconsiderationResult] = await Promise.all([
+  const [normalResult, logbookResult, reconsiderationResult, reviewActionResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_logbook_messages", { p_view: juniorResident ? "updates" : "received" }),
     e.rpc("get_my_logbook_reconsiderations_v1044"),
+    e.rpc("get_my_review_message_actions_v1051"),
   ]);
-  const count = (normalResult.data || []).filter((message) => !message.is_read).length;
+  const count = countUnreadInboxThreads(normalResult.data || [], reviewActionResult.data || []);
   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
     badge.textContent = count;
     badge.hidden = count === 0;
@@ -977,6 +989,79 @@ function filterPrivateMessageRows() {
   }
 }
 
+function reviewThreadActions(review) {
+  if (!review) return "";
+  const id = String(review.review_id || review.id || "");
+  const residentOwnReview = s.p.role === "resident" && String(review.resident_id) === String(s.p.id);
+  const reconsideration = String(review.reconsideration_status || "none");
+  const openLabel = residentOwnReview ? "Open review" : "View review";
+  const openTarget = s.p.role === "resident" ? "reviews" : s.p.role === "assessor" ? "write-review" : s.p.role === "owner" ? "comments" : "reviews";
+  return `<div class="message-actions review-message-actions thread-review-actions">
+    <button class="btn small secondary" data-open-review-notification="${o(id)}" data-review-target="${o(openTarget)}">${openLabel}</button>
+    ${residentOwnReview && reconsideration === "none" ? `<button class="btn small reclaim-button" data-review-reconsider="${o(id)}">Request to reconsider</button>` : ""}
+    ${residentOwnReview && reconsideration === "requested" ? '<span class="tag warning">Reconsideration pending</span>' : ""}
+    ${residentOwnReview && reconsideration === "accepted" ? '<span class="tag success">Modified</span>' : ""}
+    ${residentOwnReview && reconsideration === "upheld" ? '<span class="tag neutral">Original upheld</span>' : ""}
+  </div>`;
+}
+
+function buildReviewInboxThreads(items, reviewActionMap) {
+  const groups = new Map();
+  const output = [];
+  items.forEach((message) => {
+    const review = reviewActionMap.get(String(message.id));
+    if (!review) {
+      output.push({ type: "message", message });
+      return;
+    }
+    const key = String(review.review_id);
+    let group = groups.get(key);
+    if (!group) {
+      group = { type: "review-thread", reviewId: key, review, messages: [] };
+      groups.set(key, group);
+      output.push(group);
+    }
+    group.messages.push(message);
+    if (new Date(message.created_at || 0) >= new Date(group.messages[0]?.created_at || 0)) group.review = review;
+  });
+  output.forEach((entry) => {
+    if (entry.type === "review-thread") entry.messages.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  });
+  output.sort((a,b) => {
+    const ad = a.type === "review-thread" ? a.messages[a.messages.length-1]?.created_at : a.message?.created_at;
+    const bd = b.type === "review-thread" ? b.messages[b.messages.length-1]?.created_at : b.message?.created_at;
+    return new Date(bd || 0) - new Date(ad || 0);
+  });
+  return output;
+}
+
+function renderReviewThreadTimeline(thread) {
+  const review = thread.review || {};
+  const domain = String(review.category || "").toLowerCase() === "attitude" ? "Behavioural" : "Clinical";
+  const type = String(review.sentiment || "positive").toLowerCase() === "negative" ? "Negative" : "Positive";
+  const timeline = thread.messages.map((message) => {
+    const linked = window.inboxReviewActions?.get(String(message.id));
+    const body = linked ? linkedReviewMessage(message, linked) : `<div class="message-body">${messageBody(message)}</div>`;
+    return `<div class="review-thread-event ${message.is_read ? "read" : "unread"}">
+      <div class="review-thread-event-head"><b>${o(message.subject || "Review update")}</b><small>${l(message.created_at)}</small></div>
+      <div class="review-thread-event-from">From ${o(message.sender_name || "System")}</div>
+      ${body}
+    </div>`;
+  }).join("");
+  return `<article class="modal message-view review-thread-modal">
+    <div class="modal-head"><div><span class="eyebrow">Review conversation</span><h2>${o(review.resident_name || "Resident review")}</h2></div><button type="button" data-close>×</button></div>
+    <div class="review-thread-summary">
+      <span class="tag">${o(domain)}</span><span class="tag ${type === "Positive" ? "success" : "danger"}">${o(type)}</span>
+      ${review.reconsideration_status === "accepted" ? '<span class="tag success">💡 Modified after reconsideration</span>' : ""}
+      ${review.reconsideration_status === "requested" ? '<span class="tag warning">Reconsideration pending</span>' : ""}
+      ${review.reconsideration_status === "upheld" ? '<span class="tag neutral">Original upheld</span>' : ""}
+    </div>
+    <div class="review-thread-current"><span>Current review</span><b>${o(review.comment || "")}</b></div>
+    <div class="review-thread-timeline">${timeline}</div>
+    ${reviewThreadActions(review)}
+  </article>`;
+}
+
 function syncPrivateMailboxControls() {
   const box = document.querySelector('[data-mail-panel]:not([hidden])')?.dataset.mailPanel || "inbox";
   document.querySelectorAll("[data-inbox-only]").forEach((element) => {
@@ -1018,41 +1103,47 @@ async function inboxPage() {
     message.logbook_entry_id && !message.logbook_action_taken && !isReconsiderationRequest(message)
       ? `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${o(message.logbook_title || "Logbook activity")}">Reject</button></div>`
       : "";
-  const reviewButtons = (message, box) => {
-    if (box !== "inbox") return "";
-    const review = reviewActionMap.get(String(message.id));
-    if (!review) return "";
-    const id = String(review.review_id);
-    const residentOwnReview = s.p.role === "resident" && String(review.resident_id) === String(s.p.id);
-    const reconsideration = String(review.reconsideration_status || "none");
-    const openLabel = residentOwnReview ? "Open review" : "View review";
-    const openTarget = s.p.role === "resident" ? "reviews" : s.p.role === "assessor" ? "write-review" : s.p.role === "owner" ? "comments" : "reviews";
-    return `<div class="message-actions review-message-actions">
-      <button class="btn small secondary" data-open-review-notification="${o(id)}" data-review-target="${o(openTarget)}">${openLabel}</button>
-      ${residentOwnReview && reconsideration === "none" ? `<button class="btn small reclaim-button" data-review-reconsider="${o(id)}">Request to reconsider</button>` : ""}
-      ${residentOwnReview && reconsideration === "requested" ? '<span class="tag warning">Reconsideration pending</span>' : ""}
-      ${residentOwnReview && reconsideration === "accepted" ? '<span class="tag success">Modified</span>' : ""}
-      ${residentOwnReview && reconsideration === "upheld" ? '<span class="tag neutral">Original upheld</span>' : ""}
-    </div>`;
-  };
-  const rows = (items, box) =>
-    items.length
-      ? items.map((message) => {
+  const reviewButtons = (message, box) => box === "inbox" ? reviewThreadActions(reviewActionMap.get(String(message.id))) : "";
+  const inboxEntries = buildReviewInboxThreads(inbox, reviewActionMap);
+  window.reviewInboxThreads = new Map(inboxEntries.filter((entry) => entry.type === "review-thread").map((entry) => [String(entry.reviewId), entry]));
+  const rows = (items, box) => {
+    const entries = box === "inbox" ? inboxEntries : items.map((message) => ({ type: "message", message }));
+    return entries.length
+      ? entries.map((entry) => {
+          if (entry.type === "review-thread") {
+            const latest = entry.messages[entry.messages.length - 1];
+            const unread = entry.messages.some((message) => !message.is_read);
+            const ids = entry.messages.map((message) => message.id).join(",");
+            const review = entry.review || {};
+            const status = review.reconsideration_status === "accepted" ? "💡 Modified" : review.reconsideration_status === "requested" ? "Reconsideration pending" : review.reconsideration_status === "upheld" ? "Original upheld" : `${entry.messages.length} update${entry.messages.length === 1 ? "" : "s"}`;
+            return `<article class="message-row review-thread-row ${unread ? "unread" : "read"}"
+              data-message-category="${review.reconsideration_status === "requested" ? "reconsideration" : review.reconsideration_status === "accepted" || review.reconsideration_status === "upheld" ? "approved_updates" : "normal"}"
+              data-message-search="${o(`${review.resident_name || ""} ${review.comment || ""} ${entry.messages.map((m) => `${m.sender_name || ""} ${m.subject || ""} ${m.body || ""}`).join(" ")}`.toLowerCase())}">
+              <input class="message-select" type="checkbox" value="${latest.id}" data-message-ids="${o(ids)}" aria-label="Select review conversation">
+              <button class="message-open" data-review-thread="${o(entry.reviewId)}">
+                <span class="message-person"><span class="message-direction">Review</span>${o(review.resident_name || latest.sender_name || "Resident")}</span>
+                <span class="message-subject"><span class="decision-title"><span class="decision-icon reconsider" aria-hidden="true">↗</span><span>Review conversation</span></span><small class="thread-preview">${o(review.comment || latest.subject || "Review update")}</small></span>
+                <small>${l(latest.created_at)}</small>
+              </button>
+              <div class="message-actions review-thread-row-actions"><span class="tag ${review.reconsideration_status === "accepted" ? "success" : review.reconsideration_status === "requested" ? "warning" : "neutral"}">${o(status)}</span><button class="btn small secondary" data-review-thread="${o(entry.reviewId)}">Open thread</button></div>
+            </article>`;
+          }
+          const message = entry.message;
           const category = privateMessageCategory(message);
-          return `
-    <article class="message-row ${box === "inbox" ? (message.is_read ? "read" : "unread") : "sent-message"}"
-      data-message-category="${category}"
-      data-message-search="${o(`${box === "inbox" ? message.sender_name : message.receiver_name} ${message.subject || ""} ${message.body || ""}`.toLowerCase())}">
-      <input class="message-select" type="checkbox" value="${message.id}" aria-label="Select message">
-      <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
-        <span class="message-person"><span class="message-direction">${box === "inbox" ? "From" : "To"}</span>${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
-        <span class="message-subject">${statusTitle(message)}${category === "reconsideration" ? '<span class="tag warning">Decision needed</span>' : ""}</span>
-        <small>${l(message.created_at)}</small>
-      </button>
-      ${box === "inbox" ? `${approvalButtons(message)}${reviewButtons(message, box)}` : ""}
-    </article>`;
+          return `<article class="message-row ${box === "inbox" ? (message.is_read ? "read" : "unread") : "sent-message"}"
+            data-message-category="${category}"
+            data-message-search="${o(`${box === "inbox" ? message.sender_name : message.receiver_name} ${message.subject || ""} ${message.body || ""}`.toLowerCase())}">
+            <input class="message-select" type="checkbox" value="${message.id}" aria-label="Select message">
+            <button class="message-open" data-message-id="${message.id}" data-message-box="${box}">
+              <span class="message-person"><span class="message-direction">${box === "inbox" ? "From" : "To"}</span>${o(box === "inbox" ? message.sender_name : message.receiver_name)}</span>
+              <span class="message-subject">${statusTitle(message)}${category === "reconsideration" ? '<span class="tag warning">Decision needed</span>' : ""}</span>
+              <small>${l(message.created_at)}</small>
+            </button>
+            ${box === "inbox" ? `${approvalButtons(message)}${reviewButtons(message, box)}` : ""}
+          </article>`;
         }).join("")
       : '<div class="mail-empty">No messages here.</div>';
+  };
 
   window.residentMessages = new Map([
     ...inbox.map((message) => [String(message.id), message]),
@@ -1070,7 +1161,7 @@ async function inboxPage() {
     `
     <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
-        <button class="mailbox-tab active" data-mail-tab="inbox">Inbox <span class="nav-badge inline-badge" ${inbox.filter((item) => !item.is_read).length ? "" : "hidden"}>${inbox.filter((item) => !item.is_read).length}</span></button>
+        <button class="mailbox-tab active" data-mail-tab="inbox">Inbox <span class="nav-badge inline-badge" ${countUnreadInboxThreads(inbox, reviewActions) ? "" : "hidden"}>${countUnreadInboxThreads(inbox, reviewActions)}</span></button>
         <button class="mailbox-tab" data-mail-tab="sent">Sent <span class="tag">${sent.length}</span></button>
         <button class="mailbox-tab" data-mail-tab="trash">Trash <span class="tag">${trash.length}</span></button>
       </div>
@@ -2604,7 +2695,7 @@ function H() {
         const panel=document.querySelector('[data-mail-panel]:not([hidden])');
         const box=panel?.dataset.mailPanel;
         if(!["inbox","sent"].includes(box)) return alert("Choose Inbox or Sent");
-        const ids=[...panel.querySelectorAll('.message-select:checked')].map(x=>Number(x.value));
+        const ids=[...new Set([...panel.querySelectorAll('.message-select:checked')].flatMap((x)=>String(x.dataset.messageIds || x.value).split(",").map((v)=>Number(v)).filter(Boolean)))];
         if(!ids.length) return alert("Select at least one message");
         u(await e.rpc("move_private_messages_to_trash",{p_message_ids:ids,p_box:box})); await inboxPage(); b("Messages moved to Trash");
       })(),
@@ -2742,6 +2833,19 @@ function H() {
         await inboxPage();
         b(`Reconsideration rejected · logbook status: ${finalStatus || "rejected"}`);
       })(),
+      a.dataset.reviewThread &&
+        (async () => {
+          const thread = window.reviewInboxThreads?.get(String(a.dataset.reviewThread));
+          if (!thread) return;
+          const unread = thread.messages.filter((message) => !message.is_read);
+          if (unread.length) {
+            await Promise.all(unread.map((message) => e.rpc("mark_private_message_read", { p_message_id: String(message.id) })));
+            unread.forEach((message) => { message.is_read = true; });
+            await q();
+            if (location.hash === "#inbox") await inboxPage();
+          }
+          y(renderReviewThreadTimeline(thread));
+        })(),
       a.dataset.messageId &&
         (async () => {
           const isLogbook = a.dataset.messageBox?.startsWith("logbook");
