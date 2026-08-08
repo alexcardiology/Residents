@@ -636,8 +636,8 @@ async function reviewPage() {
   if (s.p.role === "observer") {
     a.innerHTML =
       h(
-        "Record a clinical observation",
-        "Choose any resident, then choose positive or developmental feedback and whether your identity is shown.",
+        "Record a clinical or behavioural observation",
+        "Choose any resident, then record a clinical or behavioural observation, choose positive or developmental feedback, and decide whether your identity is shown.",
       ) +
       `<section class="card"><div class="form-grid">
         <label>Search resident<input id="findResident" placeholder="Name or username"></label>
@@ -674,7 +674,7 @@ async function reviewPage() {
       </div>
 
       <div class="review-workspace-panel" data-review-panel="submit">
-        <div class="review-section-heading"><div><span class="eyebrow">Submit a review</span><h2>Record a clinical observation</h2><p>Choose a resident, then write positive or developmental feedback. You may publish it with your name or anonymously.</p></div></div>
+        <div class="review-section-heading"><div><span class="eyebrow">Submit a review</span><h2>Record a clinical or behavioural observation</h2><p>Choose a resident, record a clinical or behavioural observation, then mark it as positive or developmental. You may publish it with your name or anonymously.</p></div></div>
         <div class="form-grid compact-form-grid">
           <label>Search resident<input id="findResident" placeholder="Name or username"></label>
           <label>Residency year<select id="findYear"><option value="">All years</option>${n.map((year) => `<option>${year}</option>`).join("")}</select></label>
@@ -1131,10 +1131,10 @@ async function logbookRequestsPage() {
       return `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${message.logbook_entry_id}" data-approval-message-id="${message.id}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${message.logbook_entry_id}" data-approval-message-id="${message.id}" data-logbook-title="${activityLabel(message)}">Reject</button></div>`;
     if (rec?.status === "approved") return `<span class="tag success">Decision: Approved after reconsideration</span>`;
     if (rec?.status === "rejected") return `<span class="tag danger">Decision: Rejection upheld</span>`;
-    if (rec?.status === "requested") return `<span class="tag danger">Original decision: Rejected</span>`;
+    if (rec?.status === "requested") return `<span class="tag danger">Rejected</span>`;
     const current = String(message.request_status || "").toLowerCase();
     const cls = current === "rejected" ? "danger" : current === "approved" ? "success" : "neutral";
-    const label = current === "rejected" ? "Original decision: Rejected" : current === "approved" ? "Original decision: Approved" : "Original decision completed";
+    const label = current === "rejected" ? "Rejected" : current === "approved" ? "Approved" : "Completed";
     return `<span class="tag ${cls}">${label}</span>`;
   };
 
@@ -1146,13 +1146,16 @@ async function logbookRequestsPage() {
         <div class="embedded-reconsideration-context">
           <span class="eyebrow">Request to reconsider</span>
           <b>${o(activity)}</b>
-          <small>${o(row.resident_name || "Resident")} · ${d(row.activity_date)} · original decision rejected</small>
+          <small>${o(row.resident_name || "Resident")} · ${d(row.activity_date)}</small>
+          <span class="tag danger embedded-original-decision">Original decision: Rejected</span>
         </div>
         <div class="embedded-reconsideration-reason"><span>Resident's reason</span><p>${o(row.reason || "No reason provided")}</p></div>
-        <label class="embedded-reconsideration-note">Decision note <small>Required for Approve or Reject</small><textarea data-reconsideration-note maxlength="3000" required placeholder="Write a short note for your decision"></textarea></label>
-        <div class="embedded-reconsideration-actions">
-          <button class="btn danger-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="rejected">Reject</button>
-          <button class="btn success-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="approved">Approve</button>
+        <div class="embedded-reconsideration-decisionbox">
+          <label class="embedded-reconsideration-note">Decision note <small>Required for either choice</small><textarea data-reconsideration-note maxlength="3000" required placeholder="Write your short decision note"></textarea></label>
+          <div class="embedded-reconsideration-actions">
+            <button class="btn danger-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="rejected">Reject</button>
+            <button class="btn success-button" data-inline-logbook-reconsideration="${o(row.id)}" data-reconsideration-decision="approved">Approve</button>
+          </div>
         </div>
       </section>`;
     }
@@ -1670,14 +1673,13 @@ function renderAssessorLogbookTable(entries) {
     const canReviewAssessor = entry.assessor_id === s.p.id && entry.assessor_status === "pending" && (isConference || entry.senior_status === "approved");
     const canAct = canReviewSenior || canReviewAssessor;
     const myDecision = entry.assessor_id === s.p.id ? entry.assessor_status : entry.senior_resident_id === s.p.id ? entry.senior_status : "—";
-    return `<tr class="assessor-logbook-row" data-resident="${o(String(entry.resident_id || ""))}" data-resident-name="${o(String(entry.resident_name || "").toLowerCase())}" data-category="${o(entry.activity_category || "")}" data-activity="${o(String(activity || "").toLowerCase())}" data-participation="${o(String(participation || "").toLowerCase())}" data-status="${o(entry.status || "pending")}">
+    return `<tr class="assessor-logbook-row" data-resident="${o(String(entry.resident_id || ""))}" data-resident-name="${o(String(entry.resident_name || "").toLowerCase())}" data-category="${o(entry.activity_category || "")}" data-activity="${o(String(activity || "").toLowerCase())}" data-participation="${o(String(participation || "").toLowerCase())}" data-status="${o(myDecision === "—" ? "pending" : myDecision)}">
       <td data-label="Resident"><b>${o(entry.resident_name || "Resident")}</b><small>${yearChip(entry.residency_year)}</small></td>
       <td data-label="Activity"><b>${o(activity || "Activity")}</b><small>${isConference ? "Conference" : "Intervention"}</small></td>
       <td data-label="Participation">${o(participation || "—")}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
       <td data-label="Senior">${isConference ? "—" : `${o(entry.senior_resident_name || "—")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
-      <td data-label="My decision">${myDecision === "—" ? "—" : logbookDecisionBadge(myDecision)}</td>
-      <td data-label="Overall">${logbookDecisionBadge(entry.status)}</td>
+      <td data-label="Decision">${myDecision === "—" ? "—" : logbookDecisionBadge(myDecision)}</td>
       <td data-label="Actions"><div class="table-row-actions">${canAct ? `<button class="btn small" data-logbook-table-review="${entry.id}" data-logbook-title="${o(entry.title)}">Review</button>` : ""}<button class="btn small secondary" data-logbook-detail="${entry.id}">Details</button></div></td>
     </tr>`;
   }).join("");
@@ -1689,9 +1691,9 @@ function renderAssessorLogbookTable(entries) {
       <select id="assessorLogbookActivityFilter"><option value="">All interventions / conferences</option>${activities.map((name) => `<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
       <select id="assessorLogbookCategoryFilter"><option value="">All types</option><option value="manual_intervention">Interventions</option><option value="conference">Conferences</option></select>
       <select id="assessorLogbookParticipationFilter"><option value="">All participation</option>${participations.map((name) => `<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
-      <select id="assessorLogbookStatusFilter"><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+      <select id="assessorLogbookStatusFilter"><option value="">All decisions</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
     </div>
-    <div class="table-scroll"><table class="table assessor-logbook-table"><thead><tr><th>Resident</th><th>Activity</th><th>Participation</th><th>Date</th><th>Senior</th><th>My decision</th><th>Overall</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="8">No logbook records are available.</td></tr>'}</tbody></table></div>
+    <div class="table-scroll"><table class="table assessor-logbook-table"><thead><tr><th>Resident</th><th>Activity</th><th>Participation</th><th>Date</th><th>Senior</th><th>Decision</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="7">No logbook records are available.</td></tr>'}</tbody></table></div>
     <div id="assessorLogbookEmpty" class="mail-empty" hidden>No records match these filters.</div>
   </section>`;
 }
@@ -1722,7 +1724,7 @@ function openLogbookEntryDetail(entry) {
   const activity = isConference ? entry.title : (entry.procedure_name || entry.title);
   const participation = isConference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
   y(`<article class="modal"><div class="modal-head"><div><span class="eyebrow">${isConference ? "Conference" : "Intervention"}</span><h2>${o(activity || "Logbook activity")}</h2></div><button type="button" data-close>×</button></div>
-    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div><div><span>Overall status</span>${logbookDecisionBadge(entry.status)}</div>${isConference ? "" : `<div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
+    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Your decision</span>${logbookDecisionBadge(entry.assessor_status)}</div></div>
     ${entry.senior_note ? `<div class="message-body"><b>Senior note</b><br>${o(entry.senior_note)}</div>` : ""}${entry.assessor_note ? `<div class="message-body"><b>Assessor note</b><br>${o(entry.assessor_note)}</div>` : ""}${entry.description ? `<div class="message-body"><b>Resident notes / evidence</b><br>${o(entry.description)}</div>` : ""}
     <div class="actions"><button class="btn secondary" type="button" data-close>Close</button></div></article>`);
 }
