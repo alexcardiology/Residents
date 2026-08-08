@@ -2909,3 +2909,67 @@ input[type="radio"] {
   .reconsideration-summary-reason { padding: 14px; }
   .reconsideration-summary-reason p { font-size: .94rem; }
 }
+
+/* v1.0.44 — compact assessor logbook table + reconsideration workflow */
+.assessor-logbook-table-card { padding: 20px; }
+.assessor-logbook-filters {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(5, minmax(150px, .8fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.assessor-logbook-filters input,
+.assessor-logbook-filters select { min-width: 0; }
+.assessor-logbook-table { min-width: 1120px; }
+.assessor-logbook-table td small { display: block; margin-top: 5px; color: var(--muted); }
+.table-row-actions { display: flex; gap: 7px; justify-content: flex-end; }
+.logbook-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+.logbook-detail-grid > div {
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.logbook-detail-grid span:first-child {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.reconsideration-request-row .reconsideration-row-main {
+  grid-template-columns: minmax(160px,.7fr) minmax(300px,1.5fr) auto;
+}
+.reconsideration-inline-reason {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  white-space: normal;
+  font-weight: 650;
+}
+.reconsideration-request-list .message-row { border-left: 4px solid var(--amber); }
+.reconsideration-request-list .message-row.read { border-left-color: var(--line); }
+
+@media (max-width: 1250px) {
+  .assessor-logbook-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .assessor-logbook-table-card { padding: 14px; }
+  .assessor-logbook-filters { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .assessor-logbook-filters input:first-child { grid-column: 1 / -1; }
+  .logbook-detail-grid { grid-template-columns: 1fr; }
+  .reconsideration-request-row .reconsideration-row-main { grid-template-columns: 1fr; }
+  .reconsideration-request-row .approval-actions { width: 100%; }
+  .reconsideration-request-row .approval-actions .btn { flex: 1; }
+}
+@media (max-width: 460px) {
+  .assessor-logbook-filters { grid-template-columns: 1fr; }
+  .assessor-logbook-filters input:first-child { grid-column: auto; }
+}
