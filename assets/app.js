@@ -11,6 +11,7 @@ const s = {
     assessorYears: new Map(),
     curriculumChapter: null,
     aiCurriculumDraft: null,
+    accountUsers: new Map(),
   },
   t = (e) => document.querySelector(e),
   a = t("#content"),
@@ -73,10 +74,11 @@ const s = {
       ["profile", "My profile"],
     ],
     observer: [
-      ["dashboard", "Write a review"],
-      ["reviews", "My previous reviews"],
+      ["dashboard", "Dashboard"],
+      ["write-review", "Write a review"],
+      ["reviews", "My reviews"],
       ["logbook", "Logbook approvals"],
-      ["logbook-requests", "Logbook requests"],
+      ["logbook-requests", "Requests"],
       ["inbox", "Inbox"],
       ["profile", "My profile"],
     ],
@@ -95,16 +97,10 @@ const s = {
       ["dashboard", "Overview"],
       ["users", "Accounts"],
       ["curriculum", "Curriculum"],
-      ["schedule", "Assessment schedule"],
-      ["progress", "Resident progress"],
-      ["assessments", "Assessments"],
-      ["comments", "Observer reviews"],
-      ["assignments", "Assessor assignments"],
-      ["logbook", "Resident logbooks"],
-      ["logbook-requests", "Logbook requests"],
+      ["owner-assessment-center", "Assessments"],
+      ["owner-logbook-center", "Logbooks"],
       ["inbox", "Inbox"],
-      ["message-cleanup", "Message cleanup"],
-      ["profile", "My profile"],
+      ["owner-tools", "More"],
     ],
   },
   m = (e) =>
@@ -119,6 +115,19 @@ const s = {
   v = (e) => ` <div class="card empty-state"> <p>${o(e)}</p> </div>`,
   _ = (e, s, t) =>
     ` <article class="card metric"> <span>${o(e)}</span> <b>${o(s)}</b> <small>${o(t)}</small> </article>`,
+  yearClass = (year) => `year-${Math.max(1, Math.min(5, Number(year) || 1))}`,
+  yearChip = (year, label = "") =>
+    `<span class="year-chip ${yearClass(year)}">${o(label || `Year ${year}`)}</span>`,
+  dashboardTile = (title, valueHtml, meta, go, extraClass = "") =>
+    `<button type="button" class="dashboard-tile ${extraClass}" ${go ? `data-go="${o(go)}"` : ""}><span>${o(title)}</span><strong>${valueHtml}</strong><small>${o(meta || "")}</small></button>`,
+  weakPointSummary = (assessment) => {
+    if (!assessment) return "No formal assessment yet";
+    const weak = [];
+    Number(assessment.knowledge_score) < 6 && weak.push(`Knowledge ${assessment.knowledge_score}/10`);
+    Number(assessment.skills_score) < 7 && weak.push(`Skills ${assessment.skills_score}/10`);
+    Number(assessment.attitude_score) < 8 && weak.push(`Attitude ${assessment.attitude_score}/10`);
+    return weak.length ? `Focus: ${weak.join(" · ")}` : assessment.overall_pass ? "Passed" : "Review assessor feedback";
+  },
   b = (e) => {
     const s = t("#toast");
     ((s.textContent = e),
@@ -129,6 +138,8 @@ const s = {
   },
   g = (e) => {
     location.hash = e;
+    t("aside")?.classList.remove("open");
+    t("#backdrop")?.classList.remove("show");
   },
   y = (e) => {
     ((r.innerHTML = e), i.showModal());
@@ -199,7 +210,7 @@ const w = {
         "Your cardiology curriculum",
         "Access is cumulative: current and preceding years remain open.",
       ) +
-      `<div class="chapters">${(i || []).map((e) => ` <article class="card chapter" data-chapter="${e.id}"> <span class="tag">Year ${e.year_from}${e.year_to > e.year_from ? `–${e.year_to}` : ""}</span> <h3>${o(e.title)}</h3> <p>${o(e.description)}</p> </article>`).join("")}</div>`;
+      `<div class="chapters">${(i || []).map((e) => ` <article class="card chapter" data-chapter="${e.id}"> ${yearChip(e.year_from, "Year " + e.year_from + (e.year_to > e.year_from ? "–" + e.year_to : ""))} <h3>${o(e.title)}</h3> <p>${o(e.description)}</p> </article>`).join("")}</div>`;
   },
   chapter: async function (i) {
     const r = await Promise.all([
@@ -392,27 +403,41 @@ const w = {
   },
   users: async function () {
     if ("owner" !== s.p.role) return g("dashboard");
-    const [t, i] = await Promise.all([
-        e.from("profiles").select("*").order("created_at", { ascending: !1 }),
+    const [profilesResult, yearsResult] = await Promise.all([
+        e.from("profiles").select("*").order("display_name"),
         e
           .from("assessor_year_assignments")
           .select("assessor_id,residency_year")
           .eq("is_active", !0)
           .order("residency_year"),
       ]),
-      r = M(i.data || []);
+      profiles = profilesResult.data || [],
+      assignedYears = M(yearsResult.data || []);
+    s.accountUsers = new Map(profiles.map((person) => [String(person.id), person]));
+    const cards = profiles.map((person) => {
+      const roleLabel = m(person.role);
+      const years = assignedYears.get(person.id) || [];
+      const access = person.role === "resident"
+        ? yearChip(person.residency_year)
+        : person.role === "assessor"
+          ? (years.length ? `<div class="year-chips">${years.map((year) => yearChip(year)).join("")}</div>` : '<span class="muted">No cohort assigned</span>')
+          : '<span class="muted">—</span>';
+      const searchable = o(`${person.display_name || ""} ${person.username || ""} ${person.email || ""} ${roleLabel}`.toLowerCase());
+      return `<article class="account-row" data-account-search="${searchable}" data-account-role="${o(person.role)}">
+        <div class="account-identity"><b>${o(person.display_name || person.username)}</b><small>@${o(person.username || "")}</small></div>
+        <div class="account-email"><small>Email</small><span>${o(person.email || "—")}</span></div>
+        <div class="account-role"><small>Role</small><b>${o(roleLabel)}</b></div>
+        <div class="account-year"><small>${person.role === "assessor" ? "Cohorts" : "Residency"}</small>${access}</div>
+        <div class="account-actions">${person.role === "owner" ? '<span class="tag">Owner</span>' : `<button class="btn secondary small" data-manage-account="${person.id}">Manage</button><button class="btn ${person.is_active ? "danger" : "success"} small" data-status="${person.id}" data-active="${!person.is_active}">${person.is_active ? "Suspend" : "Activate"}</button>`}</div>
+      </article>`;
+    }).join("");
     a.innerHTML =
       h(
-        "Controlled accounts",
-        "Only the owner creates or suspends access.",
+        "Accounts & roles",
+        "Change resident year, convert roles, or manage access without deleting historical records.",
         '<button class="btn" data-create>Create account</button>',
       ) +
-      ` <section class="card table-card"> <div class="table-scroll"> <table class="table"> <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Year access</th><th>Access</th></tr></thead> <tbody>${t.data
-        .map((e) => {
-          return ` <tr> <td><b>${o(e.display_name)}</b><br><small>@${o(e.username)}</small></td> <td>${o(e.email)}</td> <td>${m(e.role)}</td> <td>${"resident" === e.role ? `<span class="year-chip">Year ${e.residency_year}</span>` : "assessor" === e.role ? ((s = r.get(e.id) || []), s.length ? `<div class="year-chips">${s.map((e) => `<span class="year-chip">Year ${e}</span>`).join("")}</div>` : '<span class="muted">Not assigned</span>') : "—"}</td> <td>${"owner" === e.role ? "Owner" : `<button class="btn ${e.is_active ? "danger" : "success"}" data-status="${e.id}" data-active="${!e.is_active}">${e.is_active ? "Suspend" : "Activate"}</button>`}</td> </tr>`;
-          var s;
-        })
-        .join("")}</tbody> </table> </div> </section>`;
+      `<section class="card account-panel"><div class="account-toolbar"><input id="accountSearch" type="search" placeholder="Search name, username or email"><select id="accountRoleFilter"><option value="">All roles</option><option value="resident">Residents</option><option value="observer">Observers</option><option value="assessor">Assessors</option></select></div><div class="account-list">${cards || '<div class="panel-empty">No accounts.</div>'}</div></section>`;
   },
   progress: async function () {
     if ("owner" !== s.p.role) return g("dashboard");
@@ -420,9 +445,9 @@ const w = {
     a.innerHTML =
       h(
         "Resident progress",
-        "Evidence, reassessment restrictions and eligible upgrades.",
+        "End-of-year progression is automatic when the assessment window is marked for progression. Legacy eligible records can still be confirmed manually.",
       ) +
-      ` <section class="card table-card"> <div class="table-scroll"> <table class="table"> <thead><tr><th>Resident</th><th>Year</th><th>Knowledge</th><th>Logs</th><th>Status</th><th></th></tr></thead> <tbody>${t.map((e) => ` <tr> <td>${o(e.display_name)}</td> <td>${e.residency_year}</td> <td>${e.knowledge_completed}</td> <td>${e.skill_log_count}</td> <td><span class="tag ${"eligible_for_upgrade" === e.progression_status ? "success" : "reassessment_required" === e.progression_status ? "warning" : ""}">${o(e.progression_status.replaceAll("_", " "))}</span></td> <td>${"eligible_for_upgrade" === e.progression_status && e.residency_year < 5 ? `<button class="btn" data-upgrade="${e.id}" data-name="${o(e.display_name)}">Confirm upgrade</button>` : ""}</td> </tr>`).join("")}</tbody> </table> </div> </section>`;
+      ` <section class="card table-card"> <div class="table-scroll"> <table class="table"> <thead><tr><th>Resident</th><th>Year</th><th>Knowledge</th><th>Logs</th><th>Status</th><th></th></tr></thead> <tbody>${t.map((e) => ` <tr> <td>${o(e.display_name)}</td> <td>${yearChip(e.residency_year)}</td> <td>${e.knowledge_completed}</td> <td>${e.skill_log_count}</td> <td><span class="tag ${"eligible_for_upgrade" === e.progression_status ? "success" : "reassessment_required" === e.progression_status ? "warning" : ""}">${o(e.progression_status.replaceAll("_", " "))}</span>${e.reassessment_due ? `<br><small>Due ${d(e.reassessment_due)}</small>` : ""}</td> <td>${"eligible_for_upgrade" === e.progression_status && e.residency_year < 5 ? `<button class="btn small" data-upgrade="${e.id}" data-name="${o(e.display_name)}">Legacy upgrade</button>` : ""}</td> </tr>`).join("")}</tbody> </table> </div> </section>`;
   },
   assignments: j,
   curriculum: async function (i) {
@@ -445,7 +470,7 @@ const w = {
                 (s) => s.chapter_id === e.id && s.is_active,
               ).length,
               a = i.filter((s) => s.chapter_id === e.id && s.is_active).length;
-            return ` <article class="card chapter"> <span class="tag">Year ${e.year_from}${e.year_to > e.year_from ? `–${e.year_to}` : ""}</span> <h3>${o(e.title)}</h3> <p>${o(e.description || "")}</p> <p><b>${s}</b> knowledge points · <b>${a}</b> skills</p> <button class="btn" data-curriculum-chapter="${e.id}">Manage chapter</button> </article>`;
+            return ` <article class="card chapter"> ${yearChip(e.year_from, "Year " + e.year_from + (e.year_to > e.year_from ? "–" + e.year_to : ""))} <h3>${o(e.title)}</h3> <p>${o(e.description || "")}</p> <p><b>${s}</b> knowledge points · <b>${a}</b> skills</p> <button class="btn" data-curriculum-chapter="${e.id}">Manage chapter</button> </article>`;
           })
           .join("")}</div>`);
     }
@@ -521,6 +546,9 @@ const w = {
   inbox: inboxPage,
   "logbook-requests": logbookRequestsPage,
   "message-cleanup": ownerMessageCleanupPage,
+  "owner-assessment-center": ownerAssessmentCenterPage,
+  "owner-logbook-center": ownerLogbookCenterPage,
+  "owner-tools": ownerToolsPage,
   "write-review": reviewPage,
   password: x,
 };
@@ -998,229 +1026,166 @@ function openLogbookDecision(entryId, title, messageId = "", preset = "approved"
 }
 async function k() {
   const i = s.p;
-  if (
-    ((t("#title").textContent = "Dashboard"),
-    (t("#crumb").textContent = m(i.role)),
-    "resident" === i.role)
-  ) {
-    const [s, t, r, n, scheduleResult] = await Promise.all([
-        e
-          .from("chapters")
-          .select("*")
-          .lte("year_from", i.residency_year)
-          .eq("is_active", !0),
-        e
-          .from("skill_logs")
-          .select("*", { head: !0, count: "exact" })
-          .eq("resident_id", i.id),
-        e
-          .from("knowledge_progress")
-          .select("*", { head: !0, count: "exact" })
-          .eq("resident_id", i.id)
-          .eq("status", "completed"),
-        e
-          .from("assessments")
-          .select("*")
-          .eq("resident_id", i.id)
-          .order("assessment_date", { ascending: !1 })
-          .limit(1),
-        e
-          .from("assessment_schedules")
-          .select("*,assessment_schedule_chapters(chapter_id,chapters(title))")
-          .eq("is_active", !0)
-          .eq("residency_year", i.residency_year)
-          .gte("ends_at", new Date().toISOString())
-          .order("starts_at")
-          .limit(1),
-      ]),
-      latest = n.data?.[0],
-      upcoming = scheduleResult.data?.[0],
-      scope =
-        upcoming?.assessment_schedule_chapters
-          ?.map((item) => item.chapters?.title)
-          .filter(Boolean) || [];
-    return void (a.innerHTML =
-      h(
-        `Welcome, ${i.display_name || i.username}`,
-        "Track the evidence behind your clinical development.",
-      ) +
-      ` <div class="grid g4"> ${_("Available chapters", s.data?.length || 0, "Cumulative access")} ${_("Skills recorded", t.count || 0, "Supervised performances")} ${_("Knowledge complete", r.count || 0, "Self-recorded topics")} ${_("Latest result", latest ? `${latest.total_score}/30` : "—", latest ? (latest.overall_pass ? "Passed" : "Reassessment required") : "Not assessed")} </div>` +
-      (upcoming
-        ? `<section class="card upcoming-assessment"><div><span class="eyebrow">Upcoming assessment</span><h2>${o(upcoming.title)}</h2></div><div class="assessment-time"><b>${l(upcoming.starts_at)}</b><small>Closes ${l(upcoming.ends_at)}</small></div><div class="assessment-scope"><b>Chapters</b><p>${o(scope.length ? scope.join(" · ") : "Whole-year assessment")}</p></div>${upcoming.location ? `<div class="assessment-scope"><b>Location / method</b><p>${o(upcoming.location)}</p></div>` : ""}</section>`
-        : '<section class="card upcoming-assessment quiet"><span class="eyebrow">Upcoming assessment</span><h3>No assessment is currently scheduled.</h3></section>') +
-      ("reassessment_required" === i.progression_status
-        ? `<div class="card warning notice-card"><b>Reassessment due ${d(i.reassessment_due)}</b><p>You remain at your current year until you pass.</p></div>`
-        : "eligible_for_upgrade" === i.progression_status
-          ? '<div class="card success notice-card"><b>Congratulations—you passed.</b><p>The owner can now confirm your upgrade.</p></div>'
-          : ""));
+  t("#title").textContent = "Dashboard";
+  t("#crumb").textContent = m(i.role);
+
+  if ("resident" === i.role) {
+    const [chaptersResult, logsResult, knowledgeResult, assessmentsResult, scheduleResult] = await Promise.all([
+      e.from("chapters").select("id,title").lte("year_from", i.residency_year).eq("is_active", !0),
+      e.from("skill_logs").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id),
+      e.from("knowledge_progress").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id).eq("status", "completed"),
+      e.from("assessments").select("*").eq("resident_id", i.id).order("assessment_date", { ascending: !1 }).limit(1),
+      e.from("assessment_schedules").select("id,title,starts_at,ends_at,location,assessment_type").eq("is_active", !0).eq("residency_year", i.residency_year).gte("ends_at", new Date().toISOString()).order("starts_at").limit(1),
+    ]);
+    const latest = assessmentsResult.data?.[0];
+    const upcoming = scheduleResult.data?.[0];
+    const resultMeta = i.progression_status === "reassessment_required"
+      ? `Reassessment ${d(i.reassessment_due)} · ${weakPointSummary(latest)}`
+      : latest ? weakPointSummary(latest) : "No formal assessment yet";
+    a.innerHTML =
+      h(`Welcome, ${i.display_name || i.username}`, "Your year, evidence, assessment and next actions at a glance.") +
+      `<div class="dashboard-grid dashboard-grid-6">
+        ${dashboardTile("Current residency", yearChip(i.residency_year), i.progression_status === "reassessment_required" ? `Reassessment due ${d(i.reassessment_due)}` : "Current training cohort", "chapters", `year-tile ${yearClass(i.residency_year)}`)}
+        ${dashboardTile("My chapters", String(chaptersResult.data?.length || 0), "Cumulative curriculum access", "chapters")}
+        ${dashboardTile("Knowledge complete", String(knowledgeResult.count || 0), "Self-recorded topics", "chapters")}
+        ${dashboardTile("Logbook activity", String(logsResult.count || 0), "Supervised performances", "logbook")}
+        ${dashboardTile("Next assessment", upcoming ? o(d(upcoming.starts_at)) : "—", upcoming ? upcoming.title : "No upcoming window", "assessments", upcoming ? "accent-tile" : "")}
+        ${dashboardTile("Latest outcome", latest ? `${o(latest.total_score)}/30` : "—", resultMeta, "assessments", i.progression_status === "reassessment_required" ? "warning-tile" : latest?.overall_pass ? "success-tile" : "")}
+      </div>`;
+    return;
   }
-  if ("observer" === i.role)
-    return void (a.innerHTML =
-      h(
-        "Record a clinical observation",
-        "Find a resident, then write a signed knowledge, skill or attitude comment.",
-      ) +
-      ` <section class="card"> <div class="form-grid"> <label>Search resident<input id="findResident" placeholder="Name or username"></label> <label>Residency year <select id="findYear"> <option value="">All years</option> ${n.map((e) => `<option>${e}</option>`).join("")} </select> </label> </div> <div id="results" class="top-gap">${v("Start typing to find a resident.")}</div> </section>`);
+
+  if ("observer" === i.role) {
+    const [reviewsResult, logbookResult, inboxResult] = await Promise.all([
+      e.rpc("get_my_observer_reviews"),
+      e.rpc("get_logbook_messages", { p_view: "received" }),
+      e.rpc("get_private_messages", { p_box: "inbox" }),
+    ]);
+    const reviews = reviewsResult.data || [];
+    const logbook = logbookResult.data || [];
+    const inbox = inboxResult.data || [];
+    const pendingApprovals = logbook.filter((message) => !message.logbook_action_taken).length;
+    const unread = inbox.filter((message) => !message.is_read).length;
+    a.innerHTML =
+      h(`Welcome, ${i.display_name || i.username}`, "Four quick areas for observations, approvals and communication.") +
+      `<div class="dashboard-grid dashboard-grid-4">
+        ${dashboardTile("Write a review", "＋", "Add a signed clinical observation", "write-review", "accent-tile")}
+        ${dashboardTile("My reviews", String(reviews.length), "Previous signed observations", "reviews")}
+        ${dashboardTile("Logbook approvals", String(pendingApprovals), pendingApprovals ? "Waiting for your decision" : "Nothing waiting", "logbook", pendingApprovals ? "warning-tile" : "")}
+        ${dashboardTile("Inbox", String(unread), unread ? "Unread messages" : "No unread messages", "inbox")}
+      </div>`;
+    return;
+  }
+
   if ("assessor" === i.role) {
-    const assigned = (await S()).data || [],
-      residentIds = assigned.map((item) => item.resident_id),
-      now = new Date().toISOString(),
-      [
-        schedulesResult,
-        knowledgeResult,
-        skillsResult,
-        assessmentsResult,
-        commentsResult,
-      ] = await Promise.all([
-        e.rpc("my_assessor_schedule"),
-        residentIds.length
-          ? e
-              .from("knowledge_progress")
-              .select("resident_id,status")
-              .in("resident_id", residentIds)
-          : Promise.resolve({ data: [] }),
-        residentIds.length
-          ? e
-              .from("skill_logs")
-              .select("resident_id")
-              .in("resident_id", residentIds)
-          : Promise.resolve({ data: [] }),
-        residentIds.length
-          ? e
-              .from("assessments")
-              .select("resident_id,total_score,overall_pass,assessment_date")
-              .in("resident_id", residentIds)
-              .order("assessment_date", { ascending: !1 })
-          : Promise.resolve({ data: [] }),
-        residentIds.length
-          ? e
-              .from("observer_reviews")
-              .select("*")
-              .in("resident_id", residentIds)
-              .order("observed_on", { ascending: !1 })
-              .limit(5)
-          : Promise.resolve({ data: [] }),
-      ]),
-      nextAssessment = (schedulesResult.data || [])
-        .filter((item) => item.schedule_status !== "finished")
-        .sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at))[0],
-      knowledgeCounts = (knowledgeResult.data || []).reduce((map, item) => {
-        if (item.status === "completed")
-          map.set(item.resident_id, (map.get(item.resident_id) || 0) + 1);
-        return map;
-      }, new Map()),
-      skillCounts = (skillsResult.data || []).reduce((map, item) => {
-        map.set(item.resident_id, (map.get(item.resident_id) || 0) + 1);
-        return map;
-      }, new Map()),
-      latestAssessments = (assessmentsResult.data || []).reduce((map, item) => {
-        if (!map.has(item.resident_id)) map.set(item.resident_id, item);
-        return map;
-      }, new Map()),
-      scope =
-        (
-          nextAssessment?.chapters ||
-          nextAssessment?.assessment_schedule_chapters
-        )
-          ?.map((item) => item.title || item.chapters?.title)
-          .filter(Boolean) || [],
-      progressRows = assigned.length
-        ? assigned
-            .map((resident) => {
-              const latest = latestAssessments.get(resident.resident_id),
-                status = latest
-                  ? latest.overall_pass
-                    ? '<span class="tag success">Passed</span>'
-                    : '<span class="tag warning">Reassessment</span>'
-                  : '<span class="tag">Not assessed</span>';
-              return `<tr>
-                <td><b>${o(resident.resident_name || resident.username)}</b><br><small>Year ${resident.residency_year}</small></td>
-                <td>${knowledgeCounts.get(resident.resident_id) || 0}</td>
-                <td>${skillCounts.get(resident.resident_id) || 0}</td>
-                <td>${latest ? `${latest.total_score}/30` : "—"}<br>${status}</td>
-                <td><button class="btn small" data-candidate="${resident.resident_id}~">Open</button></td>
-              </tr>`;
-            })
-            .join("")
-        : '<tr><td colspan="5">No assigned residents yet.</td></tr>',
-      assignedPreview = assigned.length
-        ? assigned
-            .slice(0, 6)
-            .map(
-              (
-                resident,
-              ) => `<button class="assessor-resident-row" data-candidate="${resident.resident_id}~">
-                <span><b>${o(resident.resident_name || resident.username)}</b><small>@${o(resident.username || "resident")}</small></span>
-                <span class="year-chip">Year ${resident.residency_year}</span>
-              </button>`,
-            )
-            .join("")
-        : '<div class="panel-empty">No residents are assigned yet.</div>',
-      recentComments = commentsResult.data || [];
-
-    return void (a.innerHTML =
-      h(
-        `Welcome, ${i.display_name || i.username}`,
-        "Your assessment responsibilities and assigned residents in one place.",
-      ) +
-      `<div class="assessor-dashboard">
-        <section class="card assessor-panel assessor-next">
-          <div class="panel-heading"><div><span class="panel-number">1</span><span class="eyebrow">Next assessment</span></div><button class="text-link" data-go="assessments">View schedule</button></div>
-          ${
-            nextAssessment
-              ? `<div class="next-assessment-body"><div><h2>${o(nextAssessment.title)}</h2><p>Year ${nextAssessment.residency_year} · ${o(nextAssessment.assessment_type)}</p></div><div class="next-time"><b>${l(nextAssessment.starts_at)}</b><small>Closes ${l(nextAssessment.ends_at)}</small></div><div class="scope-tags">${(scope.length ? scope : ["Whole-year assessment"]).map((item) => `<span>${o(item)}</span>`).join("")}</div></div>`
-              : '<div class="panel-empty">No upcoming assessment is assigned to you.</div>'
-          }
-        </section>
-
-        <section class="card assessor-panel assessor-assigned">
-          <div class="panel-heading"><div><span class="panel-number">2</span><h3>Assigned residents</h3></div><button class="text-link" data-go="residents">View all (${assigned.length})</button></div>
-          <div class="assessor-resident-list">${assignedPreview}</div>
-        </section>
-
-        <section class="card assessor-panel assessor-progress">
-          <div class="panel-heading"><div><span class="panel-number">3</span><h3>Monitor progress</h3></div><span class="tag">${assigned.length} residents</span></div>
-          <div class="table-scroll"><table class="table compact-table"><thead><tr><th>Resident</th><th>Knowledge</th><th>Skill logs</th><th>Latest result</th><th></th></tr></thead><tbody>${progressRows}</tbody></table></div>
-        </section>
-
-        <section class="card assessor-panel assessor-comments">
-          <div class="panel-heading"><div><span class="panel-number">4</span><h3>Observer comments</h3></div><button class="text-link" data-go="comments">View all</button></div>
-          ${
-            recentComments.length
-              ? `<div class="comment-preview-list">${recentComments
-                  .map(
-                    (comment) =>
-                      `<article><div><span class="tag">${o(comment.category)}</span><small>${d(comment.observed_on)}</small></div><b>${o(comment.resident_name || "Resident")}</b><p>${o(comment.comment)}</p><small>By ${o(comment.observer_signature)}</small></article>`,
-                  )
-                  .join("")}</div>`
-              : '<div class="panel-empty">No observer comments for your assigned residents.</div>'
-          }
-        </section>
-
-        <section class="card assessor-panel assessor-review">
-          <div class="panel-heading"><div><span class="panel-number">5</span><span class="eyebrow">Submit a review</span></div></div>
-          <div class="review-callout"><div><h2>Record a clinical observation</h2><p>Submit a signed knowledge, skill or attitude review for any resident.</p></div><button class="btn" data-go="write-review">Write a review</button></div>
-        </section>
-      </div>`);
+    const assigned = (await S()).data || [];
+    const residentIds = assigned.map((item) => item.resident_id);
+    const [scheduleResult, assessmentsResult, commentsResult, logbookResult] = await Promise.all([
+      e.rpc("my_assessor_schedule"),
+      e.from("assessments").select("resident_id", { head: !0, count: "exact" }).eq("assessor_id", i.id),
+      residentIds.length ? e.from("observer_reviews").select("id", { head: !0, count: "exact" }).in("resident_id", residentIds) : Promise.resolve({ count: 0 }),
+      e.rpc("get_logbook_messages", { p_view: "received" }),
+    ]);
+    const nextAssessment = (scheduleResult.data || []).filter((item) => item.schedule_status !== "finished").sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at))[0];
+    const pendingApprovals = (logbookResult.data || []).filter((message) => !message.logbook_action_taken).length;
+    a.innerHTML =
+      h(`Welcome, ${i.display_name || i.username}`, "Your assessment workspace is divided into six quick areas.") +
+      `<div class="dashboard-grid dashboard-grid-6">
+        ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "residents")}
+        ${dashboardTile("Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", "assessments", nextAssessment ? "accent-tile" : "")}
+        ${dashboardTile("Assessments done", String(assessmentsResult.count || 0), "Your submitted assessments", "assessments")}
+        ${dashboardTile("Observer comments", String(commentsResult.count || 0), "For assigned residents", "comments")}
+        ${dashboardTile("Logbook requests", String(pendingApprovals), pendingApprovals ? "Waiting for your decision" : "Nothing waiting", "logbook", pendingApprovals ? "warning-tile" : "")}
+        ${dashboardTile("Write a review", "＋", "Signed knowledge, skill or attitude note", "write-review", "accent-tile")}
+      </div>`;
+    return;
   }
-  const [r, assessmentStats, reviewStats, c] = await Promise.all([
-    e.from("profiles").select("role,progression_status"),
+
+  const [profilesResult, assessmentsResult, schedulesResult, chaptersResult, inboxResult] = await Promise.all([
+    e.from("profiles").select("role,progression_status,is_active,residency_year"),
     e.from("assessments").select("*", { head: !0, count: "exact" }),
-    e.from("observer_reviews").select("*", { head: !0, count: "exact" }),
-    e
-      .from("assessment_schedules")
-      .select("*", { head: !0, count: "exact" })
-      .eq("is_active", !0)
-      .gte("ends_at", new Date().toISOString()),
+    e.from("assessment_schedules").select("*", { head: !0, count: "exact" }).eq("is_active", !0).gte("ends_at", new Date().toISOString()),
+    e.from("chapters").select("*", { head: !0, count: "exact" }).eq("is_active", !0),
+    e.rpc("get_private_messages", { p_box: "inbox" }),
   ]);
+  const profiles = profilesResult.data || [];
+  const residents = profiles.filter((person) => person.role === "resident");
+  const reassessmentCount = residents.filter((person) => person.progression_status === "reassessment_required").length;
+  const unread = (inboxResult.data || []).filter((message) => !message.is_read).length;
   a.innerHTML =
-    h(
-      "Training program at a glance",
-      "Controlled accounts, resident evidence and formal outcomes.",
-      '<button class="btn" data-create>Create account</button>',
-    ) +
-    ` <div class="grid g4"> ${_("Residents", r.data?.filter((e) => "resident" === e.role).length || 0, "Active curriculum users")} ${_("Upcoming windows", c.count || 0, "Scheduled assessments")} ${_("Assessments", assessmentStats.count || 0, "Permanent history")} ${_("Observer reviews", reviewStats.count || 0, "Signed comments")} </div>`;
+    h("Training program at a glance", "Six compact control areas; detailed tools stay one tap away.", '<button class="btn" data-create>Create account</button>') +
+    `<div class="dashboard-grid dashboard-grid-6 owner-dashboard-grid">
+      ${dashboardTile("Accounts", String(profiles.length), `${profiles.filter((person) => person.is_active).length} active accounts`, "users")}
+      ${dashboardTile("Residents", String(residents.length), reassessmentCount ? `${reassessmentCount} awaiting reassessment` : "Cohorts on track", "progress", reassessmentCount ? "warning-tile" : "")}
+      ${dashboardTile("Curriculum", String(chaptersResult.count || 0), "Active chapters", "curriculum")}
+      ${dashboardTile("Assessment centre", String(schedulesResult.count || 0), `${assessmentsResult.count || 0} assessments recorded`, "owner-assessment-center", "accent-tile")}
+      ${dashboardTile("Logbooks", "Open", "Review, export, reset and requests", "owner-logbook-center")}
+      ${dashboardTile("Inbox", String(unread), unread ? "Unread messages" : "No unread messages", "inbox")}
+    </div>`;
 }
+
+function filterAccountRows() {
+  const query = (t("#accountSearch")?.value || "").trim().toLowerCase();
+  const role = t("#accountRoleFilter")?.value || "";
+  document.querySelectorAll(".account-row").forEach((row) => {
+    row.hidden = Boolean((query && !(row.dataset.accountSearch || "").includes(query)) || (role && row.dataset.accountRole !== role));
+  });
+}
+function syncEditAccountYearField() {
+  const resident = t("#editAccountRole")?.value === "resident";
+  const field = t("#editAccountYearField");
+  const select = field?.querySelector("select");
+  if (field && select) {
+    field.hidden = !resident;
+    select.disabled = !resident;
+    select.required = resident;
+  }
+}
+function openAccountManagement(person) {
+  if (s.p.role !== "owner" || !person || person.role === "owner") return;
+  y(`<form id="ownerAccountEditForm" class="modal compact-modal">
+    <div class="modal-head"><div><span class="eyebrow">Owner account control</span><h2>${o(person.display_name || person.username)}</h2><p>@${o(person.username || "")} · ${o(person.email || "")}</p></div><button type="button" data-close>×</button></div>
+    <div class="form-grid compact-form-grid">
+      <label>Account role<select name="role" id="editAccountRole" required><option value="resident" ${person.role === "resident" ? "selected" : ""}>Resident</option><option value="observer" ${person.role === "observer" ? "selected" : ""}>Observer</option><option value="assessor" ${person.role === "assessor" ? "selected" : ""}>Assessor</option></select></label>
+      <label id="editAccountYearField">Residency year<select name="residency_year">${n.map((year) => `<option value="${year}" ${Number(person.residency_year || 1) === year ? "selected" : ""}>Year ${year}</option>`).join("")}</select></label>
+    </div>
+    <div class="role-change-note"><b>Historical data is preserved.</b><span>Changing role or residency year does not delete previous assessments, reviews or resident logbook records. If changed to Assessor, choose assessment cohorts later in Assessor assignments.</span></div>
+    <input type="hidden" name="user_id" value="${o(person.id)}">
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save account allocation</button></div>
+  </form>`);
+  syncEditAccountYearField();
+}
+async function ownerAssessmentCenterPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "Assessment centre";
+  a.innerHTML = h("Assessment centre", "Scheduling, progression, assessment history and assessor allocation.") + `<div class="dashboard-grid dashboard-grid-4 hub-grid">
+    ${dashboardTile("Assessment schedule", "Windows", "Create and edit assessment windows", "schedule")}
+    ${dashboardTile("Resident progress", "Cohorts", "Progression, weak points and reassessment", "progress")}
+    ${dashboardTile("Assessment history", "Results", "Permanent scoring history", "assessments")}
+    ${dashboardTile("Assessor assignments", "Access", "Choose cohorts each assessor can assess", "assignments")}
+  </div>`;
+}
+async function ownerLogbookCenterPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "Logbook centre";
+  a.innerHTML = h("Logbook centre", "Resident e-logbooks, approval requests, export and protected reset controls.") + `<div class="dashboard-grid dashboard-grid-4 hub-grid">
+    ${dashboardTile("Resident logbooks", "Open", "Review, export or reset selected/all logbooks", "logbook")}
+    ${dashboardTile("Logbook requests", "Review", "Approval requests and status updates", "logbook-requests")}
+    ${dashboardTile("Inbox", "Messages", "Direct and system communication", "inbox")}
+    ${dashboardTile("Message cleanup", "Clean", "Clear message copies without changing resident logbooks", "message-cleanup")}
+  </div>`;
+}
+async function ownerToolsPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "More";
+  a.innerHTML = h("More owner tools", "Less-used tools live here so the side drawer stays short.") + `<div class="dashboard-grid dashboard-grid-4 hub-grid">
+    ${dashboardTile("Observer reviews", "Reviews", "Signed observer comments", "comments")}
+    ${dashboardTile("Message cleanup", "Cleanup", "Delete message categories safely", "message-cleanup")}
+    ${dashboardTile("My profile", "Profile", "Photo, contact details and password", "profile")}
+    ${dashboardTile("Assessment centre", "Open", "Schedule and program progression", "owner-assessment-center")}
+  </div>`;
+}
+
 function A(e) {
   return ` <article class="card"> <div class="lead"> <div> <h2>Year ${e.assessed_year} ${o(e.assessment_type)}</h2> <p>${d(e.assessment_date)} · Assessor: ${o(e.assessor_signature)}</p> </div> <span class="tag ${e.overall_pass ? "success" : "danger"}">${e.overall_pass ? "Passed" : "Failed"}</span> </div> <div class="score"> <div><b>${e.knowledge_score}/10</b><small>Knowledge</small></div> <div><b>${e.skills_score}/10</b><small>Skills</small></div> <div><b>${e.attitude_score}/10</b><small>Attitude</small></div> <div><b>${e.total_score}/30</b><small>Total</small></div> </div> ${["knowledge", "skills", "attitude"].map((s) => (e[`${s}_justification`] ? `<p><b>${s}:</b> ${o(e[`${s}_justification`])}</p>` : "")).join("")} ${e.overall_pass ? "" : `<p class="warning">Reassessment due ${d(e.reassessment_due)}</p>`} </article>`;
 }
@@ -1232,7 +1197,7 @@ async function S() {
 }
 function C(e) {
   return e.length
-    ? ` <section class="card table-card"> <div class="table-scroll"> <table class="table"> <thead><tr><th>Resident</th><th>Assigned cohort</th><th></th></tr></thead> <tbody>${e.map((e) => ` <tr> <td>${o(e.resident_name || e.username)}</td> <td><span class="year-chip">Year ${e.residency_year}</span></td> <td><button class="btn" data-candidate="${e.resident_id}~">Open record</button></td> </tr>`).join("")}</tbody> </table> </div> </section>`
+    ? ` <section class="card table-card"> <div class="table-scroll"> <table class="table"> <thead><tr><th>Resident</th><th>Assigned cohort</th><th></th></tr></thead> <tbody>${e.map((e) => ` <tr> <td>${o(e.resident_name || e.username)}</td> <td>${yearChip(e.residency_year)}</td> <td><button class="btn" data-candidate="${e.resident_id}~">Open record</button></td> </tr>`).join("")}</tbody> </table> </div> </section>`
     : v("No residents are assigned to your assessment years yet.");
 }
 function M(e) {
@@ -1318,7 +1283,7 @@ function D(e) {
       .map((id) => s.scheduleChapters.get(Number(id))?.title)
       .filter(Boolean),
     r = s.scheduleAssessors.get(e.assessor_id);
-  return ` <tr> <td data-label="Assessment"> <div class="schedule-title-cell"> <span class="tag ${a}">${t}</span> <div> <h3>${o(e.title)}</h3> ${e.location ? `<small>${o(e.location)}</small>` : ""} ${e.instructions ? `<p>${o(e.instructions)}</p>` : ""} </div> </div> </td> <td data-label="Cohort"> <strong>Year ${e.residency_year}</strong> <small>${"reassessment" === e.assessment_type ? "Reassessment" : "Initial assessment"}</small> </td> <td data-label="Window"> <div class="date-stack"> <span><b>Opens</b>${l(e.starts_at)}</span> <span><b>Closes</b>${l(e.ends_at)}</span> </div> </td> <td data-label="Scope"> <strong>${o(i.length ? i.join(" · ") : "Whole-year assessment")}</strong> <small>${o(r?.display_name || "Any assigned assessor")}</small> </td> <td class="schedule-action"><button class="btn secondary" data-schedule-edit="${e.id}">Edit</button></td> </tr>`;
+  return ` <tr> <td data-label="Assessment"> <div class="schedule-title-cell"> <span class="tag ${a}">${t}</span> <div> <h3>${o(e.title)}</h3> ${e.progression_enabled ? '<span class="tag progression-tag">Automatic year progression</span>' : ""} ${e.location ? `<small>${o(e.location)}</small>` : ""} ${e.instructions ? `<p>${o(e.instructions)}</p>` : ""} </div> </div> </td> <td data-label="Cohort"> <strong>${yearChip(e.residency_year)}</strong> <small>${"reassessment" === e.assessment_type ? "Reassessment" : "Initial assessment"}</small> </td> <td data-label="Window"> <div class="date-stack"> <span><b>Opens</b>${l(e.starts_at)}</span> <span><b>Closes</b>${l(e.ends_at)}</span> </div> </td> <td data-label="Scope"> <strong>${o(i.length ? i.join(" · ") : "Whole-year assessment")}</strong> <small>${o(r?.display_name || "Any assigned assessor")}</small> </td> <td class="schedule-action"><button class="btn secondary" data-schedule-edit="${e.id}">Edit</button></td> </tr>`;
 }
 function O(e = null) {
   const t = [...s.scheduleChapters.values()],
@@ -1334,7 +1299,7 @@ function O(e = null) {
       })
       .join(
         "",
-      )} </select> </label> <label class="full">Location / method<input name="location" value="${o(e?.location || "")}" placeholder="e.g. Cardiology Department or online"></label> <label class="full">Instructions<textarea name="instructions">${o(e?.instructions || "")}</textarea></label> <label class="check-row full"><input name="is_active" type="checkbox" ${!1 !== e?.is_active ? "checked" : ""}> Active assessment window</label> </div> <input type="hidden" name="schedule_id" value="${e?.id || ""}"> <div class="actions"> <button type="button" class="btn secondary" data-close>Cancel</button> <button>${e ? "Save changes" : "Create schedule"}</button> </div> </form>`,
+      )} </select> </label> <label class="full">Location / method<input name="location" value="${o(e?.location || "")}" placeholder="e.g. Cardiology Department or online"></label> <label class="full">Instructions<textarea name="instructions">${o(e?.instructions || "")}</textarea></label> <label class="check-row full progression-check"><input name="progression_enabled" type="checkbox" ${e ? (e.progression_enabled ? "checked" : "") : "checked"}> <span><b>End-of-year progression assessment</b><small>Pass → automatically move the resident to the next year and send congratulations. Fail → keep the same year and set reassessment after 2 months with weak points.</small></span></label> <label class="check-row full"><input name="is_active" type="checkbox" ${!1 !== e?.is_active ? "checked" : ""}> Active assessment window</label> </div> <input type="hidden" name="schedule_id" value="${e?.id || ""}"> <div class="actions"> <button type="button" class="btn secondary" data-close>Cancel</button> <button>${e ? "Save changes" : "Create schedule"}</button> </div> </form>`,
   ),
     Y(e?.assessor_id || ""));
 }
@@ -1456,7 +1421,7 @@ function printOwnerLogbooks(residentIds = null) {
         })
         .join("");
       return `<section class="resident-page">
-        <header><div><h1>Approved Resident E-logbook</h1><p>${o(resident.display_name)} · Year ${o(resident.residency_year || "—")}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>
+        <header><div><h1>Approved Resident E-logbook</h1><p>${o(resident.display_name)} · Year ${o(resident.logbook_year || resident.residency_year || "—")}${resident.role && resident.role !== "resident" ? ` · archived ${o(m(resident.role))}` : ""}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>
         ${entries.length ? `<table><thead><tr><th>No.</th><th>Category</th><th>Activity</th><th>Role / Participation</th><th>Date</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty-logbook">No approved logbook entries.</div>'}
         <footer>Generated ${d(new Date().toISOString())}</footer>
       </section>`;
@@ -1500,13 +1465,21 @@ function printOwnerLogbooks(residentIds = null) {
 async function resetOwnerLogbooks(residentIds, resetAll = false) {
   if (s.p.role !== "owner") return alert("Owner access required");
   const residents = s.ownerLogbookResidents || [];
-  const ids = resetAll ? residents.map((resident) => String(resident.id)) : residentIds.map(String);
-  if (!ids.length) return alert("Select at least one resident to reset.");
+  const currentResidents = residents.filter((resident) => resident.role === "resident");
+  const ids = resetAll
+    ? currentResidents.map((resident) => String(resident.id))
+    : residentIds.map(String);
+  if (!ids.length) return alert("Select at least one current resident to reset.");
   const chosen = residents.filter((resident) => ids.includes(String(resident.id)));
+  if (!resetAll && chosen.some((resident) => resident.role !== "resident")) {
+    return alert(
+      "Archived former-resident logbooks stay exportable, but reset is limited to accounts whose current role is Resident.",
+    );
+  }
   const totalEntries = (s.logbookPrintEntries || []).filter((entry) => ids.includes(String(entry.resident_id))).length;
   if (!totalEntries) return alert("The selected resident logbook(s) are already empty.");
   if (resetAll) {
-    const typed = prompt(`You are about to reset ALL ${residents.length} resident logbooks (${totalEntries} activities). This cannot be undone. Type RESET ALL to continue.`);
+    const typed = prompt(`You are about to reset ALL ${currentResidents.length} current resident logbooks (${totalEntries} activities). This cannot be undone. Type RESET ALL to continue.`);
     if (typed !== "RESET ALL") return;
   } else {
     const names = chosen.slice(0, 5).map((resident) => resident.display_name).join(", ");
@@ -1615,8 +1588,7 @@ async function P() {
     "owner" === s.p.role
       ? e
           .from("profiles")
-          .select("id,display_name,residency_year")
-          .eq("role", "resident")
+          .select("id,display_name,residency_year,role")
           .order("display_name")
       : Promise.resolve({ data: [] }),
   );
@@ -1642,13 +1614,30 @@ async function P() {
   const assessors = approvers.filter(
     (person) => person.approver_group === "assessor",
   );
-  const residents = "owner" === s.p.role ? residentsResult?.data || [] : [];
+  const residents = "owner" === s.p.role
+    ? (residentsResult?.data || [])
+        .filter(
+          (person) =>
+            person.role === "resident" ||
+            entries.some((entry) => String(entry.resident_id) === String(person.id)),
+        )
+        .map((person) => {
+          const historicalYears = entries
+            .filter((entry) => String(entry.resident_id) === String(person.id))
+            .map((entry) => Number(entry.residency_year) || 0);
+          return {
+            ...person,
+            logbook_year:
+              Number(person.residency_year) || Math.max(0, ...historicalYears) || null,
+          };
+        })
+    : [];
   if (s.p.role === "owner") s.ownerLogbookResidents = residents;
   const ownerLogbookManager =
     "owner" === s.p.role
       ? ` <section class="card no-print owner-logbook-manager"><div class="card-heading"><span class="card-icon">LOG</span><div><h3>Owner logbook management</h3><p>Select residents, export their approved e-logbooks, or reset selected/all logbook data.</p></div></div>
           <div class="owner-logbook-toolbar"><input id="ownerLogbookSearch" type="search" placeholder="Search resident"><div class="owner-logbook-toolbar-actions"><button class="btn secondary" type="button" data-owner-logbook-select-all>Select all</button><button class="btn secondary" type="button" data-owner-logbook-clear>Clear</button></div></div>
-          <div id="ownerLogbookResidentList" class="owner-logbook-resident-grid">${residents.map((person) => { const residentEntries = entries.filter((entry) => String(entry.resident_id) === String(person.id)); const approvedCount = residentEntries.filter((entry) => entry.status === "approved").length; return `<label class="owner-logbook-resident" data-owner-logbook-search="${o(`${person.display_name} year ${person.residency_year}`.toLowerCase())}"><input class="owner-logbook-resident-check" type="checkbox" value="${person.id}"><span><b>${o(person.display_name)}</b><small>Year ${o(person.residency_year)} · ${residentEntries.length} total · ${approvedCount} approved</small></span></label>`; }).join("") || '<div class="panel-empty">No resident accounts are available.</div>'}</div>
+          <div id="ownerLogbookResidentList" class="owner-logbook-resident-grid">${residents.map((person) => { const residentEntries = entries.filter((entry) => String(entry.resident_id) === String(person.id)); const approvedCount = residentEntries.filter((entry) => entry.status === "approved").length; const archived = person.role !== "resident"; return `<label class="owner-logbook-resident${archived ? " archived-logbook-owner" : ""}" data-owner-logbook-search="${o(`${person.display_name} year ${person.logbook_year || ""} ${person.role}`.toLowerCase())}"><input class="owner-logbook-resident-check" type="checkbox" value="${person.id}"><span><b>${o(person.display_name)}</b><small>${person.logbook_year ? yearChip(person.logbook_year) : ""} <span>${residentEntries.length} total · ${approvedCount} approved${archived ? ` · archived (${o(m(person.role))})` : ""}</span></small></span></label>`; }).join("") || '<div class="panel-empty">No resident logbooks are available.</div>'}</div>
           <div class="owner-logbook-actions"><div class="owner-logbook-export-actions"><button class="btn" type="button" data-owner-export-selected>Export selected PDF</button><button class="btn secondary" type="button" data-owner-export-all>Export all PDF</button></div><div class="owner-logbook-reset-actions"><button class="btn danger" type="button" data-owner-reset-selected>Reset selected</button><button class="btn danger danger-button" type="button" data-owner-reset-all>Reset ALL logbooks</button></div></div>
           <p class="form-note"><b>Export:</b> official PDF output contains approved activities only, with each resident on a separate page. <b>Reset:</b> permanently clears the chosen resident logbook activities. Accounts, assessments, progress and ordinary Inbox messages are not reset.</p></section>`
       : "";
@@ -1727,6 +1716,10 @@ function H() {
     if ((a.hasAttribute("data-schedule-add") && O(), a.dataset.scheduleEdit)) {
       const e = s.schedules.get(a.dataset.scheduleEdit);
       e && O(e);
+    }
+    if (a.dataset.manageAccount) {
+      const person = s.accountUsers.get(String(a.dataset.manageAccount));
+      person && openAccountManagement(person);
     }
     if (a.hasAttribute("data-owner-logbook-select-all")) {
       document.querySelectorAll("[data-owner-logbook-search]:not([hidden]) .owner-logbook-resident-check").forEach((box) => (box.checked = true));
@@ -2017,6 +2010,8 @@ function H() {
         box.checked = a.checked;
       });
     }
+    if (a.id === "editAccountRole") syncEditAccountYearField();
+    if (a.id === "accountRoleFilter") filterAccountRows();
     ("findYear" === a.id && R(),
       ("logbookStatus" === a.id || "logbookType" === a.id) && H(),
       ("requestResidentFilter" === a.id || "requestStatusFilter" === a.id || "requestTypeFilter" === a.id) && filterLogbookRequestRows(),
@@ -2082,6 +2077,7 @@ function H() {
       (clearTimeout(window.residentSearchTimer),
       (window.residentSearchTimer = setTimeout(R, 250)));
     if (e.target.id === "ownerLogbookSearch") filterOwnerLogbookResidents();
+    if (e.target.id === "accountSearch") filterAccountRows();
     if (e.target.id === "messageSearch") {
       if (t("#requestResidentFilter")) return filterLogbookRequestRows();
       filterPrivateMessageRows();
@@ -2126,6 +2122,18 @@ function H() {
         });
         if (a) throw a;
         if (t?.error) throw new Error(t.error);
+      }
+      if ("ownerAccountEditForm" === a.id) {
+        const role = String(r.get("role") || "");
+        const year = role === "resident" ? Number(r.get("residency_year")) : null;
+        const result = u(await e.rpc("owner_update_account_assignment", {
+          p_user_id: r.get("user_id"),
+          p_role: role,
+          p_residency_year: year,
+        }));
+        i.close();
+        b(`Account updated to ${m(role)}${role === "resident" ? ` · Year ${year}` : ""}`);
+        return void (await w.users());
       }
       if (a.classList.contains("assessor-year-form")) {
         const s = r.getAll("years").map(Number);
@@ -2374,6 +2382,7 @@ function H() {
             ends_at: a.toISOString(),
             location: r.get("location").trim() || null,
             instructions: r.get("instructions").trim() || null,
+            progression_enabled: "on" === r.get("progression_enabled"),
             is_active: "on" === r.get("is_active"),
           },
           n = r.get("schedule_id"),
@@ -2464,6 +2473,20 @@ function H() {
             p_assessor_notes: null,
           }),
         );
+        const passed = Number(s.knowledge_score) >= 6 && Number(s.skills_score) >= 7 && Number(s.attitude_score) >= 8;
+        const progression = u(await e.rpc("apply_end_of_year_progression", {
+          p_schedule_id: +s.schedule_id,
+          p_resident_id: s.resident_id,
+          p_passed: passed,
+          p_knowledge_score: +s.knowledge_score,
+          p_skills_score: +s.skills_score,
+          p_attitude_score: +s.attitude_score,
+          p_knowledge_justification: s.knowledge_justification || null,
+          p_skills_justification: s.skills_justification || null,
+          p_attitude_justification: s.attitude_justification || null,
+        }));
+        if (progression?.action === "upgraded") b(`Assessment saved · resident upgraded to Year ${progression.new_year}`);
+        else if (progression?.action === "reassessment") b(`Assessment saved · reassessment due ${d(progression.reassessment_due)}`);
       }
       (i.open && i.close(), b("Saved successfully"), $());
     } catch (e) {
