@@ -257,7 +257,7 @@ async function $() {
   const [e = "dashboard", s = ""] = location.hash.slice(1).split(":");
   a.classList.remove("mail-content");
   (document.querySelectorAll("[data-go]").forEach((s) => {
-    s.classList.toggle("active", s.dataset.go === e);
+    s.classList.toggle("active", s.dataset.go === (e === "assessment-session" ? "assessments" : e));
   }),
     (a.innerHTML = v("Loading…")));
   try {
@@ -387,7 +387,11 @@ const w = {
                 (item.chapters || item.assessment_schedule_chapters)
                   ?.map((scope) => scope.title || scope.chapters?.title)
                   .filter(Boolean) || [];
-            return ` <article> <span class="tag ${className}">${status}</span> <div><b>${o(item.title)}</b><small>Year ${item.residency_year} · ${l(item.starts_at)} – ${l(item.ends_at)}</small>${chapters.length ? `<small>Chapters: ${o(chapters.join(" · "))}</small>` : "<small>Whole-year assessment</small>"}</div> </article>`;
+            const isCurrent = status === "Open now";
+            const openAction = s.p.role === "assessor" && isCurrent
+              ? `<button type="button" class="btn current-assessment-open" data-go="assessment-session:${item.id}">Open assessment</button>`
+              : "";
+            return ` <article class="assessment-window-row ${isCurrent ? "current-assessment-window" : ""}"> <span class="tag ${className}">${isCurrent ? "CURRENT" : status}</span> <div class="assessment-window-copy"><b>${o(item.title)}</b><small>Year ${item.residency_year} · ${l(item.starts_at)} – ${l(item.ends_at)}</small>${chapters.length ? `<small>Chapters: ${o(chapters.join(" · "))}</small>` : "<small>Whole-year assessment</small>"}</div>${openAction} </article>`;
           })
           .join("")}</div> </section>`;
       } else {
@@ -401,6 +405,10 @@ const w = {
       ) +
       n +
       ` <section class="top-gap"><h2>${"assessor" === s.p.role ? "Completed assessments by you" : "Completed assessments"}</h2><div class="grid top-gap"> ${r.data?.map(A).join("") || v("No completed assessments recorded yet.")} </div></section>`;
+  },
+  "assessment-session": async function (scheduleId) {
+    if (s.p.role !== "assessor") return g("dashboard");
+    await renderAssessmentSession(scheduleId);
   },
   logbook: P,
   profile: x,
@@ -882,6 +890,153 @@ async function printResidentAssessmentPortfolio(residentId) {
     popup.close();
     alert(error?.message || String(error));
   }
+}
+
+
+async function loadResidentAssessmentEvidence(residentId, scheduleId = "") {
+  const profileResult = await e.from("profiles").select("id,display_name,username,residency_year,role").eq("id", residentId).single();
+  if (profileResult.error) throw profileResult.error;
+  const profile = profileResult.data;
+  let scopeIds = [];
+  let schedule = null;
+  if (scheduleId) {
+    const [scheduleResult, scopeResult] = await Promise.all([
+      e.from("assessment_schedules").select("*").eq("id", scheduleId).single(),
+      e.from("assessment_schedule_chapters").select("chapter_id").eq("schedule_id", scheduleId),
+    ]);
+    if (!scheduleResult.error) schedule = scheduleResult.data;
+    scopeIds = (scopeResult.data || []).map((row) => Number(row.chapter_id));
+  }
+  let chapterQuery = e.from("chapters").select("id,title,year_from,year_to,sort_order,is_active").eq("is_active", true).order("sort_order");
+  if (scopeIds.length) chapterQuery = chapterQuery.in("id", scopeIds);
+  else chapterQuery = chapterQuery.lte("year_from", profile.residency_year).gte("year_to", profile.residency_year).order("year_from");
+  const chaptersResult = await chapterQuery;
+  if (chaptersResult.error) throw chaptersResult.error;
+  const chapters = chaptersResult.data || [];
+  const chapterIds = chapters.map((chapter) => Number(chapter.id));
+  const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments] = await Promise.all([
+    chapterIds.length ? e.from("knowledge_items").select("id,chapter_id,title,description,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({ data: [] }),
+    e.from("knowledge_progress").select("knowledge_item_id,status").eq("resident_id", residentId),
+    chapterIds.length ? e.from("skills").select("id,chapter_id,title,description,expected_level,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({ data: [] }),
+    e.from("skill_levels").select("skill_id,level").eq("resident_id", residentId),
+    e.from("skill_logs").select("skill_id").eq("resident_id", residentId),
+    e.rpc("get_logbook_entries_v2", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
+    reviewRpcResult(residentId),
+    e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
+  ]);
+  const failed = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments].find((result) => result?.error);
+  if (failed?.error) throw failed.error;
+  const chapterMap = new Map(chapters.map((chapter) => [Number(chapter.id), chapter]));
+  const completedIds = new Set((progress.data || []).filter((row) => row.status === "completed").map((row) => Number(row.knowledge_item_id)));
+  const levelMap = new Map((skillLevels.data || []).map((row) => [Number(row.skill_id), Number(row.level)]));
+  const logCount = new Map();
+  (skillLogs.data || []).forEach((row) => logCount.set(Number(row.skill_id), (logCount.get(Number(row.skill_id)) || 0) + 1));
+  return {
+    profile,
+    schedule,
+    chapters,
+    chapterMap,
+    knowledge: knowledge.data || [],
+    completedIds,
+    skills: skills.data || [],
+    levelMap,
+    logCount,
+    logbook: (logbookResult.data || []).filter((entry) => String(entry.resident_id) === String(residentId) && entry.status === "approved"),
+    reviews: reviewsResult.data || [],
+    assessments: assessments.data || [],
+  };
+}
+
+function assessmentEvidenceHtml(data, options = {}) {
+  const { profile, schedule, chapterMap, knowledge, completedIds, skills, levelMap, logCount, logbook, reviews, assessments } = data;
+  const checked = knowledge.filter((item) => completedIds.has(Number(item.id)));
+  const unchecked = knowledge.filter((item) => !completedIds.has(Number(item.id)));
+  const knowledgeList = (items, done) => items.length
+    ? `<div class="assessment-knowledge-list ${done ? "checked" : "unchecked"}">${items.map((item) => `<div class="assessment-knowledge-line"><span>${done ? "✓" : "○"}</span><div><b>${o(item.title)}</b><small>${o(chapterMap.get(Number(item.chapter_id))?.title || "")}${item.description ? ` · ${o(item.description)}` : ""}</small></div></div>`).join("")}</div>`
+    : `<div class="assessment-evidence-empty">${done ? "No checked knowledge points." : "No unchecked knowledge points."}</div>`;
+  const skillRows = skills.length
+    ? skills.map((item) => {
+        const level = levelMap.get(Number(item.id));
+        return `<tr><td><b>${o(item.title)}</b><small>${o(chapterMap.get(Number(item.chapter_id))?.title || "")}</small></td><td><span class="level-badge ${level ? "recorded" : "missing"}">${o(dependenceLevelText(level))}</span></td><td>${item.expected_level ? `Level ${o(item.expected_level)}` : "—"}</td><td>${o(logCount.get(Number(item.id)) || 0)}</td></tr>`;
+      }).join("")
+    : `<tr><td colspan="4">No active skills in this assessment scope.</td></tr>`;
+  const logbookRows = logbook.length
+    ? logbook.slice().sort((a,b) => String(a.activity_kind || "").localeCompare(String(b.activity_kind || "")) || new Date(b.activity_date) - new Date(a.activity_date)).map((entry) => `<tr><td>${o(entry.activity_kind || entry.conference_name || "—")}</td><td>${o(participationLabel(entry.participation_mode || entry.conference_participation))}</td><td>${d(entry.activity_date)}</td><td>${o(entry.hospital || "—")}</td></tr>`).join("")
+    : `<tr><td colspan="4">No approved logbook entries.</td></tr>`;
+  const reviewRows = reviews.length
+    ? reviews.slice(0, 20).map((row) => `<tr><td>${d(row.observed_on || row.created_at)}</td><td>${row.category === "attitude" ? "Behavioural" : row.category === "skill" ? "Clinical · Skill" : "Clinical · Knowledge"}</td><td>${row.sentiment === "negative" ? "👎 Bad" : "👍 Good"}</td><td>${o(row.comment || "—")}</td></tr>`).join("")
+    : `<tr><td colspan="4">No reviews recorded.</td></tr>`;
+  const assessmentRows = assessments.length
+    ? assessments.slice(0, 10).map((row) => `<tr><td>${d(row.assessment_date || row.created_at)}</td><td>${o(row.knowledge_score)}/10</td><td>${o(row.skills_score)}/10</td><td>${o(row.attitude_score)}/10</td><td>${row.overall_pass ? '<span class="tag success">Passed</span>' : '<span class="tag danger">Failed</span>'}</td></tr>`).join("")
+    : `<tr><td colspan="5">No previous assessments.</td></tr>`;
+  return `<section class="assessment-live-evidence">
+    <div class="assessment-evidence-summary">
+      <div><span>Resident</span><b>${o(profile.display_name || profile.username)}</b></div>
+      <div><span>Knowledge</span><b>${checked.length}/${knowledge.length}</b></div>
+      <div><span>Skills with level</span><b>${[...levelMap.values()].filter(Boolean).length}/${skills.length}</b></div>
+      <div><span>Approved logbook</span><b>${logbook.length}</b></div>
+    </div>
+    ${schedule ? `<div class="assessment-scope-note"><b>Assessment scope:</b> ${o(schedule.title)} · Year ${o(schedule.residency_year)}</div>` : ""}
+    <details class="assessment-evidence-section" open><summary>Knowledge evidence <span>${checked.length} checked · ${unchecked.length} not checked</span></summary><div class="assessment-knowledge-columns"><section><h4>✓ Checked knowledge</h4>${knowledgeList(checked, true)}</section><section><h4>○ Not checked knowledge</h4>${knowledgeList(unchecked, false)}</section></div></details>
+    <details class="assessment-evidence-section" open><summary>Skills & level of dependence <span>${skills.length} skills</span></summary><div class="dependence-guide compact"><b>1</b> Observer · <b>2</b> Direct supervision · <b>3</b> Limited supervision · <b>4</b> Independent · <b>5</b> Expert / supervisor</div><div class="table-scroll"><table class="table assessment-skill-evidence-table"><thead><tr><th>Skill</th><th>Current level</th><th>Expected</th><th>Logs</th></tr></thead><tbody>${skillRows}</tbody></table></div></details>
+    <details class="assessment-evidence-section"><summary>Approved e-logbook <span>${logbook.length} entries</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Activity</th><th>Participation</th><th>Date</th><th>Hospital</th></tr></thead><tbody>${logbookRows}</tbody></table></div></details>
+    <details class="assessment-evidence-section"><summary>Clinical & behavioural reviews <span>${reviews.length}</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Date</th><th>Domain</th><th>Type</th><th>Review</th></tr></thead><tbody>${reviewRows}</tbody></table></div></details>
+    <details class="assessment-evidence-section"><summary>Previous formal assessments <span>${assessments.length}</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Date</th><th>Knowledge</th><th>Skills</th><th>Behaviour</th><th>Outcome</th></tr></thead><tbody>${assessmentRows}</tbody></table></div></details>
+  </section>`;
+}
+
+async function openResidentAssessmentEvidenceModal(residentId, scheduleId = "", residentName = "Resident") {
+  y(`<div class="modal assessment-evidence-modal"><div class="modal-head"><div><span class="eyebrow">Assessment evidence</span><h2>${o(residentName)}</h2></div><button type="button" data-close>×</button></div><div class="assessment-loading">Loading resident evidence…</div></div>`);
+  try {
+    const data = await loadResidentAssessmentEvidence(residentId, scheduleId);
+    r.innerHTML = `<div class="modal assessment-evidence-modal"><div class="modal-head"><div><span class="eyebrow">Assessment evidence</span><h2>${o(data.profile.display_name || data.profile.username)}</h2></div><button type="button" data-close>×</button></div><div class="assessment-evidence-actions"><button type="button" class="btn secondary" data-export-assessment-portfolio="${o(residentId)}">Export assessment portfolio PDF</button></div>${assessmentEvidenceHtml(data)}</div>`;
+  } catch (error) {
+    r.innerHTML = `<div class="modal"><div class="modal-head"><h2>Evidence could not load</h2><button type="button" data-close>×</button></div><p>${o(error?.message || String(error))}</p></div>`;
+  }
+}
+
+async function openAssessmentScoringModal(residentId, residentName, chapterId, scheduleId, assessmentType) {
+  y(`<div class="modal assessment-scoring-modal"><div class="modal-head"><div><span class="eyebrow">Formal assessment</span><h2>Assess ${o(residentName)}</h2></div><button type="button" data-close>×</button></div><div class="assessment-loading">Loading resident evidence…</div></div>`);
+  try {
+    const [reasonResult, evidence] = await Promise.all([
+      e.from("assessment_deduction_reasons").select("*").eq("is_active", true),
+      loadResidentAssessmentEvidence(residentId, scheduleId),
+    ]);
+    if (reasonResult.error) throw reasonResult.error;
+    s.reasons = reasonResult.data || [];
+    const scoring = [
+      ["knowledge", 6],
+      ["skills", 7],
+      ["attitude", 8],
+    ].map(([domain, pass]) => `<section class="item assessment-domain"><h3>${domain === "attitude" ? "Behaviour" : domain} <small>pass ${pass}/10</small></h3><input name="${domain}_score" type="number" min="0" max="10" step=".5" value="10" required>${s.reasons.filter((reason) => reason.domain === domain).map((reason) => `<label class="check-line reason-check"><input class="auto-width" type="checkbox" name="${domain}_reasons" value="${reason.id}"><span>${o(reason.label)}</span></label>`).join("")}<textarea name="${domain}_justification" placeholder="Justification when marks are deducted"></textarea></section>`).join("");
+    r.innerHTML = `<form id="assessmentForm" class="modal assessment-scoring-modal"><div class="modal-head"><div><span class="eyebrow">Formal assessment</span><h2>Assess ${o(evidence.profile.display_name || residentName)}</h2></div><button type="button" data-close>×</button></div><section class="assessment-evidence-export"><div><b>Resident evidence — read before scoring</b><small>Checked Knowledge, unchecked Knowledge, Skill dependence levels, approved logbook, reviews and previous assessments.</small></div><button type="button" class="btn secondary" data-export-assessment-portfolio="${o(residentId)}">Export evidence PDF</button></section>${assessmentEvidenceHtml(evidence)}<section class="assessment-score-panel"><div class="section-head"><div><span class="eyebrow">Scoring</span><h3>Formal scores</h3></div></div>${scoring}</section><input type="hidden" name="resident_id" value="${o(residentId)}"><input type="hidden" name="chapter_id" value="${o(chapterId || "")}"><input type="hidden" name="schedule_id" value="${o(scheduleId || "")}"><input type="hidden" name="assessment_type" value="${o(assessmentType || "initial")}"><div class="actions sticky-assessment-actions"><button>Submit final assessment</button></div></form>`;
+  } catch (error) {
+    r.innerHTML = `<div class="modal"><div class="modal-head"><h2>Assessment could not open</h2><button type="button" data-close>×</button></div><p>${o(error?.message || String(error))}</p></div>`;
+  }
+}
+
+async function renderAssessmentSession(scheduleId) {
+  t("#title").textContent = "Assessment session";
+  const [scheduleResult, assignedResult, completedResult, scopeResult] = await Promise.all([
+    e.rpc("my_assessor_schedule"),
+    S(),
+    e.from("assessments").select("resident_id,schedule_id,assessment_date,overall_pass").eq("assessor_id", s.p.id).eq("schedule_id", scheduleId),
+    e.from("assessment_schedule_chapters").select("chapter_id,chapters(title)").eq("schedule_id", scheduleId),
+  ]);
+  if (scheduleResult.error) throw scheduleResult.error;
+  if (assignedResult.error) throw assignedResult.error;
+  const schedule = (scheduleResult.data || []).find((item) => String(item.id) === String(scheduleId));
+  if (!schedule) return g("assessments");
+  const now = Date.now();
+  const isOpen = new Date(schedule.starts_at).getTime() <= now && now <= new Date(schedule.ends_at).getTime();
+  const residents = (assignedResult.data || []).filter((person) => Number(person.residency_year) === Number(schedule.residency_year));
+  const completedMap = new Map((completedResult.data || []).map((row) => [String(row.resident_id), row]));
+  const chapters = (scopeResult.data || []).map((row) => row.chapters?.title).filter(Boolean);
+  const rows = residents.map((person) => {
+    const completed = completedMap.get(String(person.resident_id));
+    return `<tr><td><b>${o(person.resident_name || person.username)}</b><small>${yearChip(person.residency_year)}</small></td><td>${completed ? `<span class="tag ${completed.overall_pass ? "success" : "danger"}">${completed.overall_pass ? "Completed · Passed" : "Completed · Failed"}</span>` : '<span class="tag warning">Not assessed</span>'}</td><td class="assessment-session-actions"><button type="button" class="btn secondary" data-view-assessment-evidence="${o(person.resident_id)}" data-schedule-id="${o(schedule.id)}" data-name="${o(person.resident_name || person.username)}">View evidence</button>${!completed && isOpen ? `<button type="button" class="btn" data-assess="${o(person.resident_id)}" data-schedule-id="${o(schedule.id)}" data-assessment-type="${o(schedule.assessment_type || "initial")}" data-cid="" data-name="${o(person.resident_name || person.username)}">Start assessment</button>` : ""}</td></tr>`;
+  }).join("");
+  a.innerHTML = h("Current assessment session", "Open each resident's evidence before formal scoring.", '<button class="btn secondary" data-go="assessments">Back to assessments</button>') + `<section class="current-assessment-hero"><div><span class="current-assessment-kicker">${isOpen ? "CURRENT ASSESSMENT" : "ASSESSMENT WINDOW"}</span><h2>${o(schedule.title)}</h2><p>Year ${o(schedule.residency_year)} · ${l(schedule.starts_at)} – ${l(schedule.ends_at)}</p><small>${chapters.length ? `Scope: ${o(chapters.join(" · "))}` : "Whole-year assessment"}</small></div><span class="tag ${isOpen ? "success" : "warning"}">${isOpen ? "Open now" : "Not currently open"}</span></section><section class="card assessment-session-card"><div class="section-head"><div><h3>Residents in this assessment</h3><p>${residents.length} resident${residents.length === 1 ? "" : "s"}</p></div></div><div class="table-scroll"><table class="table assessment-session-table"><thead><tr><th>Resident</th><th>Status</th><th>Assessment actions</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No residents are assigned to this year.</td></tr>'}</tbody></table></div></section>`;
 }
 
 function normalizeBulkText(value) {
@@ -1590,7 +1745,7 @@ async function k() {
         ${dashboardTile("My chapters", String(chaptersResult.data?.length || 0), "Cumulative curriculum access", "chapters")}
         ${evidenceDashboardTile(String(knowledgeResult.count || 0), String(skillLevelsResult.count || 0))}
         ${dashboardTile("Logbook activity", String(logsResult.count || 0), "Supervised performances", "logbook")}
-        ${dashboardTile("Next assessment", upcoming ? o(d(upcoming.starts_at)) : "—", upcoming ? upcoming.title : "No upcoming window", "assessments", upcoming ? "accent-tile" : "")}
+        ${dashboardTile(upcoming && new Date(upcoming.starts_at).getTime() <= Date.now() && Date.now() <= new Date(upcoming.ends_at).getTime() ? "CURRENT ASSESSMENT" : "Next assessment", upcoming ? o(d(upcoming.starts_at)) : "—", upcoming ? upcoming.title : "No upcoming window", "assessments", upcoming ? (new Date(upcoming.starts_at).getTime() <= Date.now() && Date.now() <= new Date(upcoming.ends_at).getTime() ? "current-assessment-tile" : "accent-tile") : "")}
         ${dashboardTile("Latest outcome", latest ? `${o(latest.total_score)}/30` : "—", resultMeta, "assessments", i.progression_status === "reassessment_required" ? "warning-tile" : latest?.overall_pass ? "success-tile" : "")}
       </div>`;
     return;
@@ -1633,7 +1788,7 @@ async function k() {
       h(`Welcome, ${i.display_name || i.username}`, "Your assessment workspace is divided into six quick areas.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
       `<div class="dashboard-grid dashboard-grid-6">
         ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "residents")}
-        ${dashboardTile("Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", "assessments", nextAssessment ? "accent-tile" : "")}
+        ${dashboardTile(nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "CURRENT ASSESSMENT" : "Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? `assessment-session:${nextAssessment.id}` : "assessments", nextAssessment ? (new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "current-assessment-tile" : "accent-tile") : "")}
         ${dashboardTile("Assessments done", String(assessmentsResult.count || 0), "Your submitted assessments", "assessments")}
         ${dashboardTile("Reviews", String((commentsResult.data || []).length), "Mine + assigned residents", "write-review")}
         ${dashboardTile("Logbook requests", String(pendingApprovals), pendingApprovals ? "Waiting for your decision" : "Nothing waiting", "logbook", pendingApprovals ? "warning-tile" : "")}
@@ -2725,41 +2880,19 @@ function H() {
         )),
       a.dataset.candidate && g(`candidate:${a.dataset.candidate}`),
       a.dataset.assess &&
-        (async function (t, a, i, r, n) {
-          const { data: d } = await e
-            .from("assessment_deduction_reasons")
-            .select("*")
-            .eq("is_active", !0);
-          ((s.reasons = d || []),
-            y(
-              ` <form id="assessmentForm" class="modal"> <div class="modal-head"><h2>Assess ${o(a)}</h2><button type="button" data-close>×</button></div> <section class="assessment-evidence-export"><div><b>Resident evidence portfolio</b><small>Checked and unchecked knowledge, current skill dependence levels, approved logbook, reviews and previous assessments.</small></div><button type="button" class="btn secondary" data-export-assessment-portfolio="${o(t)}">Export evidence PDF</button></section> ${[
-                ["knowledge", 6],
-                ["skills", 7],
-                ["attitude", 8],
-              ]
-                .map(
-                  ([e, t]) =>
-                    ` <section class="item assessment-domain"> <h3>${e} <small>pass ${t}/10</small></h3> <input name="${e}_score" type="number" min="0" max="10" step=".5" value="10" required> ${s.reasons
-                      .filter((s) => s.domain === e)
-                      .map(
-                        (s) =>
-                          ` <label class="check-line reason-check"><input class="auto-width" type="checkbox" name="${e}_reasons" value="${s.id}"><span>${o(s.label)}</span></label>`,
-                      )
-                      .join(
-                        "",
-                      )} <textarea name="${e}_justification" placeholder="Justification when marks are deducted"></textarea> </section>`,
-                )
-                .join(
-                  "",
-                )} <input type="hidden" name="resident_id" value="${t}"> <input type="hidden" name="chapter_id" value="${i || ""}"> <input type="hidden" name="schedule_id" value="${r}"> <input type="hidden" name="assessment_type" value="${n}"> <div class="actions"><button>Submit final assessment</button></div> </form>`,
-            ));
-        })(
+        (await openAssessmentScoringModal(
           a.dataset.assess,
           a.dataset.name,
           a.dataset.cid,
           a.dataset.scheduleId,
           a.dataset.assessmentType,
-        ),
+        )),
+      a.dataset.viewAssessmentEvidence &&
+        (await openResidentAssessmentEvidenceModal(
+          a.dataset.viewAssessmentEvidence,
+          a.dataset.scheduleId || "",
+          a.dataset.name || "Resident",
+        )),
       a.hasAttribute("data-create") &&
         (y(
           ` <form id="accountForm" class="modal"> <div class="modal-head"><h2>Create account</h2><button type="button" data-close>×</button></div> <div class="form-grid"> <label>Full professional name<input name="display_name" required></label> <label>Username<input name="username" pattern="[A-Za-z0-9._\-]{3,40}" required></label> <label class="full">Email<input type="email" name="email" required></label> <label>Role <select name="role" id="accountRole"> <option value="resident">Resident</option> <option value="observer">Observer</option> <option value="assessor">Assessor</option> </select> </label> <label id="accountYearField">Residency year <select name="residency_year" required>${n.map((e) => `<option value="${e}">Year ${e}</option>`).join("")}</select> </label> <label class="full">Initial password<input type="password" name="password" minlength="8" required></label> </div> <p class="form-note">Assessor years are assigned later from the Assessor Assignments page.</p> <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Create account</button></div> </form>`,

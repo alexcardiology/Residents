@@ -1,12 +1,28 @@
-# Resident Training v1.0.64
+# Resident Training v1.0.65
 
-Assessor assessment-evidence portfolio update.
+Frontend-only assessment workflow update. No SQL migration is required if v1.0.64 is already installed.
 
-## New
-- Assigned assessor can export a resident **Assessment Portfolio PDF** directly from the resident record.
-- The same export button is available inside the formal assessment modal before scoring.
-- PDF order: resident summary; checked Knowledge first; unchecked Knowledge second; all Skills with current Level of Dependence and expected level; approved e-logbook with grouped interventions, intervention totals and a separate conferences table; clinical/behavioural reviews; previous formal assessments.
-- The export is read-only and does not change resident evidence.
+## Changes
+- Current/open assessment has a distinct dark-blue/teal theme on Resident and Assessor dashboards.
+- Current/open assessment is highlighted separately on the Assessments page.
+- Assessor can open the current assessment session from the Assessments page or dashboard.
+- Assessment Session lists every assigned resident in that assessment year.
+- Each resident has View evidence and Start assessment actions.
+- Starting an assessment now loads the resident's evidence above the scoring form:
+  - checked Knowledge first
+  - unchecked Knowledge below
+  - Skills with current Level of Dependence, expected level and log count
+  - approved e-logbook
+  - clinical/behavioural reviews
+  - previous formal assessments
+- Evidence remains read-only for the assessor.
+- Existing Assessment Portfolio PDF export remains available.
 
-## Installation
-Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`, then hard-refresh. No SQL migration is required for v1.0.64.
+## Install
+Replace:
+- app.html
+- index.html
+- assets/app.js
+- assets/style.css
+
+Then hard refresh the site.
