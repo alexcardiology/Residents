@@ -63,6 +63,32 @@ const s = {
     if (s) throw s;
     return e;
   },
+  reviewRpcResult = async (residentId = null) => {
+    let last = { data: null, error: new Error("Unable to load reviews") };
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        last = await e.rpc("get_visible_observer_reviews", { p_resident_id: residentId });
+      } catch (error) {
+        last = { data: null, error };
+      }
+      if (!last?.error) return last;
+      const message = String(last.error?.message || last.error || "").toLowerCase();
+      const transient = message.includes("failed to fetch") || message.includes("network") || message.includes("load failed");
+      if (!transient || attempt === 2) return last;
+      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+    }
+    return last;
+  },
+  reviewReconsiderationMessage = (message, review) => {
+    if (!review) return `<div class="message-body">${messageBody(message)}</div>`;
+    const category = String(review.category || "clinical");
+    const categoryLabel = category.charAt(0).toUpperCase() + category.slice(1);
+    return `<div class="reconsideration-message-summary">
+      <div class="reconsideration-summary-row"><span>Resident</span><b>${o(review.resident_name || message.sender_name || "Resident")}</b></div>
+      <div class="reconsideration-summary-row"><span>Review</span><b>${o(categoryLabel)} review</b></div>
+      <div class="reconsideration-summary-reason"><span>Reason</span><p>${o(review.reconsideration_text || "No reason provided")}</p></div>
+    </div>`;
+  },
   p = {
     resident: [
       ["dashboard", "Dashboard"],
@@ -344,9 +370,13 @@ const w = {
   reviews: async function () {
     if (!["observer", "assessor", "resident"].includes(s.p.role)) return g("dashboard");
     t("#title").textContent = "My reviews";
-    const rows = u(await e.rpc("get_visible_observer_reviews", {
-      p_resident_id: s.p.role === "resident" ? s.p.id : null,
-    })) || [];
+    const reviewResult = await reviewRpcResult(s.p.role === "resident" ? s.p.id : null);
+    if (reviewResult.error) {
+      a.innerHTML = h("My reviews", "Your clinical review history.") +
+        `<section class="card review-load-error"><h3>Reviews could not load</h3><p>${o(reviewResult.error.message || "Temporary connection problem")}</p><button class="btn" data-retry-reviews>Try again</button></section>`;
+      return;
+    }
+    const rows = reviewResult.data || [];
     window.observerReviewRows = new Map(rows.map((row) => [String(row.id), row]));
     a.innerHTML = s.p.role === "resident"
       ? h("Clinical reviews about you", "Positive and developmental feedback appears here. You can request reconsideration of any review.") + renderCommentsTable(rows, "resident")
@@ -376,7 +406,7 @@ const w = {
     const [i] = t.split("~"),
       [r, n, d, c, u, p] = await Promise.all([
         e.from("profiles").select("*").eq("id", i).single(),
-        e.rpc("get_visible_observer_reviews", { p_resident_id: i }),
+        reviewRpcResult(i),
         e.from("skill_logs").select("*").eq("resident_id", i),
         e
           .from("knowledge_progress")
@@ -431,7 +461,7 @@ const w = {
   },
   comments: async function () {
     if (!["owner", "assessor"].includes(s.p.role)) return g("dashboard");
-    const rows = u(await e.rpc("get_visible_observer_reviews", { p_resident_id: null })) || [];
+    const rows = u(await reviewRpcResult(null)) || [];
     window.observerReviewRows = new Map(rows.map((row) => [String(row.id), row]));
     a.innerHTML =
       h(
@@ -600,7 +630,7 @@ async function reviewPage() {
   t("#title").textContent = s.p.role === "assessor" ? "Reviews" : "Write a review";
   let historyHtml = "";
   if (s.p.role === "assessor") {
-    const visible = u(await e.rpc("get_visible_observer_reviews", { p_resident_id: null })) || [];
+    const visible = u(await reviewRpcResult(null)) || [];
     const mine = visible.filter((row) => String(row.observer_id) === String(s.p.id));
     historyHtml = `<section class="top-gap reviewer-history-section"><div class="lead compact-lead"><div><h2>My previous reviews</h2><p>Your old reviews and any reconsideration requests stay in this same tab.</p></div></div>${renderCommentsTable(mine, "author")}</section>`;
   }
@@ -1063,7 +1093,7 @@ async function logbookRequestsPage() {
 }
 
 function openLogbookReclaim(entryId, title, reviewer, reviewerId = "") {
-  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Request to reconsider ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox and copied to the Program Owner.</p><label>Justification<textarea name="justification" minlength="10" maxlength="3000" required placeholder="Explain why this request should be reconsidered"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="reviewer_id" value="${o(reviewerId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request to reconsider</button></div></form>`);
+  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Request to reconsider ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox and copied to the Program Owner.</p><label>Justification<textarea name="justification" maxlength="3000" required placeholder="Write your reason for reconsideration"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="reviewer_id" value="${o(reviewerId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request to reconsider</button></div></form>`);
 }
 function filterLogbookRequestRows() {
   const query = (t("#messageSearch")?.value || "").trim().toLowerCase();
@@ -1151,7 +1181,7 @@ async function k() {
 
   if ("observer" === i.role) {
     const [reviewsResult, logbookResult, inboxResult] = await Promise.all([
-      e.rpc("get_visible_observer_reviews", { p_resident_id: null }),
+      reviewRpcResult(null),
       e.rpc("get_logbook_messages", { p_view: "received" }),
       e.rpc("get_private_messages", { p_box: "inbox" }),
     ]);
@@ -1177,7 +1207,7 @@ async function k() {
     const [scheduleResult, assessmentsResult, commentsResult, logbookResult] = await Promise.all([
       e.rpc("my_assessor_schedule"),
       e.from("assessments").select("resident_id", { head: !0, count: "exact" }).eq("assessor_id", i.id),
-      e.rpc("get_visible_observer_reviews", { p_resident_id: null }),
+      reviewRpcResult(null),
       e.rpc("get_logbook_messages", { p_view: "received" }),
     ]);
     const nextAssessment = (scheduleResult.data || []).filter((item) => item.schedule_status !== "finished").sort((x, y) => new Date(x.starts_at) - new Date(y.starts_at))[0];
@@ -1774,7 +1804,7 @@ function H() {
     }
     if (a.dataset.reviewReconsider) {
       const row = window.observerReviewRows?.get(String(a.dataset.reviewReconsider));
-      y(`<form id="reviewReconsiderForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Review reconsideration</span><h2>Request to reconsider</h2></div><button type="button" data-close>×</button></div><p>${o(row?.comment || "Clinical review")}</p><label>Why should this review be reconsidered?<textarea name="justification" minlength="10" maxlength="3000" required></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewReconsider)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request</button></div></form>`);
+      y(`<form id="reviewReconsiderForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Review reconsideration</span><h2>Request to reconsider</h2></div><button type="button" data-close>×</button></div><p>${o(row?.comment || "Clinical review")}</p><label>Why should this review be reconsidered?<textarea name="justification" maxlength="3000" required></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewReconsider)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request</button></div></form>`);
     }
     if (a.dataset.reviewResolve) {
       if (i.open) i.close();
@@ -1867,6 +1897,7 @@ function H() {
         ),
         E()),
       a.hasAttribute("data-compose-message") && openComposer(),
+      a.hasAttribute("data-retry-reviews") && (async () => { await w.reviews(); })(),
       a.dataset.mailTab && (() => {
         document.querySelectorAll("[data-mail-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.mailTab === a.dataset.mailTab));
         document.querySelectorAll("[data-mail-panel]").forEach((panel) => panel.hidden = panel.dataset.mailPanel !== a.dataset.mailTab);
@@ -2044,8 +2075,11 @@ function H() {
             ? `<div class="reconsideration-decision review-reconsideration-decision"><p><b>Review reconsideration</b><br><small>Accepting opens the review for modification. After saving, both the resident and assigned assessor will see it as <b>Modified</b>.</small></p><div class="approval-actions"><button class="btn success-button" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="accepted">Accept & modify review</button><button class="btn secondary" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="upheld">Keep original</button></div></div>`
             : "";
           const incoming = a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook";
+          const renderedMessageBody = reviewReconsideration
+            ? reviewReconsiderationMessage(message, reviewReconsideration)
+            : `<div class="message-body">${messageBody(message)}</div>`;
           y(
-            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><div class="message-body">${messageBody(message)}</div>${reconsiderationActions}${reviewReconsiderationActions}${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
+            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small>${renderedMessageBody}${reconsiderationActions}${reviewReconsiderationActions}${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
           );
         })(),
       a.dataset.replyTo && (i.close(), openComposer(a.dataset.replyTo)),
