@@ -86,8 +86,7 @@ const s = {
     assessor: [
       ["dashboard", "Dashboard"],
       ["residents", "Assigned residents"],
-      ["write-review", "Write a review"],
-      ["reviews", "My reviews"],
+      ["write-review", "Reviews"],
       ["assessments", "Assessments"],
       ["comments", "Observer comments"],
       ["logbook", "Resident logbooks"],
@@ -249,17 +248,39 @@ const w = {
         e.from("skill_levels").select("*").eq("resident_id", s.p.id),
         e.from("skill_logs").select("skill_id").eq("resident_id", s.p.id),
       ]),
-      [d, l, c, p, m, v] = r.map(u);
-    t("#title").textContent = d.title;
-    const _ = new Map(p?.map((e) => [e.knowledge_item_id, e.status])),
-      b = new Map(m?.map((e) => [e.skill_id, e.level]));
+      [chapter, knowledgeItems, skills, knowledgeProgress, skillLevels, skillLogs] = r.map(u);
+    t("#title").textContent = chapter.title;
+    const knowledgeMap = new Map(knowledgeProgress?.map((item) => [item.knowledge_item_id, item.status])),
+      skillMap = new Map(skillLevels?.map((item) => [item.skill_id, item.level]));
+    const levelGuide = [
+      [1, "Observer"],
+      [2, "Direct supervision"],
+      [3, "Limited supervision"],
+      [4, "Independent"],
+      [5, "Expert / supervisor"],
+    ];
+    const skillRows = skills.map((skill) => {
+      const logs = skillLogs?.filter((item) => item.skill_id === skill.id).length || 0;
+      return `<tr>
+        <td class="skill-name-cell"><b>${o(skill.title)}</b>${skill.description ? `<small>${o(skill.description)}</small>` : ""}<button class="text-link skill-log-link" data-log="${skill.id}" data-name="${o(skill.title)}">Add performance · ${logs} log${logs === 1 ? "" : "s"}</button></td>
+        ${n.map((level) => `<td class="skill-level-cell"><label class="skill-level-choice" title="Level ${level}: ${o(levelGuide[level - 1][1])}"><input type="radio" name="skill-level-${skill.id}" data-level="${skill.id}" value="${level}" ${Number(skillMap.get(skill.id)) === level ? "checked" : ""}><span>${level}</span></label></td>`).join("")}
+      </tr>`;
+    }).join("");
     a.innerHTML =
       h(
-        d.title,
-        d.description,
+        chapter.title,
+        chapter.description,
         '<button class="btn secondary" data-go="chapters">All chapters</button>',
       ) +
-      ` <section class="card"> <h3>Five levels of independence</h3> <div class="scale"> ${["1 Observer", "2 Direct supervision", "3 Limited supervision", "4 Independent", "5 Expert / supervisor"].map((e) => `<div>${e}</div>`).join("")} </div> </section> <div class="grid g2 top-gap"> <section class="card"> <h3>Knowledge</h3> <div class="items">${l.map((e) => ` <label class="item knowledge-progress-item"><span class="check-line"><input class="auto-width" type="checkbox" data-k="${e.id}" ${"completed" === _.get(e.id) ? "checked" : ""}><b>${o(e.title)}</b></span><p>${o(e.description)}</p> </label>`).join("")}</div> </section> <section class="card"> <h3>Skills and logbook</h3> <div class="items">${c.map((e) => ` <article class="item"> <h4>${o(e.title)} <span class="tag">${v?.filter((s) => s.skill_id === e.id).length || 0} logs</span></h4> <p>${o(e.description)}</p> <div class="inline-actions"> <select data-level="${e.id}"> <option value="">Level</option> ${n.map((s) => `<option ${b.get(e.id) === s ? "selected" : ""}>${s}</option>`).join("")} </select> <button class="btn" data-log="${e.id}" data-name="${o(e.title)}">Add performance</button> </div> </article>`).join("")}</div> </section> </div>`;
+      `<section class="card chapter-knowledge-card">
+        <div class="section-head compact-section-head"><div><h3>Knowledge</h3><p>${knowledgeItems.length} points</p></div><div class="section-actions"><button class="btn small secondary" data-knowledge-bulk="all">Select all</button><button class="btn small secondary" data-knowledge-bulk="none">Deselect all</button></div></div>
+        <div class="items knowledge-progress-list">${knowledgeItems.map((item) => ` <label class="item knowledge-progress-item"><span class="check-line"><input class="knowledge-progress-checkbox" type="checkbox" data-k="${item.id}" ${"completed" === knowledgeMap.get(item.id) ? "checked" : ""}><b>${o(item.title)}</b></span>${item.description ? `<p>${o(item.description)}</p>` : ""}</label>`).join("") || v("No knowledge points in this chapter.")}</div>
+      </section>
+      <section class="card top-gap chapter-skills-card">
+        <div class="section-head compact-section-head"><div><h3>Skills and independence level</h3><p>Choose your current level for each skill.</p></div></div>
+        <div class="skill-level-guidance" aria-label="Five levels of independence">${levelGuide.map(([level, label]) => `<div><b>${level}</b><span>${o(label)}</span></div>`).join("")}</div>
+        <div class="table-scroll skill-level-scroll"><table class="skill-level-table"><thead><tr><th>Skill</th>${n.map((level) => `<th title="${o(levelGuide[level - 1][1])}">${level}</th>`).join("")}</tr></thead><tbody>${skillRows || `<tr><td colspan="6">No skills in this chapter.</td></tr>`}</tbody></table></div>
+      </section>`;
   },
   assessments: async function () {
     if ("observer" === s.p.role) return g("dashboard");
@@ -481,7 +502,7 @@ const w = {
         h(
           "Curriculum editor",
           "Choose a chapter to manage every knowledge point and practical skill.",
-          '<button class="btn bulk-paste-btn" data-bulk-curriculum>Bulk add by copy/paste</button>',
+          '<div class="lead-actions"><button class="btn secondary" data-export-curriculum>Export curriculum PDF</button><button class="btn bulk-paste-btn" data-bulk-curriculum>Bulk add by copy/paste</button></div>',
         ) +
         `<div class="chapters">${s
           .map((e) => {
@@ -576,7 +597,13 @@ const w = {
 
 async function reviewPage() {
   if (!["observer", "assessor"].includes(s.p.role)) return g("dashboard");
-  t("#title").textContent = "Write a review";
+  t("#title").textContent = s.p.role === "assessor" ? "Reviews" : "Write a review";
+  let historyHtml = "";
+  if (s.p.role === "assessor") {
+    const visible = u(await e.rpc("get_visible_observer_reviews", { p_resident_id: null })) || [];
+    const mine = visible.filter((row) => String(row.observer_id) === String(s.p.id));
+    historyHtml = `<section class="top-gap reviewer-history-section"><div class="lead compact-lead"><div><h2>My previous reviews</h2><p>Your old reviews and any reconsideration requests stay in this same tab.</p></div></div>${renderCommentsTable(mine, "author")}</section>`;
+  }
   a.innerHTML =
     h(
       "Record a clinical observation",
@@ -586,11 +613,56 @@ async function reviewPage() {
     <section class="card"><div class="form-grid">
       <label>Search resident<input id="findResident" placeholder="Name or username"></label>
       <label>Residency year<select id="findYear"><option value="">All years</option>${n.map((year) => `<option>${year}</option>`).join("")}</select></label>
-    </div><div id="results" class="top-gap">${v("Loading residents…")}</div></section>`;
+    </div><div id="results" class="top-gap">${v("Loading residents…")}</div></section>${historyHtml}`;
   await R();
 }
 
 
+
+
+async function openCurriculumExport() {
+  if (s.p.role !== "owner") return;
+  const chapters = u(await e.from("chapters").select("id,title,year_from,year_to,is_active,sort_order").order("year_from").order("sort_order")) || [];
+  y(`<form id="curriculumExportForm" class="modal curriculum-export-modal"><div class="modal-head"><div><span class="eyebrow">Owner export</span><h2>Export curriculum PDF</h2></div><button type="button" data-close>×</button></div>
+    <p>Select exactly which chapters should be included.</p>
+    <div class="curriculum-export-tools"><button type="button" class="btn small secondary" data-curriculum-export-select="active">Select all active</button><button type="button" class="btn small secondary" data-curriculum-export-select="all">Select all chapters</button><button type="button" class="btn small secondary" data-curriculum-export-select="none">Clear</button></div>
+    <div class="curriculum-export-list">${chapters.map((chapter) => `<label class="curriculum-export-row" data-active="${chapter.is_active ? "true" : "false"}"><input type="checkbox" name="chapter_ids" value="${chapter.id}" ${chapter.is_active ? "checked" : ""}><span><b>${o(chapter.title)}</b><small>Year ${chapter.year_from}${chapter.year_to > chapter.year_from ? `–${chapter.year_to}` : ""} · ${chapter.is_active ? "Active" : "Inactive chapter"}</small></span></label>`).join("") || '<div class="panel-empty">No chapters are available.</div>'}</div>
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Export selected chapters</button></div></form>`);
+}
+async function printCurriculumPdf(chapterIds) {
+  if (s.p.role !== "owner") return alert("Owner access required");
+  const ids = chapterIds.map(Number).filter(Boolean);
+  if (!ids.length) return alert("Choose at least one chapter to export.");
+  const popup = window.open("", "_blank");
+  if (!popup) return alert("Please allow pop-ups to export the PDF.");
+  popup.opener = null;
+  popup.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:30px">Preparing curriculum…</body></html>');
+  popup.document.close();
+  try {
+    const [chapters, knowledge, skills] = await Promise.all([
+      e.from("chapters").select("*").in("id", ids).order("year_from").order("sort_order"),
+      e.from("knowledge_items").select("*").in("chapter_id", ids).eq("is_active", true).order("sort_order"),
+      e.from("skills").select("*").in("chapter_id", ids).eq("is_active", true).order("sort_order"),
+    ]).then((results) => results.map(u));
+    const sections = chapters.map((chapter) => {
+      const k = knowledge.filter((item) => Number(item.chapter_id) === Number(chapter.id));
+      const sk = skills.filter((item) => Number(item.chapter_id) === Number(chapter.id));
+      return `<section class="chapter-pdf"><div class="chapter-pdf-head"><div><span>Year ${chapter.year_from}${chapter.year_to > chapter.year_from ? `–${chapter.year_to}` : ""}</span><h2>${o(chapter.title)}</h2>${chapter.description ? `<p>${o(chapter.description)}</p>` : ""}</div><b>${k.length} knowledge · ${sk.length} skills</b></div>
+        <h3>Knowledge</h3>${k.length ? `<table><thead><tr><th>No.</th><th>Knowledge point</th><th>Description</th></tr></thead><tbody>${k.map((item, index) => `<tr><td>${index + 1}</td><td><b>${o(item.title)}</b></td><td>${o(item.description || "—")}</td></tr>`).join("")}</tbody></table>` : '<p class="empty">No active knowledge points.</p>'}
+        <h3>Skills</h3>${sk.length ? `<table><thead><tr><th>No.</th><th>Skill</th><th>Description</th><th>Expected level</th></tr></thead><tbody>${sk.map((item, index) => `<tr><td>${index + 1}</td><td><b>${o(item.title)}</b></td><td>${o(item.description || "—")}</td><td>Level ${o(item.expected_level || "—")}</td></tr>`).join("")}</tbody></table>` : '<p class="empty">No active skills.</p>'}
+      </section>`;
+    }).join("");
+    popup.document.open();
+    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Training Curriculum</title><style>
+      @page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;color:#142033;font-family:Arial,sans-serif;font-size:10px}header{display:flex;justify-content:space-between;align-items:end;padding-bottom:8px;margin-bottom:14px;border-bottom:2px solid #123b63}header h1{margin:0;color:#081c35;font-size:20px}header p{margin:3px 0 0;color:#64748b}.chapter-pdf{margin:0 0 18px;break-inside:auto}.chapter-pdf+.chapter-pdf{padding-top:14px;border-top:1px solid #cbd5e1}.chapter-pdf-head{display:flex;justify-content:space-between;gap:15px;align-items:start}.chapter-pdf-head span{font-size:8px;font-weight:700;text-transform:uppercase;color:#1670d2}.chapter-pdf-head h2{margin:3px 0 2px;font-size:16px}.chapter-pdf-head p{margin:0;color:#64748b;line-height:1.4}.chapter-pdf-head>b{white-space:nowrap;color:#475569}h3{margin:12px 0 5px;font-size:11px;color:#0d2d50}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #b8c5d2;padding:5px 6px;vertical-align:top;overflow-wrap:anywhere}th{background:#0d4963;color:#fff;font-size:8px;text-transform:uppercase}th:first-child,td:first-child{width:7%;text-align:center}table:nth-of-type(2) th:last-child,table:nth-of-type(2) td:last-child{width:14%;text-align:center}.empty{padding:8px;border:1px dashed #cbd5e1;color:#64748b}footer{margin-top:10px;text-align:right;color:#64748b;font-size:8px}</style></head><body><header><div><h1>Cardiology Training Curriculum</h1><p>${chapters.length} selected chapter${chapters.length === 1 ? "" : "s"}</p></div><p>Generated ${d(new Date().toISOString())}</p></header>${sections}<footer>Training & Assessment Portal</footer></body></html>`);
+    popup.document.close();
+    popup.focus();
+    setTimeout(() => popup.print(), 300);
+  } catch (error) {
+    popup.close();
+    throw error;
+  }
+}
 
 function normalizeBulkText(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -1226,12 +1298,12 @@ function renderCommentsTable(rows, mode = "viewer") {
     const authorActions = mode === "author" && status === "requested"
       ? `<button class="btn small success-button" data-review-resolve="${o(row.id)}" data-review-decision="accepted">Accept / edit review</button><button class="btn small danger-button" data-review-resolve="${o(row.id)}" data-review-decision="upheld">Keep original review</button>`
       : "";
-    const statusText = status === "requested" ? "Reconsideration requested" : status === "accepted" ? "Reconsideration accepted" : status === "upheld" ? "Original review upheld" : "";
+    const statusText = status === "requested" ? "Reconsideration requested" : status === "accepted" ? "Modified after reconsideration" : status === "upheld" ? "Original review upheld" : "";
     const ownerIdentity = mode === "owner" && row.actual_observer_name && row.is_anonymous
       ? `<small class="owner-identity-note">Anonymous to resident/assessor · actual author: ${o(row.actual_observer_name)}</small>`
       : "";
     return `<article class="card review-card ${positive ? "positive-review" : "negative-review"}">
-      <div class="review-card-head"><div><span class="review-sentiment ${positive ? "positive" : "negative"}">${sentiment}</span><h3>${o(row.resident_name || "Resident")}</h3></div><span class="tag">${o(row.category || "review")}</span></div>
+      <div class="review-card-head"><div><span class="review-sentiment ${positive ? "positive" : "negative"}">${sentiment}</span><h3>${o(row.resident_name || "Resident")}</h3></div><div class="review-head-tags"><span class="tag">${o(row.category || "review")}</span>${status === "accepted" ? '<span class="tag modified-review-tag">Modified</span>' : ""}</div></div>
       <p class="review-comment">${o(row.comment || "")}</p>
       <div class="review-meta"><span>${d(row.observed_on)}${row.place ? ` · ${o(row.place)}` : ""}</span><span>By ${o(displayObserver)}</span></div>
       ${ownerIdentity}
@@ -1418,92 +1490,56 @@ function filterOwnerLogbookResidents() {
     row.hidden = Boolean(query && !(row.dataset.ownerLogbookSearch || "").includes(query));
   });
 }
+
+function logbookExportSections(entries, includeResident = false) {
+  const interventions = entries.filter((entry) => entry.activity_category !== "conference");
+  const conferences = entries.filter((entry) => entry.activity_category === "conference");
+  const preferredOrder = ["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "Pericardiocentesis", "Coronary angiography", "PCI", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Rotablation", "IVUS"];
+  const groups = new Map();
+  interventions.forEach((entry) => {
+    const name = entry.procedure_name || entry.title || "Other intervention";
+    const list = groups.get(name) || [];
+    list.push(entry);
+    groups.set(name, list);
+  });
+  const groupNames = [...groups.keys()].sort((left, right) => {
+    const li = preferredOrder.indexOf(left), ri = preferredOrder.indexOf(right);
+    if (li >= 0 || ri >= 0) return (li < 0 ? 999 : li) - (ri < 0 ? 999 : ri);
+    return left.localeCompare(right);
+  });
+  const interventionColspan = includeResident ? 8 : 7;
+  let running = 0;
+  const interventionRows = groupNames.map((name) => {
+    const items = groups.get(name).sort((x, y) => new Date(x.activity_date) - new Date(y.activity_date));
+    return `<tr class="procedure-group"><td colspan="${interventionColspan}">${o(name)} <span>${items.length} case${items.length === 1 ? "" : "s"}</span></td></tr>${items.map((entry) => {
+      running += 1;
+      return `<tr><td>${running}</td>${includeResident ? `<td>${o(entry.resident_name || "—")}</td>` : ""}<td>${d(entry.activity_date)}</td><td>${o(participationLabel(entry.participation_mode))}</td><td>${o(entry.hospital || "—")}</td><td>${o(entry.senior_resident_name || "—")}</td><td class="signature">${o(entry.assessor_name || "—")}</td><td>${o(entry.description || "—")}</td></tr>`;
+    }).join("")}`;
+  }).join("");
+  const summaryRows = groupNames.map((name) => `<tr><td>${o(name)}</td><td>${groups.get(name).length}</td></tr>`).join("");
+  const conferenceRows = conferences.sort((x, y) => new Date(x.activity_date) - new Date(y.activity_date)).map((entry, index) => `<tr><td>${index + 1}</td>${includeResident ? `<td>${o(entry.resident_name || "—")}</td>` : ""}<td>${o(entry.title || "Conference")}</td><td>${entry.conference_participation === "gave_speech" ? "Presenter" : "Attended"}</td><td>${d(entry.activity_date)}</td><td class="signature">${o(entry.assessor_name || "—")}</td><td>${o(entry.description || "—")}</td></tr>`).join("");
+  return `<section class="export-section"><h2>Interventions</h2>${interventions.length ? `<table class="intervention-table"><thead><tr><th>No.</th>${includeResident ? "<th>Resident</th>" : ""}<th>Date</th><th>Participation</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th><th>Notes</th></tr></thead><tbody>${interventionRows}</tbody></table><div class="intervention-summary"><h3>Intervention summary</h3><table><thead><tr><th>Intervention</th><th>Total</th></tr></thead><tbody>${summaryRows}<tr class="summary-total"><td><b>Total interventions</b></td><td><b>${interventions.length}</b></td></tr></tbody></table></div>` : '<div class="empty-logbook">No approved interventions.</div>'}</section>
+    <section class="export-section conferences-section"><h2>Conferences</h2>${conferences.length ? `<table class="conference-table"><thead><tr><th>No.</th>${includeResident ? "<th>Resident</th>" : ""}<th>Conference</th><th>Participation</th><th>Date</th><th>Assessor signature</th><th>Notes</th></tr></thead><tbody>${conferenceRows}</tbody></table><p class="section-total"><b>Total conferences:</b> ${conferences.length}</p>` : '<div class="empty-logbook">No approved conferences.</div>'}</section>`;
+}
+function logbookExportCss() {
+  return `@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#142033;font-family:Arial,sans-serif;font-size:9px}.resident-page{break-after:page;page-break-after:always}.resident-page:last-child{break-after:auto;page-break-after:auto}header{display:flex;justify-content:space-between;align-items:end;margin-bottom:9px;border-bottom:2px solid #0d4963;padding-bottom:6px}h1{margin:0 0 2px;font-size:18px;color:#081c35}header p,p{margin:0;color:#526174}.export-section{margin-top:12px}.export-section h2{margin:0 0 6px;font-size:13px;color:#0d2d50}.export-section h3{margin:8px 0 4px;font-size:10px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #aebbc8;padding:4px 5px;vertical-align:middle;overflow-wrap:anywhere}th{background:#0d4963;color:white;font-size:8px;text-transform:uppercase;letter-spacing:.2px}tbody tr:not(.procedure-group):nth-child(even){background:#f5f8fb}.procedure-group td{padding:5px 7px;background:#dceaf5;color:#0d2d50;font-weight:800;text-align:left}.procedure-group span{float:right;font-size:8px;color:#526174}.signature{font-family:"Segoe Script","Brush Script MT",cursive;font-size:12px;font-style:italic;color:#153d68;text-align:center}.intervention-summary{width:48%;min-width:330px;margin:8px 0 0 auto}.intervention-summary th:first-child,.intervention-summary td:first-child{text-align:left}.intervention-summary th:last-child,.intervention-summary td:last-child{width:22%;text-align:center}.summary-total td{background:#edf4f9}.section-total{margin-top:6px;text-align:right}.empty-logbook{padding:15px;border:1px dashed #aebbc8;text-align:center;color:#526174}.conferences-section{margin-top:16px;padding-top:10px;border-top:1px solid #ccd7e2}footer{margin-top:6px;text-align:right;color:#6c7886;font-size:8px}`;
+}
+
 function printOwnerLogbooks(residentIds = null) {
   if (s.p.role !== "owner") return alert("Owner access required");
   const residents = s.ownerLogbookResidents || [];
   const chosenIds = residentIds ? new Set(residentIds.map(String)) : null;
-  const chosenResidents = residents.filter((resident) =>
-    chosenIds ? chosenIds.has(String(resident.id)) : true,
-  );
-  if (!chosenResidents.length) {
-    alert("Select at least one resident to export.");
-    return;
-  }
+  const chosenResidents = residents.filter((resident) => chosenIds ? chosenIds.has(String(resident.id)) : true);
+  if (!chosenResidents.length) return alert("Select at least one resident to export.");
   const allEntries = s.logbookPrintEntries || [];
-  const pages = chosenResidents
-    .map((resident) => {
-      const entries = allEntries
-        .filter(
-          (entry) =>
-            String(entry.resident_id) === String(resident.id) &&
-            entry.status === "approved",
-        )
-        .sort(
-          (left, right) =>
-            new Date(left.activity_date) - new Date(right.activity_date) ||
-            new Date(left.created_at) - new Date(right.created_at),
-        );
-      const rows = entries
-        .map((entry, index) => {
-          const conference = entry.activity_category === "conference";
-          const activity = conference
-            ? entry.title
-            : entry.procedure_name || entry.title;
-          const participation = conference
-            ? entry.conference_participation === "gave_speech"
-              ? "Presenter"
-              : "Attendee"
-            : participationLabel(entry.participation_mode);
-          return `<tr>
-            <td>${index + 1}</td>
-            <td>${conference ? "Conference" : "Manual intervention"}</td>
-            <td>${o(activity)}</td>
-            <td>${participation}</td>
-            <td>${d(entry.activity_date)}</td>
-            <td>${conference ? "—" : o(entry.hospital || "—")}</td>
-            <td>${conference ? "—" : o(entry.senior_resident_name || "—")}</td>
-            <td class="signature">${o(entry.assessor_name || "—")}</td>
-          </tr>`;
-        })
-        .join("");
-      return `<section class="resident-page">
-        <header><div><h1>Approved Resident E-logbook</h1><p>${o(resident.display_name)} · Year ${o(resident.logbook_year || resident.residency_year || "—")}${resident.role && resident.role !== "resident" ? ` · archived ${o(m(resident.role))}` : ""}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>
-        ${entries.length ? `<table><thead><tr><th>No.</th><th>Category</th><th>Activity</th><th>Role / Participation</th><th>Date</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty-logbook">No approved logbook entries.</div>'}
-        <footer>Generated ${d(new Date().toISOString())}</footer>
-      </section>`;
-    })
-    .join("");
+  const pages = chosenResidents.map((resident) => {
+    const entries = allEntries.filter((entry) => String(entry.resident_id) === String(resident.id) && entry.status === "approved");
+    return `<section class="resident-page"><header><div><h1>Approved Resident E-logbook</h1><p>${o(resident.display_name)} · Year ${o(resident.logbook_year || resident.residency_year || "—")}${resident.role && resident.role !== "resident" ? ` · archived ${o(m(resident.role))}` : ""}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>${logbookExportSections(entries, false)}<footer>Generated ${d(new Date().toISOString())}</footer></section>`;
+  }).join("");
   const popup = window.open("", "_blank");
-  if (!popup) {
-    alert("Please allow pop-ups to export the PDF.");
-    return;
-  }
+  if (!popup) return alert("Please allow pop-ups to export the PDF.");
   popup.opener = null;
-  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Resident e-logbooks</title><style>
-    @page { size: A4 landscape; margin: 10mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; color: #142033; font-family: Arial, sans-serif; font-size: 9px; }
-    .resident-page { break-after: page; page-break-after: always; }
-    .resident-page:last-child { break-after: auto; page-break-after: auto; }
-    header { display: flex; justify-content: space-between; align-items: end; margin-bottom: 7px; border-bottom: 2px solid #0d4963; padding-bottom: 6px; }
-    h1 { margin: 0 0 2px; font-size: 18px; color: #081c35; }
-    p { margin: 0; color: #526174; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    th, td { border: 1px solid #aebbc8; padding: 4px 5px; vertical-align: middle; overflow-wrap: anywhere; }
-    th { background: #0d4963; color: white; font-size: 8px; text-transform: uppercase; letter-spacing: .25px; }
-    tbody tr:nth-child(even) { background: #f2f7fa; }
-    th:nth-child(1), td:nth-child(1) { width: 4%; text-align: center; }
-    th:nth-child(2), td:nth-child(2) { width: 12%; }
-    th:nth-child(3), td:nth-child(3) { width: 19%; }
-    th:nth-child(4), td:nth-child(4) { width: 12%; }
-    th:nth-child(5), td:nth-child(5) { width: 11%; white-space: nowrap; }
-    th:nth-child(6), td:nth-child(6) { width: 10%; }
-    th:nth-child(7), td:nth-child(7) { width: 15%; }
-    th:nth-child(8), td:nth-child(8) { width: 17%; }
-    .signature { font-family: "Segoe Script", "Brush Script MT", cursive; font-size: 13px; font-style: italic; color: #153d68; text-align: center; white-space: normal; }
-    .empty-logbook { padding: 28px; border: 1px dashed #aebbc8; text-align: center; color: #526174; }
-    footer { margin-top: 5px; text-align: right; color: #6c7886; font-size: 8px; }
-  </style></head><body>${pages}</body></html>`);
+  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Resident e-logbooks</title><style>${logbookExportCss()}</style></head><body>${pages}</body></html>`);
   popup.document.close();
   popup.focus();
   setTimeout(() => popup.print(), 250);
@@ -1541,70 +1577,15 @@ async function resetOwnerLogbooks(residentIds, resetAll = false) {
   await P();
 }
 function printApprovedLogbook() {
-  const entries = (s.logbookPrintEntries || []).filter(
-    (entry) => entry.status === "approved",
-  );
-  if (!entries.length) {
-    alert("There are no approved logbook entries to export.");
-    return;
-  }
-  const rows = entries
-    .map((entry, index) => {
-      const conference = entry.activity_category === "conference";
-      const activity = conference
-        ? entry.title
-        : entry.procedure_name || entry.title;
-      const participation = conference
-        ? entry.conference_participation === "gave_speech"
-          ? "Presenter"
-          : "Attendee"
-        : participationLabel(entry.participation_mode);
-      return `<tr>
-        <td>${index + 1}</td>
-        <td>${o(entry.resident_name)}</td>
-        <td>${conference ? "Conference" : "Manual intervention"}</td>
-        <td>${o(activity)}</td>
-        <td>${participation}</td>
-        <td>${d(entry.activity_date)}</td>
-        <td>${conference ? "—" : o(entry.hospital || "—")}</td>
-        <td>${conference ? "—" : o(entry.senior_resident_name || "—")}</td>
-        <td class="signature">${o(entry.assessor_name || "—")}</td>
-      </tr>`;
-    })
-    .join("");
+  const entries = (s.logbookPrintEntries || []).filter((entry) => entry.status === "approved");
+  if (!entries.length) return alert("There are no approved logbook entries to export.");
   const residentNames = [...new Set(entries.map((entry) => entry.resident_name))];
+  const includeResident = residentNames.length > 1;
   const reportFor = residentNames.length === 1 ? residentNames[0] : "Approved resident activities";
   const popup = window.open("", "_blank");
-  if (!popup) {
-    alert("Please allow pop-ups to export the PDF.");
-    return;
-  }
+  if (!popup) return alert("Please allow pop-ups to export the PDF.");
   popup.opener = null;
-  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Approved e-logbook</title><style>
-    @page { size: A4 landscape; margin: 10mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; color: #142033; font-family: Arial, sans-serif; font-size: 9px; }
-    header { display: flex; justify-content: space-between; align-items: end; margin-bottom: 7px; border-bottom: 2px solid #0d4963; padding-bottom: 6px; }
-    h1 { margin: 0 0 2px; font-size: 18px; color: #081c35; }
-    p { margin: 0; color: #526174; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    th, td { border: 1px solid #aebbc8; padding: 4px 5px; vertical-align: middle; overflow-wrap: anywhere; }
-    th { background: #0d4963; color: white; font-size: 8px; text-transform: uppercase; letter-spacing: .25px; }
-    tbody tr:nth-child(even) { background: #f2f7fa; }
-    th:nth-child(1), td:nth-child(1) { width: 3%; text-align: center; }
-    th:nth-child(2), td:nth-child(2) { width: 13%; }
-    th:nth-child(3), td:nth-child(3) { width: 11%; }
-    th:nth-child(4), td:nth-child(4) { width: 16%; }
-    th:nth-child(5), td:nth-child(5) { width: 9%; }
-    th:nth-child(6), td:nth-child(6) { width: 10%; white-space: nowrap; }
-    th:nth-child(7), td:nth-child(7) { width: 8%; }
-    th:nth-child(8), td:nth-child(8) { width: 14%; }
-    th:nth-child(9), td:nth-child(9) { width: 16%; }
-    .signature { font-family: "Segoe Script", "Brush Script MT", cursive; font-size: 13px; font-style: italic; color: #153d68; text-align: center; white-space: normal; }
-    footer { margin-top: 5px; text-align: right; color: #6c7886; font-size: 8px; }
-  </style></head><body><header><div><h1>Approved Resident E-logbook</h1><p>${o(reportFor)}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>
-  <table><thead><tr><th>No.</th><th>Resident</th><th>Category</th><th>Activity</th><th>Role / Participation</th><th>Date</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th></tr></thead><tbody>${rows}</tbody></table>
-  <footer>Generated ${d(new Date().toISOString())}</footer></body></html>`);
+  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Approved e-logbook</title><style>${logbookExportCss()}</style></head><body><section class="resident-page"><header><div><h1>Approved Resident E-logbook</h1><p>${o(reportFor)}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>${logbookExportSections(entries, includeResident)}<footer>Generated ${d(new Date().toISOString())}</footer></section></body></html>`);
   popup.document.close();
   popup.focus();
   setTimeout(() => popup.print(), 250);
@@ -1754,6 +1735,22 @@ function H() {
         [t] = a.dataset.curriculumEdit.split("~");
       e && T(t, e.chapter_id, e);
     }
+    if (a.hasAttribute("data-export-curriculum")) await openCurriculumExport();
+    if (a.dataset.curriculumExportSelect) {
+      const mode = a.dataset.curriculumExportSelect;
+      document.querySelectorAll('#curriculumExportForm input[name="chapter_ids"]').forEach((box) => {
+        box.checked = mode === "all" ? true : mode === "none" ? false : box.closest("label")?.dataset.active === "true";
+      });
+    }
+    if (a.dataset.knowledgeBulk) {
+      const checked = a.dataset.knowledgeBulk === "all";
+      const boxes = [...document.querySelectorAll(".knowledge-progress-checkbox")];
+      boxes.forEach((box) => (box.checked = checked));
+      if (boxes.length) {
+        u(await e.from("knowledge_progress").upsert(boxes.map((box) => ({ resident_id: s.p.id, knowledge_item_id: Number(box.dataset.k), status: checked ? "completed" : "in_progress" })), { onConflict: "resident_id,knowledge_item_id" }));
+        b(checked ? "All knowledge points selected" : "All knowledge points deselected");
+      }
+    }
     if (a.hasAttribute("data-bulk-curriculum")) await openBulkCurriculumPaste();
     if (a.dataset.bulkCurriculumKind) await openBulkCurriculumPaste(a.dataset.bulkCurriculumKind, a.dataset.chapterId);
     if (a.dataset.aiCurriculum) openGuidelineGenerator(a.dataset.aiCurriculum);
@@ -1780,6 +1777,7 @@ function H() {
       y(`<form id="reviewReconsiderForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Review reconsideration</span><h2>Request to reconsider</h2></div><button type="button" data-close>×</button></div><p>${o(row?.comment || "Clinical review")}</p><label>Why should this review be reconsidered?<textarea name="justification" minlength="10" maxlength="3000" required></textarea></label><input type="hidden" name="review_id" value="${o(a.dataset.reviewReconsider)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request</button></div></form>`);
     }
     if (a.dataset.reviewResolve) {
+      if (i.open) i.close();
       const row = window.observerReviewRows?.get(String(a.dataset.reviewResolve));
       const decision = a.dataset.reviewDecision;
       if (decision === "accepted") {
@@ -2007,7 +2005,7 @@ function H() {
           if (!message) return;
           if ((a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook") && !message.is_read) {
             await e.rpc("mark_private_message_read", {
-              p_message_id: Number(message.id),
+              p_message_id: String(message.id),
             });
             message.is_read = true;
             const row = a.closest(".message-row");
@@ -2019,6 +2017,15 @@ function H() {
             isReconsiderationRequest(message) &&
             Boolean(message.logbook_entry_id) &&
             s.p.role !== "owner";
+          let reviewReconsideration = null;
+          if (a.dataset.messageBox === "inbox" && message.subject === "Review reconsideration requested" && ["observer", "assessor"].includes(s.p.role)) {
+            const linked = await e.rpc("get_review_reconsideration_for_message_v1041", { p_message_id: String(message.id) });
+            if (!linked.error && linked.data) {
+              reviewReconsideration = linked.data;
+              window.observerReviewRows ||= new Map();
+              window.observerReviewRows.set(String(reviewReconsideration.id), reviewReconsideration);
+            }
+          }
           const decisionTitle = message.subject === "Logbook approval" || message.subject === "Reconsideration approved"
             ? `<span class="decision-title"><span class="decision-icon approved">✓</span><span>${o(message.subject)}</span></span>`
             : message.subject === "Logbook rejection" || message.subject === "Reconsideration rejected"
@@ -2032,9 +2039,12 @@ function H() {
           const reconsiderationActions = reconsiderationRequest
             ? `<div class="reconsideration-decision"><p><b>Reconsideration decision</b><br><small>Approve changes your original rejection to approval. Reject keeps the original rejection.</small></p><div class="approval-actions"><button class="btn danger-button" data-reconsider-reject="${message.logbook_entry_id}" data-reconsider-message-id="${message.id}">Reject reconsideration</button><button class="btn success-button" data-reconsider-approve="${message.logbook_entry_id}" data-reconsider-message-id="${message.id}">Approve reconsideration</button></div></div>`
             : "";
+          const reviewReconsiderationActions = reviewReconsideration
+            ? `<div class="reconsideration-decision review-reconsideration-decision"><p><b>Review reconsideration</b><br><small>Accepting opens the review for modification. After saving, both the resident and assigned assessor will see it as <b>Modified</b>.</small></p><div class="approval-actions"><button class="btn success-button" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="accepted">Accept & modify review</button><button class="btn secondary" data-review-resolve="${o(reviewReconsideration.id)}" data-review-decision="upheld">Keep original</button></div></div>`
+            : "";
           const incoming = a.dataset.messageBox === "inbox" || a.dataset.messageBox === "logbook";
           y(
-            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><div class="message-body">${messageBody(message)}</div>${reconsiderationActions}${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
+            `<article class="modal message-view"><div class="modal-head"><div><span class="eyebrow">${incoming ? "From" : "To"} ${o(incoming ? message.sender_name : message.receiver_name)}</span><h2>${decisionTitle}</h2></div><button type="button" data-close>×</button></div><small>${l(message.created_at)}</small><div class="message-body">${messageBody(message)}</div>${reconsiderationActions}${reviewReconsiderationActions}${incoming ? `<div class="actions">${approvalActions}${isLogbook ? "" : `<button class="btn secondary" data-reply-to="${message.sender_id}">Reply</button>`}</div>` : ""}</article>`,
           );
         })(),
       a.dataset.replyTo && (i.close(), openComposer(a.dataset.replyTo)),
@@ -2186,6 +2196,13 @@ function H() {
         if (a) throw a;
         if (t?.error) throw new Error(t.error);
       }
+      if ("curriculumExportForm" === a.id) {
+        const ids = r.getAll("chapter_ids").map(Number);
+        if (!ids.length) throw new Error("Choose at least one chapter");
+        i.close();
+        await printCurriculumPdf(ids);
+        return;
+      }
       if ("reviewForm" === a.id) {
         u(await e.rpc("submit_observer_review_v2", {
           p_resident_id: r.get("resident_id"),
@@ -2198,7 +2215,7 @@ function H() {
         }));
         i.close();
         b("Review submitted and the resident and Program Owner were notified");
-        return void g(s.p.role === "assessor" ? "comments" : "reviews");
+        return void g(s.p.role === "assessor" ? "write-review" : "reviews");
       }
       if ("reviewReconsiderForm" === a.id) {
         u(await e.rpc("resident_request_review_reconsideration", {
@@ -2219,6 +2236,7 @@ function H() {
         }));
         i.close();
         b(r.get("decision") === "accepted" ? "Reconsideration accepted and review updated" : "Original review upheld");
+        if (s.p.role === "assessor") return void (await reviewPage());
         return void (await w.reviews());
       }
       if ("ownerAccountEditForm" === a.id) {
