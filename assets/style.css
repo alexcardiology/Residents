@@ -4673,3 +4673,145 @@ dialog:has(.review-thread-modal) {
   .assessment-session-actions .btn{width:100%}
 }
 .dashboard-tile.current-assessment-tile{position:relative}
+
+/* ==========================================================
+   v1.0.68 — Prior Experience Logbook
+   ========================================================== */
+.prior-experience-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  margin: 0 0 18px;
+  border: 1px solid #f0b44c;
+  border-left: 6px solid #ef4444;
+  border-radius: 18px;
+  background: linear-gradient(135deg,#fff7ed,#fffdf7 60%,#fef2f2);
+  box-shadow: 0 8px 22px rgba(146,64,14,.08);
+}
+.priority-alert-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: #fff;
+  font-size: 28px;
+  box-shadow: inset 0 0 0 1px #fed7aa;
+}
+.prior-experience-alert h2,
+.prior-experience-alert h3 { margin: 3px 0 5px; }
+.prior-experience-alert p { margin: 0; color: #5f6470; }
+.priority-submit {
+  background: #9a3412 !important;
+  color: #fff !important;
+  border-color: #9a3412 !important;
+}
+.prior-experience-form { display: grid; gap: 16px; }
+.prior-draft-card { overflow: hidden; }
+.prior-table-tools { margin: 8px 0 12px; max-width: 360px; }
+.prior-count-table { min-width: 940px; }
+.prior-count-table th:first-child,
+.prior-count-table td:first-child { width: 230px; }
+.prior-count-table th:not(:first-child):not(:last-child),
+.prior-count-table td:not(:first-child):not(:last-child) { width: 145px; text-align: center; }
+.prior-count-table .prior-count-input {
+  width: 82px;
+  min-width: 68px;
+  padding: 9px 8px;
+  text-align: center;
+  margin: 0 auto;
+}
+.prior-count-table input[data-prior-intervention-notes] { min-width: 160px; }
+.prior-conference-list { display: grid; gap: 10px; }
+.prior-conference-row {
+  display: grid;
+  grid-template-columns: minmax(220px,1.4fr) minmax(150px,.8fr) minmax(150px,.75fr) minmax(200px,1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  background: #f9fbfd;
+}
+.prior-final-submit-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid #fdba74;
+  background: #fffaf4;
+}
+.prior-final-submit-card .actions { margin: 0; flex-wrap: wrap; }
+.warning-callout,
+.priority-info-strip {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #7c2d12;
+  margin-bottom: 12px;
+}
+.prior-verification-card h4 { margin: 16px 0 8px; }
+.prior-readonly-summary { display: grid; gap: 10px; }
+.prior-summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.prior-summary-head h3 { margin: 2px 0; }
+.prior-review-queue {
+  margin-bottom: 16px;
+  border: 1px solid #f6c76b;
+  background: linear-gradient(180deg,#fffaf0,#fff);
+}
+.prior-review-queue .table small { display: block; margin-top: 3px; color: #64748b; }
+.prior-review-modal { width: min(920px,94vw); }
+.prior-review-modal .prior-readonly-summary {
+  max-height: 48vh;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+.prior-scope-modal { width: min(820px,94vw); }
+.scope-modal-tools { display: flex; gap: 8px; margin-bottom: 10px; }
+.prior-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px;
+  max-height: 52vh;
+  overflow: auto;
+  padding: 4px;
+}
+.prior-scope-grid .check-row {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+@media (max-width: 900px) {
+  .prior-experience-alert { grid-template-columns: auto minmax(0,1fr); }
+  .prior-experience-alert > .btn,
+  .prior-experience-alert > .tag { grid-column: 1 / -1; justify-self: stretch; text-align: center; }
+  .prior-conference-row { grid-template-columns: 1fr 1fr; }
+  .prior-conference-row > button { grid-column: 1 / -1; justify-self: start; }
+  .prior-final-submit-card { align-items: flex-start; flex-direction: column; }
+  .prior-scope-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .prior-experience-alert { grid-template-columns: 1fr; padding: 14px; }
+  .priority-alert-icon { width: 44px; height: 44px; font-size: 24px; }
+  .prior-conference-row { grid-template-columns: 1fr; }
+  .prior-count-table { min-width: 780px; }
+}

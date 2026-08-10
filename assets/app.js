@@ -18,6 +18,12 @@ const s = {
   i = t("#modal"),
   r = t("#modalBody"),
   n = [1, 2, 3, 4, 5],
+  PRIOR_EXPERIENCE_INTERVENTIONS = [
+    "CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming",
+    "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography",
+    "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy",
+    "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR", "CPR"
+  ],
   o = (e) =>
     String(e ?? "").replace(
       /[&<>"']/g,
@@ -117,6 +123,7 @@ const s = {
       ["assessments", "My assessments"],
       ["reviews", "My reviews"],
       ["logbook", "My logbook"],
+      ["prior-experience", "Prior experience"],
       ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
       ["profile", "My profile"],
@@ -234,11 +241,12 @@ function countUnreadInboxThreads(messages = [], reviewActions = []) {
 
 async function q() {
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
-  const [normalResult, logbookResult, reconsiderationResult, reviewActionResult] = await Promise.all([
+  const [normalResult, logbookResult, reconsiderationResult, reviewActionResult, priorExperienceResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_logbook_messages", { p_view: juniorResident ? "updates" : "received" }),
     e.rpc("get_my_logbook_reconsiderations_v1044"),
     e.rpc("get_my_review_message_actions_v1051"),
+    e.rpc("get_prior_experience_review_queue_v1068"),
   ]);
   const count = countUnreadInboxThreads(normalResult.data || [], reviewActionResult.data || []);
   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
@@ -247,7 +255,8 @@ async function q() {
   });
   const messageCount = (logbookResult.data || []).filter((message) => juniorResident ? !message.is_read : !message.logbook_action_taken).length;
   const reconsiderationCount = (reconsiderationResult.data || []).filter((row) => String(row.reviewer_id) === String(s.p.id) && row.status === "requested").length;
-  const logbookCount = messageCount + reconsiderationCount;
+  const priorExperienceCount = (priorExperienceResult.data || []).length;
+  const logbookCount = messageCount + reconsiderationCount + priorExperienceCount;
   document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
     badge.textContent = logbookCount;
     badge.hidden = logbookCount === 0;
@@ -668,6 +677,8 @@ const w = {
   "owner-assessment-center": ownerAssessmentCenterPage,
   "owner-logbook-center": ownerLogbookCenterPage,
   "owner-intervention-audit": ownerInterventionAuditPage,
+  "owner-prior-experience-assignments": ownerPriorExperienceAssignmentsPage,
+  "prior-experience": priorExperiencePage,
   "owner-tools": ownerToolsPage,
   "owner-test-reset": ownerTestResetPage,
   "write-review": reviewPage,
@@ -1493,13 +1504,14 @@ async function ownerMessageCleanupPage() {
 async function logbookRequestsPage() {
   t("#title").textContent = "Logbook requests";
   a.classList.add("mail-content");
-  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult, reconsiderationResult] = await Promise.all([
+  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult, reconsiderationResult, priorExperienceQueueResult] = await Promise.all([
     e.rpc("get_logbook_messages", { p_view: "received" }),
     e.rpc("get_logbook_messages", { p_view: "sent" }),
     e.rpc("get_logbook_messages", { p_view: "updates" }),
     e.rpc("get_logbook_messages", { p_view: "trash" }),
     e.rpc("get_hidden_logbook_message_ids"),
     e.rpc("get_my_logbook_reconsiderations_v1044"),
+    e.rpc("get_prior_experience_review_queue_v1068"),
   ]);
   const hiddenIds = new Set((u(hiddenResult) || []).map((row) => String(row.message_id)));
   const keepVisible = (items) => (u(items) || []).filter((message) => !hiddenIds.has(String(message.id)));
@@ -1507,7 +1519,8 @@ async function logbookRequestsPage() {
     sent = keepVisible(sentResult),
     updates = keepVisible(updatesResult),
     trash = keepVisible(trashResult),
-    reconsiderations = u(reconsiderationResult) || [];
+    reconsiderations = u(reconsiderationResult) || [],
+    priorExperienceQueue = u(priorExperienceQueueResult) || [];
 
   window.logbookReconsiderationRows = new Map(reconsiderations.map((row) => [String(row.id), row]));
   const reviewerReconsiderations = reconsiderations
@@ -1642,7 +1655,7 @@ async function logbookRequestsPage() {
   const pendingReconsiderationCount = reviewerReconsiderations.filter((item) => item.status === "requested").length;
   const requestBadgeCount = received.filter((item) => !item.logbook_action_taken).length + pendingReconsiderationCount;
 
-  a.innerHTML = h("Logbook requests", "Each reconsideration stays attached to the original request, so the activity, original decision, resident reason and your new decision remain in one place.") + `
+  a.innerHTML = h("Logbook requests", "Each reconsideration stays attached to the original request, so the activity, original decision, resident reason and your new decision remain in one place.") + renderPriorExperienceReviewQueue(priorExperienceQueue) + `
     <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
         ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${requestBadgeCount ? "" : "hidden"}>${requestBadgeCount}</span></button>` : ""}
@@ -1871,6 +1884,7 @@ async function ownerLogbookCenterPage() {
     ${dashboardTile("Resident logbooks", "Open", "Review, export or reset selected/all logbooks", "logbook")}
     ${dashboardTile("Logbook requests", "Review", "Sequential senior → assessor approval workflow", "logbook-requests")}
     ${dashboardTile("Intervention audit", "Fairness", "Compare exposure, trials, successes and failed trials by residency year", "owner-intervention-audit")}
+    ${dashboardTile("Prior experience assessors", "Scopes", "Assign each assessor the interventions or conferences they supervise", "owner-prior-experience-assignments")}
     ${dashboardTile("Message cleanup", "Clean", "Clear message copies without changing resident logbooks", "message-cleanup")}
   </div>`;
 }
@@ -2597,6 +2611,137 @@ function printApprovedLogbook() {
   popup.focus();
   setTimeout(() => popup.print(), 250);
 }
+
+function priorExperienceStatusBadge(status) {
+  const value = String(status || "draft");
+  const map = {
+    draft: ["Draft — editable", "neutral"],
+    senior_review: ["Waiting for 2 senior approvals", "warning"],
+    assessor_review: ["Senior-approved · assessor verification", "warning"],
+    rejected: ["Action needed · rejected", "danger"],
+    approved: ["✓ Verified Prior Experience", "success"],
+  };
+  const [label, cls] = map[value] || [value, "neutral"];
+  return `<span class="tag ${cls}">${o(label)}</span>`;
+}
+function priorExperienceLatestReconsideration(data, kind, reviewId) {
+  return (data?.reconsiderations || [])
+    .filter((row) => row.review_kind === kind && String(row.review_id) === String(reviewId))
+    .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0] || null;
+}
+function priorExperienceReconsiderationAction(data, kind, review, reviewerName, scope = "") {
+  if (!review || review.status !== "rejected") return "";
+  const rec = priorExperienceLatestReconsideration(data, kind, review.id);
+  if (rec?.status === "requested") return `<span class="tag warning">Reconsideration pending</span>`;
+  if (rec?.status === "approved") return `<span class="tag success">💡 Reconsideration approved</span>`;
+  if (rec?.status === "rejected") return `<span class="tag danger">Reconsideration rejected</span>`;
+  return `<button class="btn small reclaim-button" data-prior-reconsider="${o(kind)}" data-prior-review-id="${o(review.id)}" data-prior-reviewer="${o(reviewerName || "Reviewer")}" data-prior-scope="${o(scope)}">Request to reconsider</button>`;
+}
+function priorExperienceReviewTimeline(data) {
+  const decisionBadge = (status) => status === "approved" ? '<span class="tag success">Approved</span>' : status === "rejected" ? '<span class="tag danger">Rejected</span>' : '<span class="tag warning">Pending</span>';
+  const seniorRows = (data?.senior_reviews || []).map((row) => `<tr><td>${o(row.senior_name || "Senior resident")}</td><td>${decisionBadge(row.status)}</td><td>${o(row.note || "—")}</td><td>${priorExperienceReconsiderationAction(data,"senior",row,row.senior_name)}</td></tr>`).join("");
+  const scopeRows = (data?.scope_reviews || []).map((row) => `<tr><td>${o(row.scope_name)}</td><td>${row.assessor_name ? o(row.assessor_name) : '<span class="muted">Awaiting assigned assessor</span>'}</td><td>${row.status === "approved" ? '<span class="tag success">Approved</span>' : row.status === "rejected" ? '<span class="tag danger">Rejected</span>' : '<span class="tag warning">Pending</span>'}</td><td>${o(row.note || "—")}</td><td>${priorExperienceReconsiderationAction(data,"assessor",row,row.assessor_name,row.scope_name)}</td></tr>`).join("");
+  return `<section class="card prior-verification-card"><div class="section-head"><div><span class="eyebrow">Verification trail</span><h3>Senior and assessor decisions</h3></div>${priorExperienceStatusBadge(data?.header?.status)}</div>
+    <h4>Senior verification — both are required first</h4><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Senior resident</th><th>Status</th><th>Comment</th><th></th></tr></thead><tbody>${seniorRows || '<tr><td colspan="4">Senior reviews will appear after final submission.</td></tr>'}</tbody></table></div>
+    <h4 class="top-gap">Assessor verification — appears only after both seniors approve</h4><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Scope</th><th>Assessor</th><th>Status</th><th>Comment</th><th></th></tr></thead><tbody>${scopeRows || '<tr><td colspan="5">Assessor verification has not started yet.</td></tr>'}</tbody></table></div>
+  </section>`;
+}
+function priorExperienceSummaryHtml(data, scope = "") {
+  const header = data?.header || {};
+  let interventions = data?.interventions || [];
+  let conferences = data?.conferences || [];
+  if (scope && scope !== "Whole prior logbook") {
+    if (scope === "Conferences") interventions = [];
+    else { interventions = interventions.filter((row) => row.intervention_name === scope); conferences = []; }
+  }
+  const interventionRows = interventions.map((row) => `<tr><td><b>${o(row.intervention_name)}</b></td><td>${Number(row.attended_count)||0}</td><td>${Number(row.assisted_count)||0}</td><td>${Number(row.solo_guided_count)||0}</td><td>${Number(row.solo_unguided_count)||0}</td><td>${o(row.notes || "—")}</td></tr>`).join("");
+  const conferenceRows = conferences.map((row) => `<tr><td>${o(row.conference_name)}</td><td>${row.participation === "speaker" ? "Speaker / Presenter" : "Attended"}</td><td>${row.conference_date ? d(row.conference_date) : "—"}</td><td>${o(row.notes || "—")}</td></tr>`).join("");
+  return `<div class="prior-readonly-summary">
+    <div class="prior-summary-head"><div><span class="eyebrow">Resident</span><h3>${o(header.resident_name || "Resident")}</h3><small>${header.residency_year ? `Year ${o(header.residency_year)}` : ""}</small></div>${priorExperienceStatusBadge(header.status)}</div>
+    ${interventions.length ? `<h4>Previous interventions</h4><div class="table-scroll"><table class="table prior-count-table"><thead><tr><th>Intervention</th><th>Attended</th><th>With assistance</th><th>Solo under guidance</th><th>Solo without guidance</th><th>Notes</th></tr></thead><tbody>${interventionRows}</tbody></table></div>` : ""}
+    ${conferences.length ? `<h4 class="top-gap">Previous conferences</h4><div class="table-scroll"><table class="table"><thead><tr><th>Conference</th><th>Role</th><th>Date</th><th>Notes</th></tr></thead><tbody>${conferenceRows}</tbody></table></div>` : ""}
+    ${header.resident_notes ? `<div class="message-body top-gap"><b>Resident notes / evidence</b><br>${o(header.resident_notes)}</div>` : ""}
+  </div>`;
+}
+function priorConferenceDraftRow(item = {}, index = Date.now()) {
+  return `<div class="prior-conference-row" data-prior-conference-row>
+    <label>Conference name<input data-prior-conference-name value="${o(item.conference_name || "")}" placeholder="Conference / meeting name"></label>
+    <label>Participation<select data-prior-conference-role><option value="attended" ${item.participation !== "speaker" ? "selected" : ""}>Attended</option><option value="speaker" ${item.participation === "speaker" ? "selected" : ""}>Speaker / Presenter</option></select></label>
+    <label>Date <small>optional</small><input type="date" data-prior-conference-date value="${o(item.conference_date || "")}"></label>
+    <label>Notes <small>optional</small><input data-prior-conference-notes value="${o(item.notes || "")}" placeholder="Evidence / details"></label>
+    <button type="button" class="btn small danger" data-prior-remove-conference aria-label="Remove conference">Remove</button>
+  </div>`;
+}
+async function priorExperiencePage() {
+  if (s.p.role !== "resident") return g("dashboard");
+  t("#title").textContent = "Prior Experience Logbook";
+  const [submissionResult, seniorsResult] = await Promise.all([
+    e.rpc("get_prior_experience_submission_v1068", { p_logbook_id: null }),
+    e.rpc("get_prior_experience_eligible_seniors_v1068"),
+  ]);
+  if (submissionResult.error) throw submissionResult.error;
+  if (seniorsResult.error) throw seniorsResult.error;
+  const data = submissionResult.data || null;
+  const header = data?.header || { status: "draft" };
+  const editable = !data || header.status === "draft";
+  const seniors = seniorsResult.data || [];
+  const interventionMap = new Map((data?.interventions || []).map((row) => [row.intervention_name, row]));
+  const selectedSeniorIds = new Set([header.senior_1_id, header.senior_2_id].filter(Boolean).map(String));
+  const seniorOptions = (selected = "", selectedName = "") => {
+    const rows = seniors.map((person) => `<option value="${o(person.id)}" ${String(selected)===String(person.id)?"selected":""}>${o(person.display_name)} · Year ${o(person.residency_year)}</option>`);
+    if (selected && !seniors.some((person) => String(person.id)===String(selected))) rows.unshift(`<option value="${o(selected)}" selected>${o(selectedName || "Previously selected senior")}</option>`);
+    return `<option value="">Choose senior resident</option>${rows.join("")}`;
+  };
+  const priority = `<section class="prior-experience-alert priority-alert"><div class="priority-alert-icon">🚨</div><div><span class="eyebrow">Top priority · one-time retrospective record</span><h2>Prior Experience Logbook</h2><p>Record clinical experience completed before routine use of this e-logbook. <b>Save and edit freely as a draft.</b> Final submission locks editing, then requires <b>two senior-resident approvals first</b> before intervention-specific assessors can review it.</p></div>${priorExperienceStatusBadge(header.status)}</section>`;
+  if (!editable) {
+    a.innerHTML = h("Prior Experience Logbook", "Your retrospective experience is locked after final submission and follows the senior → assessor verification pathway.", '<button class="btn secondary" data-go="logbook">Back to My logbook</button>') + priority + priorExperienceSummaryHtml(data) + priorExperienceReviewTimeline(data);
+    return;
+  }
+  const rows = PRIOR_EXPERIENCE_INTERVENTIONS.map((name) => {
+    const row = interventionMap.get(name) || {};
+    return `<tr data-prior-intervention="${o(name)}"><td><b>${o(name)}</b></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.attended_count)||0}" data-prior-count="attended_count"></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.assisted_count)||0}" data-prior-count="assisted_count"></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.solo_guided_count)||0}" data-prior-count="solo_guided_count"></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.solo_unguided_count)||0}" data-prior-count="solo_unguided_count"></td><td><input value="${o(row.notes || "")}" data-prior-intervention-notes placeholder="Optional"></td></tr>`;
+  }).join("");
+  const conferences = data?.conferences || [];
+  a.innerHTML = h("Prior Experience Logbook", "Build your retrospective record as a draft, review it carefully, then submit once for formal verification.", '<button class="btn secondary" data-go="logbook">Back to My logbook</button>') + priority + `
+    <form id="priorExperienceDraftForm" class="prior-experience-form">
+      <section class="card prior-draft-card"><div class="section-head"><div><span class="eyebrow">Step 1</span><h3>Previous interventions</h3><p>Enter summary counts only. <b>Failed trial is intentionally not used in Prior Experience.</b></p></div></div>
+        <div class="prior-table-tools"><input type="search" id="priorInterventionSearch" placeholder="Search intervention"></div>
+        <div class="table-scroll"><table class="table prior-count-table"><thead><tr><th>Intervention</th><th>Attended</th><th>With assistance</th><th>Solo under guidance</th><th>Solo without guidance</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div>
+      </section>
+      <section class="card prior-draft-card"><div class="section-head"><div><span class="eyebrow">Step 2</span><h3>Previous conferences</h3><p>Add each conference separately as Attended or Speaker / Presenter.</p></div><button type="button" class="btn secondary" data-prior-add-conference>Add conference</button></div><div id="priorConferenceRows" class="prior-conference-list">${conferences.length ? conferences.map((item,idx)=>priorConferenceDraftRow(item,idx)).join("") : priorConferenceDraftRow({},0)}</div></section>
+      <section class="card prior-draft-card"><div class="section-head"><div><span class="eyebrow">Step 3</span><h3>Choose two senior verifiers</h3><p>Both must be eligible senior residents from a <b>higher residency year</b>; Year 5 may use other Year 5 senior peers because there is no higher cohort. Assessors will not see the submission until both seniors approve it.</p></div></div>
+        ${seniors.length < 2 ? '<div class="warning-callout"><b>Verification cannot be finally submitted yet.</b><span>At least two eligible senior residents are required for final submission.</span></div>' : ''}
+        <div class="form-grid"><label>Senior verifier 1<select name="senior_1_id">${seniorOptions(header.senior_1_id,header.senior_1_name)}</select></label><label>Senior verifier 2<select name="senior_2_id">${seniorOptions(header.senior_2_id,header.senior_2_name)}</select></label><label class="full">General notes / evidence<textarea name="resident_notes" placeholder="Optional context, prior records, certificates, or explanation">${o(header.resident_notes || "")}</textarea></label></div>
+      </section>
+      <section class="card prior-final-submit-card"><div><span class="eyebrow">Final step</span><h3>Save draft or submit permanently</h3><p><b>Save draft</b> keeps everything editable. <b>Final submission</b> locks this record and immediately sends it to both senior verifiers.</p></div><div class="actions"><button type="submit" class="btn secondary" data-prior-submit-mode="draft">Save draft</button><button type="submit" class="btn priority-submit" data-prior-submit-mode="final" ${seniors.length < 2 ? "disabled" : ""}>Final submission for verification</button></div></section>
+    </form>`;
+}
+function renderPriorExperienceReviewQueue(rows = []) {
+  if (!rows.length) return "";
+  window.priorExperienceReviewRows = new Map(rows.map((row) => [`${row.review_kind}~${row.review_id}`, row]));
+  return `<section class="card prior-review-queue"><div class="section-head"><div><span class="eyebrow">Prior Experience Logbook</span><h3>Verification requests</h3><p>Senior approvals are completed first. Assessor scopes only appear after both senior approvals.</p></div><span class="nav-badge inline-badge">${rows.length}</span></div><div class="table-scroll"><table class="table"><thead><tr><th>Resident</th><th>Stage / scope</th><th>Request</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><b>${o(row.resident_name)}</b><small>${yearChip(row.residency_year)}</small></td><td>${row.review_kind === "senior" ? "Senior verification" : `Assessor · ${o(row.scope_name)}`}</td><td>${row.reconsideration_status === "requested" ? `<span class="tag warning">Reconsideration requested</span><small>${o(row.reconsideration_reason || "")}</small>` : '<span class="tag warning">Pending verification</span>'}</td><td><button class="btn small ${row.reconsideration_status === "requested" ? "reclaim-button" : ""}" data-prior-review-open="${o(row.review_kind)}~${o(row.review_id)}">${row.reconsideration_status === "requested" ? "Review reconsideration" : "Review evidence"}</button></td></tr>`).join("")}</tbody></table></div></section>`;
+}
+async function openPriorExperienceReviewer(row) {
+  if (!row) return;
+  const result = await e.rpc("get_prior_experience_submission_v1068", { p_logbook_id: Number(row.logbook_id) });
+  const data = u(result);
+  const isRec = row.reconsideration_status === "requested" && row.reconsideration_id;
+  y(`<form id="${isRec ? "priorExperienceReconsiderationResolveForm" : "priorExperienceReviewForm"}" class="modal prior-review-modal"><div class="modal-head"><div><span class="eyebrow">${row.review_kind === "senior" ? "Senior verification" : "Assessor verification"}</span><h2>${o(row.scope_name || "Prior Experience Logbook")}</h2><p>${o(row.resident_name)} · Year ${o(row.residency_year)}</p></div><button type="button" data-close>×</button></div>${isRec ? `<div class="review-request-callout"><span>Resident reconsideration request</span><p>${o(row.reconsideration_reason || "No reason provided")}</p></div>` : ""}${priorExperienceSummaryHtml(data,row.scope_name)}<label class="top-gap">${isRec ? "Reconsideration note" : "Comment before decision"}<textarea name="note" maxlength="3000" placeholder="Optional for approval; required for rejection"></textarea></label><input type="hidden" name="review_kind" value="${o(row.review_kind)}"><input type="hidden" name="review_id" value="${o(row.review_id)}">${isRec ? `<input type="hidden" name="reconsideration_id" value="${o(row.reconsideration_id)}">` : ""}<div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button type="submit" class="btn danger" data-prior-review-decision="rejected">Reject</button><button type="submit" class="btn success-button" data-prior-review-decision="approved">Approve</button></div></form>`);
+}
+async function ownerPriorExperienceAssignmentsPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "Prior experience assessors";
+  const rows = u(await e.rpc("get_prior_experience_assessor_assignments_v1068")) || [];
+  window.priorExperienceAssessorAssignments = new Map(rows.map((row) => [String(row.assessor_id), row]));
+  a.innerHTML = h("Prior Experience assessor scopes", "Assign each assessor the interventions they supervise. These assignments control which retrospective intervention evidence reaches that assessor after both senior approvals.", '<button class="btn secondary" data-go="owner-logbook-center">Back to Logbooks</button>') + `<section class="card"><div class="priority-info-strip"><b>Important:</b><span>Prior Experience is verified in sequence: Resident final submission → 2 senior approvals → the assessor(s) assigned to each intervention scope.</span></div><div class="table-scroll top-gap"><table class="table"><thead><tr><th>Assessor</th><th>Assigned scopes</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><b>${o(row.display_name)}</b></td><td>${(row.scopes || []).length ? (row.scopes || []).map((scope)=>`<span class="tag neutral">${o(scope)}</span>`).join(" ") : '<span class="muted">No interventions assigned</span>'}</td><td><button class="btn small" data-prior-assessor-manage="${o(row.assessor_id)}">Manage</button></td></tr>`).join("") || '<tr><td colspan="3">No active assessors.</td></tr>'}</tbody></table></div></section>`;
+}
+function openPriorExperienceAssessorScopes(row) {
+  if (!row) return;
+  const selected = new Set((row.scopes || []).map(String));
+  const scopes = [...PRIOR_EXPERIENCE_INTERVENTIONS, "Conferences"];
+  y(`<form id="priorExperienceAssessorScopesForm" class="modal prior-scope-modal"><div class="modal-head"><div><span class="eyebrow">Owner assignment</span><h2>${o(row.display_name)}</h2><p>Choose the Prior Experience interventions this assessor is responsible for verifying.</p></div><button type="button" data-close>×</button></div><div class="scope-modal-tools"><button type="button" class="btn small secondary" data-prior-scope-select-all>Select all</button><button type="button" class="btn small secondary" data-prior-scope-clear>Clear</button></div><div class="prior-scope-grid">${scopes.map((scope)=>`<label class="check-row"><input type="checkbox" name="scopes" value="${o(scope)}" ${selected.has(scope)?"checked":""}><span>${o(scope)}</span></label>`).join("")}</div><input type="hidden" name="assessor_id" value="${o(row.assessor_id)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save intervention assignments</button></div></form>`);
+}
+
 async function P() {
   t("#title").textContent =
     "resident" === s.p.role
@@ -2680,6 +2825,10 @@ async function P() {
     "resident" === s.p.role
       ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>The senior resident receives the request first; the assessor receives it only after senior approval.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR", "CPR"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="failed_trial" required><span>Failed trial</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
+  const priorExperienceBanner = s.p.role === "resident"
+    ? `<section class="prior-experience-alert priority-alert no-print"><div class="priority-alert-icon">🚨</div><div><span class="eyebrow">Top priority</span><h3>Prior Experience Logbook</h3><p>Before routine use of this e-logbook, record your previous interventions and conferences in one retrospective record. Keep it as an editable draft until you are ready for final verification.</p></div><button class="btn priority-submit" data-go="prior-experience">Open Prior Experience Logbook</button></section>`
+    : "";
+
   const pending =
     "resident" === s.p.role
       ? assigned.filter((entry) => "pending" === entry.status)
@@ -2709,6 +2858,7 @@ async function P() {
           : "Review assigned approval requests and monitor verified resident activity.",
         s.p.role === "owner" ? "" : '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
       ) +
+      priorExperienceBanner +
       ownerLogbookManager +
       submitCard +
       (pending.length
@@ -2839,6 +2989,28 @@ function H() {
       const person = s.accountUsers.get(String(a.dataset.manageAccount));
       person && openAccountManagement(person);
     }
+    if (a.hasAttribute("data-prior-add-conference")) {
+      const list = t("#priorConferenceRows");
+      list?.insertAdjacentHTML("beforeend", priorConferenceDraftRow({}, Date.now()));
+    }
+    if (a.hasAttribute("data-prior-remove-conference")) {
+      a.closest("[data-prior-conference-row]")?.remove();
+      if (!document.querySelector("[data-prior-conference-row]")) t("#priorConferenceRows")?.insertAdjacentHTML("beforeend", priorConferenceDraftRow({}, Date.now()));
+    }
+    if (a.dataset.priorReviewOpen) {
+      const row = window.priorExperienceReviewRows?.get(String(a.dataset.priorReviewOpen));
+      await openPriorExperienceReviewer(row);
+    }
+    if (a.dataset.priorReconsider) {
+      y(`<form id="priorExperienceReconsiderForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Prior Experience reconsideration</span><h2>Request to reconsider</h2><p>${o(a.dataset.priorScope || "Verification decision")}</p></div><button type="button" data-close>×</button></div><p>Your reason will be sent to <b>${o(a.dataset.priorReviewer || "the rejecting reviewer")}</b> and copied to the Program Owner.</p><label>Reason<textarea name="reason" maxlength="3000" required placeholder="Explain why this prior-experience decision should be reconsidered"></textarea></label><input type="hidden" name="review_kind" value="${o(a.dataset.priorReconsider)}"><input type="hidden" name="review_id" value="${o(a.dataset.priorReviewId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send reconsideration request</button></div></form>`);
+    }
+    if (a.dataset.priorAssessorManage) {
+      const row = window.priorExperienceAssessorAssignments?.get(String(a.dataset.priorAssessorManage));
+      openPriorExperienceAssessorScopes(row);
+    }
+    if (a.hasAttribute("data-prior-scope-select-all")) document.querySelectorAll('#priorExperienceAssessorScopesForm input[name="scopes"]').forEach((box)=>box.checked=true);
+    if (a.hasAttribute("data-prior-scope-clear")) document.querySelectorAll('#priorExperienceAssessorScopesForm input[name="scopes"]').forEach((box)=>box.checked=false);
+
     if (a.hasAttribute("data-owner-logbook-select-all")) {
       document.querySelectorAll("[data-owner-logbook-search]:not([hidden]) .owner-logbook-resident-check").forEach((box) => (box.checked = true));
     }
@@ -3278,6 +3450,11 @@ function H() {
       return;
     }
     if (e.target.id === "auditResidentSearch") renderOwnerInterventionAudit();
+    if (e.target.id === "priorInterventionSearch") {
+      const query = String(e.target.value || "").trim().toLowerCase();
+      document.querySelectorAll("[data-prior-intervention]").forEach((row) => { row.hidden = Boolean(query && !String(row.dataset.priorIntervention || "").toLowerCase().includes(query)); });
+    }
+
     if (e.target.id === "messageSearch") {
       if (t("#requestResidentFilter")) return filterLogbookRequestRows();
       filterPrivateMessageRows();
@@ -3354,6 +3531,88 @@ function H() {
         b(r.get("decision") === "accepted" ? "Reconsideration accepted and review updated" : "Original review upheld");
         if (s.p.role === "assessor") return void (await reviewPage());
         return void (await w.reviews());
+      }
+      if ("priorExperienceDraftForm" === a.id) {
+        const interventions = [...a.querySelectorAll("[data-prior-intervention]")].map((row) => ({
+          intervention_name: row.dataset.priorIntervention,
+          attended_count: Number(row.querySelector('[data-prior-count="attended_count"]')?.value || 0),
+          assisted_count: Number(row.querySelector('[data-prior-count="assisted_count"]')?.value || 0),
+          solo_guided_count: Number(row.querySelector('[data-prior-count="solo_guided_count"]')?.value || 0),
+          solo_unguided_count: Number(row.querySelector('[data-prior-count="solo_unguided_count"]')?.value || 0),
+          notes: String(row.querySelector("[data-prior-intervention-notes]")?.value || "").trim() || null,
+        }));
+        const conferences = [...a.querySelectorAll("[data-prior-conference-row]")].map((row) => ({
+          conference_name: String(row.querySelector("[data-prior-conference-name]")?.value || "").trim(),
+          participation: row.querySelector("[data-prior-conference-role]")?.value || "attended",
+          conference_date: row.querySelector("[data-prior-conference-date]")?.value || null,
+          notes: String(row.querySelector("[data-prior-conference-notes]")?.value || "").trim() || null,
+        })).filter((row) => row.conference_name);
+        const mode = t.submitter?.dataset.priorSubmitMode || "draft";
+        u(await e.rpc("save_prior_experience_draft_v1068", {
+          p_senior_1_id: r.get("senior_1_id") || null,
+          p_senior_2_id: r.get("senior_2_id") || null,
+          p_interventions: interventions,
+          p_conferences: conferences,
+          p_notes: r.get("resident_notes") || null,
+        }));
+        if (mode === "final") {
+          u(await e.rpc("submit_prior_experience_v1068"));
+          b("Prior Experience Logbook finally submitted · editing is now locked and both senior verifiers were notified");
+        } else b("Prior Experience draft saved");
+        await q();
+        return void (await priorExperiencePage());
+      }
+      if ("priorExperienceReviewForm" === a.id) {
+        const decision = t.submitter?.dataset.priorReviewDecision;
+        const note = String(r.get("note") || "").trim();
+        if (!decision) throw new Error("Choose Approve or Reject");
+        if (decision === "rejected" && !note) throw new Error("Write a comment before rejecting prior experience");
+        const status = u(await e.rpc("review_prior_experience_v1068", {
+          p_review_kind: r.get("review_kind"),
+          p_review_id: Number(r.get("review_id")),
+          p_decision: decision,
+          p_note: note || null,
+        }));
+        i.close();
+        await q();
+        b(`${decision === "approved" ? "Prior experience approved" : "Prior experience rejected"} · ${status}`);
+        return void (await logbookRequestsPage());
+      }
+      if ("priorExperienceReconsiderationResolveForm" === a.id) {
+        const decision = t.submitter?.dataset.priorReviewDecision;
+        const note = String(r.get("note") || "").trim();
+        if (!decision) throw new Error("Choose Approve or Reject");
+        if (decision === "rejected" && !note) throw new Error("Write a note when keeping the rejection");
+        const status = u(await e.rpc("resolve_prior_experience_reconsideration_v1068", {
+          p_reconsideration_id: Number(r.get("reconsideration_id")),
+          p_decision: decision,
+          p_note: note || null,
+        }));
+        i.close();
+        await q();
+        b(`${decision === "approved" ? "Reconsideration approved" : "Reconsideration rejected"} · ${status}`);
+        return void (await logbookRequestsPage());
+      }
+      if ("priorExperienceReconsiderForm" === a.id) {
+        u(await e.rpc("request_prior_experience_reconsideration_v1068", {
+          p_review_kind: r.get("review_kind"),
+          p_review_id: Number(r.get("review_id")),
+          p_reason: r.get("reason"),
+        }));
+        i.close();
+        await q();
+        b("Prior Experience reconsideration request sent");
+        return void (await priorExperiencePage());
+      }
+      if ("priorExperienceAssessorScopesForm" === a.id) {
+        const scopes = r.getAll("scopes").map(String);
+        u(await e.rpc("owner_set_prior_experience_assessor_scopes_v1068", {
+          p_assessor_id: r.get("assessor_id"),
+          p_scopes: scopes,
+        }));
+        i.close();
+        b(`${scopes.length} Prior Experience scope${scopes.length === 1 ? "" : "s"} assigned`);
+        return void (await ownerPriorExperienceAssignmentsPage());
       }
       if ("ownerAccountEditForm" === a.id) {
         const currentRole = String(r.get("current_role") || "");
