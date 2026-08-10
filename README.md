@@ -1,69 +1,73 @@
-# Resident Training & Assessment — v1.0.68
+# Resident Training & Assessment v1.0.69
 
-## New: Prior Experience Logbook
+Incremental update after v1.0.68.
 
-This version adds a separate **Prior Experience Logbook** for retrospective clinical experience completed before routine use of the current e-logbook.
+## What is new
 
-### Resident workflow
+### Owner: Prior Experience control
+Owner → Logbooks now includes **Prior experience status**.
 
-- A high-priority `🚨 Prior Experience Logbook` alert is shown at the top of **My logbook**.
-- It opens a separate page.
-- The resident can keep the record as an editable **Draft** until final submission.
-- Previous interventions are entered as summary counts:
-  - Attended
-  - Performed with assistance
-  - Performed solo under guidance
-  - Performed solo without guidance
-- `Failed trial` is intentionally not used in Prior Experience.
-- Previous conferences are entered individually as:
-  - Attended
-  - Speaker / Presenter
-- Two different senior residents must be selected.
-- Senior reviewers are normally from a higher residency year. Year 5 may use other Year 5 senior peers because no higher cohort exists.
-- **Final submission locks editing.**
+It shows every active resident as:
+- Not started
+- Editing (draft)
+- Pending senior review
+- Pending assessor review
+- Action needed / rejected
+- Finished / verified
 
-### Verification sequence
+Owner can open any existing Prior Experience Logbook, including finished records, and review the intervention/conference evidence plus every senior and assessor signature.
 
-1. Resident finally submits.
-2. Both selected senior residents must approve.
-3. Only after both senior approvals are complete are assessor verification scopes created.
-4. Each intervention is routed only to assessors assigned by the Program Owner to that intervention.
-5. Conferences use the separate `Conferences` assessor scope.
-6. Assessors may write a comment before approval or rejection.
-7. A rejected senior or assessor decision can be sent for reconsideration.
-8. Accepted reconsideration changes that rejection to approval and the overall Prior Experience status is recalculated.
-9. The final status is **Verified Prior Experience** only after both senior approvals and every required assessor scope is approved.
+There is also **Reset ALL Prior Experience**. It deletes retrospective Prior Experience submissions and their verification history/messages only. It does not delete accounts, current e-logbooks, curriculum, reviews or assessments. The assessor-pair assignment matrix is preserved.
 
-### Owner intervention-assessor assignment
+### Exactly two assessors per Prior Experience intervention
+Owner → Logbooks → **Prior experience assessors** is now a pair matrix rather than broad scopes.
 
-Open:
+Each intervention/scope has exactly:
+1. **Junior assessor**
+2. **Older assessor**
 
-**Owner → Logbooks → Prior experience assessors**
+They must be two different active assessor accounts. Both signatures are required after the two senior-resident signatures. Each assessor sees only their exact assigned signature request. If one rejects, the resident can request reconsideration from that exact assessor.
 
-Each active assessor has an editable checklist of interventions plus `Conferences`.
+If Owner edits a pair later, pending signatures are rerouted to the new assessor. Already-completed signatures remain historical and are not rewritten.
 
-Multiple assessors may be assigned to the same intervention. A pending scope is visible to the relevant assigned assessors; the first completed assessor decision resolves that scope.
+### Automatic 48-hour reminders + Owner Pending Requests
+The migration creates a structured pending-request monitor for requests awaiting a senior resident or assessor decision, including:
+- current e-logbook senior approval
+- current e-logbook assessor approval
+- conference approval
+- current e-logbook reconsideration
+- review reconsideration
+- Prior Experience senior verification
+- Prior Experience Junior/Older assessor signatures
+- Prior Experience reconsideration
 
-## Installation
+After 48 hours without a decision, the original request/thread is marked unread again and receives an **automatic 48-hour reminder**.
 
-1. Run:
-   `sql/resident_training_v1.0.68.sql`
-   in **Supabase → SQL Editor**.
+Owner → Logbooks → **Pending requests** shows:
+- duration since issue
+- sender
+- topic
+- involved senior/assessor
+- request type
+- whether the 48-hour reminder has been sent
+
+### Scheduling
+The SQL tries to enable `pg_cron` and schedules the reminder processor hourly. If the project does not allow automatic `pg_cron` enablement, the portal also calls the same processor when authenticated users are active, so overdue reminders are still caught on portal activity.
+
+For fully time-independent hourly reminders, make sure **pg_cron** is enabled in Supabase Database → Extensions. Re-running the v1.0.69 SQL will then create/update the hourly job.
+
+## Install
+1. Run `sql/resident_training_v1.0.69.sql` in Supabase SQL Editor.
 2. Replace:
    - `app.html`
    - `index.html`
    - `assets/app.js`
    - `assets/style.css`
-3. Keep your existing `assets/supabase.js` and existing Edge Functions.
-4. Hard-refresh the deployed site.
+3. Keep your existing `assets/supabase.js` and `assets/login.js`.
+4. Hard-refresh the site.
 
-## Data safety
+## Important first setup
+Before residents reach the Prior Experience assessor stage, open:
+**Owner → Logbooks → Prior experience assessors**
 
-This migration creates new Prior Experience tables and RPC functions. It does not delete or reset existing:
-
-- accounts
-- curriculum
-- current e-logbook entries
-- formal assessments
-- reviews
-- messages
+Assign both a Junior assessor and an Older assessor to every intervention you plan to verify.

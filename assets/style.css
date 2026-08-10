@@ -4815,3 +4815,53 @@ dialog:has(.review-thread-modal) {
   .prior-conference-row { grid-template-columns: 1fr; }
   .prior-count-table { min-width: 780px; }
 }
+
+/* v1.0.69 — Prior Experience owner audit, assessor pairs, pending requests */
+.assessor-pair-table .signature-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  border: 1px solid #dbe4ee;
+  background: #f8fafc;
+}
+.assessor-pair-table .signature-chip.junior { background: #eef7ff; color: #075985; border-color: #bae6fd; }
+.assessor-pair-table .signature-chip.senior { background: #f3f0ff; color: #5b21b6; border-color: #ddd6fe; }
+.prior-pair-modal { width: min(700px, 94vw); }
+.pair-assignment-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.signature-role { display: block; margin-bottom: 6px; font-weight: 900; }
+.signature-role.junior { color: #0369a1; }
+.signature-role.senior { color: #6d28d9; }
+.prior-status-filters,
+.pending-request-filters {
+  display: grid;
+  grid-template-columns: 1.4fr .7fr .9fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.prior-owner-status-table td small,
+.pending-requests-table td small { display: block; margin-top: 4px; color: #64748b; }
+.prior-owner-review-modal { width: min(960px,94vw); }
+.prior-owner-review-modal .prior-verification-card { margin-top: 14px; }
+.prior-owner-metrics,
+.pending-owner-metrics { margin: 14px 0; }
+.duration-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #eef2f7;
+  font-weight: 900;
+}
+.duration-pill.overdue { background: #fff1f2; color: #b91c1c; }
+.pending-overdue-row { background: #fffafb; }
+.pending-overdue-row td:first-child { box-shadow: inset 4px 0 0 #dc2626; }
+
+@media (max-width: 900px) {
+  .pair-assignment-grid,
+  .prior-status-filters,
+  .pending-request-filters { grid-template-columns: 1fr; }
+}
