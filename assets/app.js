@@ -545,7 +545,7 @@ const w = {
         <div class="account-email"><small>Email</small><span>${o(person.email || "—")}</span></div>
         <div class="account-role"><small>Role</small><b>${o(roleLabel)}</b></div>
         <div class="account-year"><small>${person.role === "assessor" ? "Cohorts" : "Residency"}</small>${access}</div>
-        <div class="account-actions">${person.role === "owner" ? '<span class="tag">Owner</span>' : `<button class="btn secondary small" data-manage-account="${person.id}">Manage</button><button class="btn ${person.is_active ? "danger" : "success"} small" data-status="${person.id}" data-active="${!person.is_active}">${person.is_active ? "Suspend" : "Activate"}</button>`}</div>
+        <div class="account-actions">${person.role === "owner" ? `<span class="tag">Owner</span><button class="btn secondary small" data-manage-account="${person.id}">Edit name</button>` : `<button class="btn secondary small" data-manage-account="${person.id}">Manage</button><button class="btn ${person.is_active ? "danger" : "success"} small" data-status="${person.id}" data-active="${!person.is_active}">${person.is_active ? "Suspend" : "Activate"}</button>`}</div>
       </article>`;
     }).join("");
     a.innerHTML =
@@ -1838,18 +1838,21 @@ function syncEditAccountYearField() {
   }
 }
 function openAccountManagement(person) {
-  if (s.p.role !== "owner" || !person || person.role === "owner") return;
+  if (s.p.role !== "owner" || !person) return;
+  const isOwnerAccount = person.role === "owner";
   y(`<form id="ownerAccountEditForm" class="modal compact-modal">
     <div class="modal-head"><div><span class="eyebrow">Owner account control</span><h2>${o(person.display_name || person.username)}</h2><p>@${o(person.username || "")} · ${o(person.email || "")}</p></div><button type="button" data-close>×</button></div>
     <div class="form-grid compact-form-grid">
-      <label>Account role<select name="role" id="editAccountRole" required><option value="resident" ${person.role === "resident" ? "selected" : ""}>Resident</option><option value="observer" ${person.role === "observer" ? "selected" : ""}>Observer</option><option value="assessor" ${person.role === "assessor" ? "selected" : ""}>Assessor</option></select></label>
-      <label id="editAccountYearField">Residency year<select name="residency_year">${n.map((year) => `<option value="${year}" ${Number(person.residency_year || 1) === year ? "selected" : ""}>Year ${year}</option>`).join("")}</select></label>
+      <label class="span-2">Display name<input name="display_name" type="text" maxlength="120" value="${o(person.display_name || "")}" placeholder="Name shown throughout the portal" required></label>
+      ${isOwnerAccount ? `<label>Account role<input type="text" value="Program Owner" disabled></label>` : `<label>Account role<select name="role" id="editAccountRole" required><option value="resident" ${person.role === "resident" ? "selected" : ""}>Resident</option><option value="observer" ${person.role === "observer" ? "selected" : ""}>Observer</option><option value="assessor" ${person.role === "assessor" ? "selected" : ""}>Assessor</option></select></label>
+      <label id="editAccountYearField">Residency year<select name="residency_year">${n.map((year) => `<option value="${year}" ${Number(person.residency_year || 1) === year ? "selected" : ""}>Year ${year}</option>`).join("")}</select></label>`}
     </div>
-    <div class="role-change-note"><b>Historical data is preserved.</b><span>Changing role or residency year does not delete previous assessments, reviews or resident logbook records. If changed to Assessor, choose assessment cohorts later in Assessor assignments.</span></div>
+    <div class="role-change-note"><b>Display name only affects the visible profile name.</b><span>Username and email remain unchanged. Historical records are preserved. Role/year changes also keep previous assessments, reviews and resident logbook records.</span></div>
     <input type="hidden" name="user_id" value="${o(person.id)}">
-    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save account allocation</button></div>
+    <input type="hidden" name="current_role" value="${o(person.role)}">
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>${isOwnerAccount ? "Save display name" : "Save account changes"}</button></div>
   </form>`);
-  syncEditAccountYearField();
+  if (!isOwnerAccount) syncEditAccountYearField();
 }
 async function ownerAssessmentCenterPage() {
   if (s.p.role !== "owner") return g("dashboard");
@@ -2498,7 +2501,7 @@ function filterOwnerLogbookResidents() {
 function logbookExportSections(entries, includeResident = false) {
   const interventions = entries.filter((entry) => entry.activity_category !== "conference");
   const conferences = entries.filter((entry) => entry.activity_category === "conference");
-  const preferredOrder = ["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR"];
+  const preferredOrder = ["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR", "CPR"];
   const groups = new Map();
   interventions.forEach((entry) => {
     const name = entry.procedure_name || entry.title || "Other intervention";
@@ -2675,7 +2678,7 @@ async function P() {
   const todayValue = today.toISOString().slice(0, 10);
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>The senior resident receives the request first; the assessor receives it only after senior approval.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="failed_trial" required><span>Failed trial</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
+      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>The senior resident receives the request first; the assessor receives it only after senior approval.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR", "CPR"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="failed_trial" required><span>Failed trial</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
       : "";
   const pending =
     "resident" === s.p.role
@@ -3353,15 +3356,18 @@ function H() {
         return void (await w.reviews());
       }
       if ("ownerAccountEditForm" === a.id) {
-        const role = String(r.get("role") || "");
+        const currentRole = String(r.get("current_role") || "");
+        const role = currentRole === "owner" ? null : String(r.get("role") || "");
         const year = role === "resident" ? Number(r.get("residency_year")) : null;
-        const result = u(await e.rpc("owner_update_account_assignment", {
+        const displayName = String(r.get("display_name") || "").trim();
+        u(await e.rpc("owner_manage_account_v1067", {
           p_user_id: r.get("user_id"),
+          p_display_name: displayName,
           p_role: role,
           p_residency_year: year,
         }));
         i.close();
-        b(`Account updated to ${m(role)}${role === "resident" ? ` · Year ${year}` : ""}`);
+        b(currentRole === "owner" ? `Display name updated to ${displayName}` : `Account updated · ${displayName} · ${m(role)}${role === "resident" ? ` · Year ${year}` : ""}`);
         return void (await w.users());
       }
       if (a.classList.contains("assessor-year-form")) {

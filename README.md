@@ -1,28 +1,15 @@
-# Resident Training v1.0.65
+# Resident Training & Assessment v1.0.67
 
-Frontend-only assessment workflow update. No SQL migration is required if v1.0.64 is already installed.
+## New
+Owner → Accounts can now edit the **Display name** of any account.
 
-## Changes
-- Current/open assessment has a distinct dark-blue/teal theme on Resident and Assessor dashboards.
-- Current/open assessment is highlighted separately on the Assessments page.
-- Assessor can open the current assessment session from the Assessments page or dashboard.
-- Assessment Session lists every assigned resident in that assessment year.
-- Each resident has View evidence and Start assessment actions.
-- Starting an assessment now loads the resident's evidence above the scoring form:
-  - checked Knowledge first
-  - unchecked Knowledge below
-  - Skills with current Level of Dependence, expected level and log count
-  - approved e-logbook
-  - clinical/behavioural reviews
-  - previous formal assessments
-- Evidence remains read-only for the assessor.
-- Existing Assessment Portfolio PDF export remains available.
+- Click **Manage** for Resident / Assessor / Observer accounts.
+- Click **Edit name** beside the Program Owner account.
+- Username and email are unchanged.
+- For non-owner accounts, role and residency-year controls remain in the same window.
+- Existing assessments, reviews and logbook history are preserved.
 
 ## Install
-Replace:
-- app.html
-- index.html
-- assets/app.js
-- assets/style.css
-
-Then hard refresh the site.
+1. Run `sql/resident_training_v1.0.67.sql` in Supabase SQL Editor.
+2. Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`.
+3. Hard-refresh the site.
