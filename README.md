@@ -1,11 +1,17 @@
-# Resident Training v1.0.78
+# Resident Training v1.0.79
 
-Frontend-only update.
+Small assessor UI update.
 
-Changes:
-- Added **Back to Residents** on assessor/owner resident record pages.
-- Added **View personal E-logbook** for a resident record.
-- The personal E-logbook opens as a dedicated resident-only table with interventions, conferences, case counts, senior/assessor decisions, status filters, and Details.
-- Added **Back to resident record** and **Back to Residents** from the personal E-logbook page.
+## New
+On **Assessor → Logbook requests**, a compact strip now shows:
 
-No SQL migration is required.
+**You are assigned to supervise**
+
+followed by each assigned manual intervention as a dark-navy chip with yellow text.
+
+Assignments are read from the existing Junior/Older assessor pair configuration. Conferences are intentionally excluded from this manual-intervention strip.
+
+## Install
+1. Run `sql/resident_training_v1.0.79.sql` in Supabase SQL Editor.
+2. Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`.
+3. Hard refresh the portal.

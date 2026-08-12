@@ -5242,3 +5242,29 @@ dialog:has(.review-thread-modal) {
 .candidate-record-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;max-width:100%}
 .candidate-record-actions .btn{white-space:nowrap}
 @media(max-width:760px){.candidate-record-actions{width:100%;justify-content:flex-start}.candidate-record-actions .btn{flex:1 1 180px;white-space:normal}}
+
+/* v1.0.79 — assessor intervention supervision strip */
+.assessor-supervision-strip{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin:0 0 16px;padding:12px 14px;border-radius:16px;
+  border:1px solid rgba(8,28,53,.12);
+  background:linear-gradient(110deg,#fff9e8 0%,#fffdf6 52%,#f7fbff 100%);
+  box-shadow:0 8px 22px rgba(8,28,53,.05)
+}
+.assessor-supervision-title{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.assessor-supervision-title span{
+  color:#52657a;font-size:.78rem;font-weight:950;letter-spacing:.035em;text-transform:uppercase
+}
+.assessor-supervision-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+.assessor-supervision-chip{
+  display:inline-flex;align-items:center;min-height:30px;padding:5px 10px;
+  border-radius:9px;background:#081c35;color:#ffd34e;
+  border:1px solid rgba(255,211,78,.34);box-shadow:0 5px 12px rgba(8,28,53,.14);
+  font-size:.79rem;font-weight:900;line-height:1.1;white-space:nowrap
+}
+.assessor-supervision-empty{font-size:.82rem;font-weight:800;color:#7b8797}
+@media(max-width:700px){
+  .assessor-supervision-strip{align-items:flex-start;gap:8px;padding:11px 12px}
+  .assessor-supervision-title{width:100%}
+  .assessor-supervision-chip{font-size:.75rem;padding:5px 8px;white-space:normal}
+}

@@ -1754,7 +1754,7 @@ async function ownerMessageCleanupPage() {
 async function logbookRequestsPage() {
   t("#title").textContent = "Logbook requests";
   a.classList.add("mail-content");
-  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult, reconsiderationResult, priorExperienceQueueResult] = await Promise.all([
+  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult, reconsiderationResult, priorExperienceQueueResult, supervisionResult] = await Promise.all([
     e.rpc("get_logbook_messages", { p_view: "received" }),
     e.rpc("get_logbook_messages", { p_view: "sent" }),
     e.rpc("get_logbook_messages", { p_view: "updates" }),
@@ -1762,6 +1762,7 @@ async function logbookRequestsPage() {
     e.rpc("get_hidden_logbook_message_ids"),
     e.rpc("get_my_logbook_reconsiderations_v1044"),
     e.rpc("get_prior_experience_review_queue_v1069"),
+    s.p.role === "assessor" ? e.rpc("get_my_supervised_interventions_v1079") : Promise.resolve({ data: [], error: null }),
   ]);
   const hiddenIds = new Set((u(hiddenResult) || []).map((row) => String(row.message_id)));
   const keepVisible = (items) => (u(items) || []).filter((message) => !hiddenIds.has(String(message.id)));
@@ -1770,7 +1771,8 @@ async function logbookRequestsPage() {
     updates = keepVisible(updatesResult),
     trash = keepVisible(trashResult),
     reconsiderations = u(reconsiderationResult) || [],
-    priorExperienceQueue = u(priorExperienceQueueResult) || [];
+    priorExperienceQueue = u(priorExperienceQueueResult) || [],
+    supervisedInterventions = u(supervisionResult) || [];
 
   window.logbookReconsiderationRows = new Map(reconsiderations.map((row) => [String(row.id), row]));
   const reviewerReconsiderations = reconsiderations
@@ -1904,8 +1906,9 @@ async function logbookRequestsPage() {
   const allTypeSources = [...received,...sent,...updates,...trash,...reconsiderations.map((r) => ({activity_category:r.activity_category,activity_kind:r.procedure_name || r.activity_title}))];
   const pendingReconsiderationCount = reviewerReconsiderations.filter((item) => item.status === "requested").length;
   const requestBadgeCount = received.filter((item) => !item.logbook_action_taken).length + pendingReconsiderationCount;
+  const supervisionStrip = assessor ? `<section class="assessor-supervision-strip"><div class="assessor-supervision-title"><span>You are assigned to supervise</span></div><div class="assessor-supervision-chips">${supervisedInterventions.length ? supervisedInterventions.map((row) => `<span class="assessor-supervision-chip">${o(row.scope_name)}</span>`).join("") : '<span class="assessor-supervision-empty">No manual interventions assigned yet.</span>'}</div></section>` : "";
 
-  a.innerHTML = h("Logbook requests", "Each reconsideration stays attached to the original request, so the activity, original decision, resident reason and your new decision remain in one place.") + renderPriorExperienceReviewQueue(priorExperienceQueue) + `
+  a.innerHTML = h("Logbook requests", "Each reconsideration stays attached to the original request, so the activity, original decision, resident reason and your new decision remain in one place.") + supervisionStrip + renderPriorExperienceReviewQueue(priorExperienceQueue) + `
     <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
         ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${requestBadgeCount ? "" : "hidden"}>${requestBadgeCount}</span></button>` : ""}
