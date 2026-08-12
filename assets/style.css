@@ -5205,7 +5205,7 @@ dialog:has(.review-thread-modal) {
   .senior-autocomplete-option span { font-size: .84rem; }
 }
 
-/* v1.0.77 — assigned residents merged into Residents */
+/* v1.0.78 — assigned residents merged into Residents */
 .assigned-residents-spotlight{
   position:relative;overflow:hidden;margin:0 0 18px;padding:20px;
   border:1px solid rgba(245,158,11,.55);border-radius:22px;
@@ -5237,3 +5237,8 @@ dialog:has(.review-thread-modal) {
 @media(max-width:1180px){.assigned-residents-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.assigned-residents-spotlight{padding:15px;border-radius:18px}.assigned-residents-grid{grid-template-columns:1fr}.assigned-resident-card{grid-template-columns:auto minmax(0,1fr)}.assigned-resident-actions{grid-column:1/-1;justify-content:flex-start;padding-left:59px}.assigned-residents-heading h2{font-size:20px}}
 @media(max-width:480px){.assigned-resident-actions{padding-left:0}.assigned-resident-card{grid-template-columns:auto minmax(0,1fr)}.assigned-resident-actions .btn.small{flex:1}}
+
+/* v1.0.78 — resident record navigation */
+.candidate-record-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;max-width:100%}
+.candidate-record-actions .btn{white-space:nowrap}
+@media(max-width:760px){.candidate-record-actions{width:100%;justify-content:flex-start}.candidate-record-actions .btn{flex:1 1 180px;white-space:normal}}

@@ -516,10 +516,28 @@ const w = {
       h(
         m.display_name || m.username,
         "Review all evidence before formal scoring.",
-        `<button class="btn secondary" data-export-assessment-portfolio="${o(i)}">Export assessment portfolio PDF</button>${y}`,
+        `<div class="candidate-record-actions"><button class="btn secondary" data-go="resident-directory">← Back to Residents</button><button class="btn secondary" data-candidate-logbook="${o(i)}">View personal E-logbook</button><button class="btn secondary" data-export-assessment-portfolio="${o(i)}">Export assessment portfolio PDF</button>${y}</div>`,
       ) +
       f +
       ` <div class="grid g3 top-gap"> ${_("Knowledge complete", c.data?.length || 0, "topics")} ${_("Skill logs", d.data?.length || 0, "performances")} ${_("Previous assessments", u.data?.length || 0, "records")} </div> <div class="top-gap">${renderCommentsTable(n.data || [])}</div> <div class="grid top-gap">${u.data?.map(A).join("") || v("No previous assessments.")}</div>`;
+  },
+  "candidate-logbook": async function (residentId) {
+    if (!["assessor", "owner"].includes(s.p.role)) return g("dashboard");
+    if (!residentId) return g("resident-directory");
+    const [profileResult, logbookResult] = await Promise.all([
+      e.from("profiles").select("id,display_name,username,residency_year,role").eq("id", residentId).single(),
+      e.rpc("get_logbook_entries_v1073", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
+    ]);
+    if (profileResult.error) throw profileResult.error;
+    if (logbookResult.error) throw logbookResult.error;
+    const profile = profileResult.data;
+    const rows = (logbookResult.data || []).filter((entry) => String(entry.resident_id) === String(residentId));
+    t("#title").textContent = "Resident E-logbook";
+    a.innerHTML = h(
+      `${profile.display_name || profile.username} · E-logbook`,
+      `Personal intervention and conference history · Year ${profile.residency_year || "—"}`,
+      `<div class="candidate-record-actions"><button class="btn secondary" data-candidate="${o(residentId)}~">← Back to resident record</button><button class="btn secondary" data-go="resident-directory">Back to Residents</button></div>`,
+    ) + renderLogbookHistoryTable(rows, "resident");
   },
   comments: async function () {
     if (s.p.role === "assessor") return g("write-review");
@@ -3539,6 +3557,7 @@ document.addEventListener("click", (event) => {
         y(
           ` <form id="reviewForm" class="modal"> <div class="modal-head"><div><span class="eyebrow">Clinical / behavioural review</span><h2>Review ${o(d)}</h2></div><button type="button" data-close>×</button></div> <div class="form-grid"> <label>Observation area<select name="category"><option value="knowledge">Clinical · Knowledge</option><option value="skill">Clinical · Skill</option><option value="attitude">Behavioural</option></select></label> <label>Date<input type="date" name="observed_on" value="${new Date().toISOString().slice(0, 10)}" required></label> <label class="full">Place<input name="place" required></label> <fieldset class="full choice-field"><legend>Comment type</legend><div class="review-choice-grid"><label class="review-choice positive"><input type="radio" name="sentiment" value="positive" checked required><span class="review-choice-icon">👍</span><span><b>Positive</b><small>Good performance / reinforcement</small></span></label><label class="review-choice negative"><input type="radio" name="sentiment" value="negative" required><span class="review-choice-icon">👎</span><span><b>Negative</b><small>Concern / point needing improvement</small></span></label></div></fieldset> <fieldset class="full choice-field"><legend>Identity</legend><div class="review-choice-grid"><label class="review-choice"><input type="radio" name="identity_mode" value="named" checked required><span class="review-choice-icon">👤</span><span><b>Show my name</b><small>Resident and assessor can see who wrote it</small></span></label><label class="review-choice"><input type="radio" name="identity_mode" value="anonymous" required><span class="review-choice-icon">◉</span><span><b>Anonymous</b><small>Your name is hidden from resident and assessor; owner can still audit it</small></span></label></div></fieldset> <label class="full">Comment<textarea name="comment" minlength="10" required></textarea></label> </div> <input type="hidden" name="resident_id" value="${r}"> <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit review</button></div> </form>`,
         )),
+      a.dataset.candidateLogbook && g(`candidate-logbook:${a.dataset.candidateLogbook}`),
       a.dataset.candidate && g(`candidate:${a.dataset.candidate}`),
       a.dataset.assess &&
         (await openAssessmentScoringModal(
