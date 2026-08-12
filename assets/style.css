@@ -5124,3 +5124,83 @@ dialog:has(.review-thread-modal) {
   .senior-autocomplete-list { max-height: 180px; }
   .senior-autocomplete-option small { display: none; }
 }
+
+/* v1.0.76 — searchable assessor picker + compact name typography */
+.assessor-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.assessor-picker-field > .field-label {
+  font-weight: 800;
+  color: var(--ink, #0b213c);
+}
+.assessor-picker-field > input[type="search"] {
+  width: 100%;
+}
+.person-autocomplete-list {
+  max-height: 205px;
+  overflow-y: auto;
+  border: 1px solid #d7e0ea;
+  border-radius: 14px;
+  background: #fff;
+  padding: 5px;
+}
+.person-autocomplete-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: #0b213c;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.person-autocomplete-option:hover,
+.person-autocomplete-option.selected {
+  background: #eef6ff;
+}
+.assessor-autocomplete-option span,
+.senior-autocomplete-option span {
+  font-size: .88rem;
+  line-height: 1.2;
+  font-weight: 750;
+}
+.senior-autocomplete-option small {
+  font-size: .72rem;
+}
+.person-autocomplete-empty {
+  padding: 10px 12px;
+  color: #6b7b8f;
+  font-size: .85rem;
+}
+.person-selected-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #eef8ff;
+  color: #0b4f7b;
+  font-size: .82rem;
+}
+.person-selected-chip[hidden] { display: none !important; }
+.person-selected-chip button {
+  border: 0;
+  background: transparent;
+  font-size: 1.05rem;
+  cursor: pointer;
+  color: inherit;
+  padding: 0 2px;
+}
+@media (max-width: 720px) {
+  .person-autocomplete-list { max-height: 170px; }
+  .assessor-autocomplete-option span,
+  .senior-autocomplete-option span { font-size: .84rem; }
+}

@@ -3033,6 +3033,24 @@ async function ownerPendingRequestsPage() {
     <section class="card"><div class="pending-request-filters"><input id="pendingRequestSearch" type="search" placeholder="Search sender, reviewer or topic"><select id="pendingRequestAge"><option value="">All durations</option><option value="overdue">48h+ overdue</option><option value="fresh">Under 48h</option></select><select id="pendingRequestType"><option value="">All request types</option>${[...new Set(rows.map(r=>r.request_type))].map(type=>`<option value="${o(type)}">${o(type)}</option>`).join("")}</select></div><div class="table-scroll"><table class="table pending-requests-table"><thead><tr><th>Duration</th><th>Sender</th><th>Topic</th><th>Waiting on</th><th>Request type</th><th>Reminder</th></tr></thead><tbody>${rows.map((row)=>`<tr data-pending-row data-search="${o(`${row.sender_name} ${row.reviewer_name} ${row.topic}`.toLowerCase())}" data-age="${Number(row.age_hours)>=48?"overdue":"fresh"}" data-type="${o(row.request_type)}" class="${Number(row.age_hours)>=48?"pending-overdue-row":""}"><td><span class="duration-pill ${Number(row.age_hours)>=48?"overdue":""}">${o(pendingDuration(row.age_hours))}</span><small>Since ${l(row.issued_at)}</small></td><td><b>${o(row.sender_name)}</b></td><td>${o(row.topic)}</td><td><b>${o(row.reviewer_name)}</b><small>${o(row.reviewer_role)}</small></td><td>${o(row.request_type)}</td><td>${row.reminded_at?`<span class="tag warning">⏰ Sent ${l(row.reminded_at)}</span>`:'<span class="tag neutral">Not yet due</span>'}</td></tr>`).join("") || '<tr><td colspan="6">No pending requests. Everything is up to date.</td></tr>'}</tbody></table></div></section>`;
 }
 
+function assessorSortKey(name) {
+  return String(name || "")
+    .trim()
+    .replace(/^(?:(?:prof(?:essor)?\.?\s*)?dr\.?\s+|prof(?:essor)?\.?\s+)/i, "")
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function sortAssessorsAlphabetically(rows) {
+  return [...(rows || [])].sort((left, right) =>
+    assessorSortKey(left?.display_name).localeCompare(
+      assessorSortKey(right?.display_name),
+      undefined,
+      { sensitivity: "base" },
+    ) || String(left?.display_name || "").localeCompare(String(right?.display_name || ""), undefined, { sensitivity: "base" })
+  );
+}
+
 async function P() {
   t("#title").textContent =
     "resident" === s.p.role
@@ -3079,9 +3097,9 @@ async function P() {
   const seniorResidents = approvers.filter(
     (person) => person.approver_group === "senior_resident",
   );
-  const assessors = approvers.filter(
+  const assessors = sortAssessorsAlphabetically(approvers.filter(
     (person) => person.approver_group === "assessor",
-  );
+  ));
   const residents = "owner" === s.p.role
     ? (residentsResult?.data || [])
         .filter(
@@ -3126,9 +3144,9 @@ async function P() {
               <label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label>
               <label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label>
               <div class="senior-picker-field"><span class="field-label">Senior resident</span>${Number(s.p.residency_year) >= 4 ? `<label class="senior-skip-option"><input id="skipSeniorResident" type="checkbox"><span><b>No senior resident</b><small>Send this intervention directly to the assessor.</small></span></label>` : ""}<input id="seniorResidentSearch" type="search" placeholder="Search senior resident by name" autocomplete="off"><input id="seniorResidentId" type="hidden" name="senior_resident_id" value=""><div id="seniorResidentSelected" class="senior-selected-chip" hidden></div><div id="seniorResidentResults" class="senior-autocomplete-list">${seniorResidents.map((person) => `<button type="button" class="senior-autocomplete-option" data-senior-resident-choice="${person.id}" data-senior-resident-name="${o(person.display_name)}"><span>${o(person.display_name)}</span><small>Year ${o(person.residency_year || "")}</small></button>`).join("")}</div></div>
-              <label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label>
+              <div class="assessor-picker-field"><span class="field-label">Assessor</span><input id="manualAssessorSearch" type="search" placeholder="Search assessor by name" autocomplete="off"><input id="manualAssessorId" type="hidden" name="assessor_id" value="" required><div id="manualAssessorSelected" class="person-selected-chip" hidden></div><div id="manualAssessorResults" class="person-autocomplete-list assessor-autocomplete-list">${assessors.map((person) => `<button type="button" class="person-autocomplete-option assessor-autocomplete-option" data-assessor-choice="${o(person.id)}" data-assessor-name="${o(person.display_name)}" data-assessor-context="manual"><span>${o(person.display_name)}</span></button>`).join("")}</div></div>
             </div>
-            <div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div>
+            <div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><div class="assessor-picker-field"><span class="field-label">Assessor</span><input id="conferenceAssessorSearch" type="search" placeholder="Search assessor by name" autocomplete="off" disabled><input id="conferenceAssessorId" type="hidden" name="assessor_id" value="" required disabled><div id="conferenceAssessorSelected" class="person-selected-chip" hidden></div><div id="conferenceAssessorResults" class="person-autocomplete-list assessor-autocomplete-list">${assessors.map((person) => `<button type="button" class="person-autocomplete-option assessor-autocomplete-option" data-assessor-choice="${o(person.id)}" data-assessor-name="${o(person.display_name)}" data-assessor-context="conference"><span>${o(person.display_name)}</span></button>`).join("")}</div></div></div>
             <label class="full">General notes / evidence<textarea name="description" placeholder="Optional supporting details for the whole batch"></textarea></label>
             <div class="full form-submit"><button>Submit for approval</button></div>
           </form>
@@ -3176,7 +3194,10 @@ async function P() {
       `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>`;
   }
   window.logbookSeniorResidents = seniorResidents.map((person) => ({ ...person }));
+  window.logbookAssessors = assessors.map((person) => ({ ...person }));
   if (document.querySelector("#seniorResidentResults")) filterSeniorResidentPicker();
+  if (document.querySelector("#manualAssessorResults")) filterAssessorPicker("manual");
+  if (document.querySelector("#conferenceAssessorResults")) filterAssessorPicker("conference");
   if (document.querySelector("#logbookCaseCount")) syncLogbookCaseDetailInputs();
   syncSeniorResidentSkip();
 }
@@ -3229,6 +3250,42 @@ function syncSeniorResidentSkip() {
   }
 }
 
+function assessorPickerElements(context) {
+  const prefix = context === "conference" ? "conferenceAssessor" : "manualAssessor";
+  return {
+    search: document.querySelector(`#${prefix}Search`),
+    hidden: document.querySelector(`#${prefix}Id`),
+    selected: document.querySelector(`#${prefix}Selected`),
+    results: document.querySelector(`#${prefix}Results`),
+  };
+}
+
+function filterAssessorPicker(context) {
+  const { search, hidden, results } = assessorPickerElements(context);
+  if (!search || !hidden || !results) return;
+  const query = String(search.value || "").trim().toLowerCase();
+  const people = sortAssessorsAlphabetically(window.logbookAssessors || []).filter((person) =>
+    !query || String(person.display_name || "").toLowerCase().includes(query)
+  );
+  results.innerHTML = people.length
+    ? people.map((person) => `<button type="button" class="person-autocomplete-option assessor-autocomplete-option${String(hidden.value) === String(person.id) ? " selected" : ""}" data-assessor-choice="${o(person.id)}" data-assessor-name="${o(person.display_name)}" data-assessor-context="${context}"><span>${o(person.display_name)}</span></button>`).join("")
+    : '<div class="person-autocomplete-empty">No matching assessor</div>';
+}
+
+function chooseAssessor(context, id, name) {
+  const { search, hidden, selected } = assessorPickerElements(context);
+  if (!search || !hidden) return;
+  hidden.value = id || "";
+  search.value = name || "";
+  if (selected) {
+    selected.hidden = !id;
+    selected.innerHTML = id
+      ? `<span>Selected: <b>${o(name || "Assessor")}</b></span><button type="button" data-clear-assessor="${context}" aria-label="Clear assessor">×</button>`
+      : "";
+  }
+  filterAssessorPicker(context);
+}
+
 function syncLogbookCaseDetailInputs() {
   const countInput = document.querySelector("#logbookCaseCount");
   const container = document.querySelector("#logbookCaseDetails");
@@ -3269,6 +3326,16 @@ document.addEventListener("input", (event) => {
     }
     filterSeniorResidentPicker();
   }
+  if (["manualAssessorSearch", "conferenceAssessorSearch"].includes(target?.id)) {
+    const context = target.id.startsWith("conference") ? "conference" : "manual";
+    const { hidden, selected } = assessorPickerElements(context);
+    const chosen = (window.logbookAssessors || []).find((person) => String(person.id) === String(hidden?.value || ""));
+    if (chosen && String(target.value || "").trim() !== String(chosen.display_name || "").trim()) {
+      if (hidden) hidden.value = "";
+      if (selected) { selected.hidden = true; selected.innerHTML = ""; }
+    }
+    filterAssessorPicker(context);
+  }
   if (target?.id === "logbookCaseCount") syncLogbookCaseDetailInputs();
 });
 
@@ -3281,6 +3348,10 @@ document.addEventListener("click", (event) => {
   if (choice) chooseSeniorResident(choice.dataset.seniorResidentChoice, choice.dataset.seniorResidentName);
   const clear = event.target.closest("[data-clear-senior-resident]");
   if (clear) chooseSeniorResident("", "");
+  const assessorChoice = event.target.closest("[data-assessor-choice]");
+  if (assessorChoice) chooseAssessor(assessorChoice.dataset.assessorContext || "manual", assessorChoice.dataset.assessorChoice, assessorChoice.dataset.assessorName);
+  const assessorClear = event.target.closest("[data-clear-assessor]");
+  if (assessorClear) chooseAssessor(assessorClear.dataset.clearAssessor || "manual", "", "");
 });
 
 (document.addEventListener("click", async (t) => {
@@ -3825,6 +3896,7 @@ document.addEventListener("click", (event) => {
           conferenceFields
             .querySelectorAll("input,select,textarea")
             .forEach((field) => (field.disabled = !conference));
+          filterAssessorPicker(conference ? "conference" : "manual");
         })(),
       "recipientScope" === a.id && (() => {
         const peopleField = t("#recipientPeopleField");
