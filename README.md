@@ -1,13 +1,11 @@
-# Resident Training v1.0.76
+# Resident Training v1.0.77
 
-Frontend-only usability update to the normal E-logbook reviewer pickers.
+Frontend-only update.
 
-## Changes
-- Assessor picker now behaves like the senior-resident autocomplete: type letters and matching assessor names appear immediately underneath; click a name to select it.
-- Assessor names are alphabetized by the actual name, ignoring leading titles such as `Dr.`, `Dr`, `Prof. Dr.`, `Prof Dr`, and `Prof.`.
-- Senior-resident and assessor result-name typography is smaller and more compact.
-- Conference assessor selection uses the same searchable picker.
+- Assessor sidebar no longer has a separate **Assigned residents** item.
+- **Residents** now contains a shiny orange **My Assigned Residents** panel at the top.
+- Assigned residents have direct **Open record** and **Profile** actions.
+- Full resident directory remains below.
+- Assessor dashboard Assigned residents tile opens the unified Residents page.
 
-## Install
-No SQL is required if v1.0.75 SQL is already installed.
-Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css`, then hard-refresh.
+No SQL migration is required.

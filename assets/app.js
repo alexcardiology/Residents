@@ -140,7 +140,6 @@ const s = {
     assessor: [
       ["dashboard", "Dashboard"],
       ["resident-directory", "Residents"],
-      ["residents", "Assigned residents"],
       ["write-review", "Reviews & penalties"],
       ["assessments", "Assessments"],
       ["logbook", "Resident logbooks"],
@@ -462,24 +461,8 @@ const w = {
       : h("Comments written by you", "Your review history. Anonymous reviews remain anonymous to the resident and other assigned assessors, but the Program Owner can identify the author.") + renderCommentsTable(rows, "author");
   },
   residents: async function () {
-    if ("assessor" !== s.p.role) return g("dashboard");
-    const [{ data: t }, { data: i }] = await Promise.all([
-        S(),
-        e
-          .from("assessor_year_assignments")
-          .select("residency_year")
-          .eq("assessor_id", s.p.id)
-          .eq("is_active", !0)
-          .order("residency_year"),
-      ]),
-      r = (i || []).map((e) => `Year ${e.residency_year}`).join(", ");
-    a.innerHTML =
-      h(
-        "Assigned residents",
-        r
-          ? `Your current cohorts: ${r}.`
-          : "The owner has not assigned a residency year to you yet.",
-      ) + C(t || []);
+    // Backward-compatible route: Assigned Residents now lives inside Residents.
+    return g("resident-directory");
   },
   candidate: async function (t) {
     const [i] = t.split("~"),
@@ -738,14 +721,44 @@ function penaltyAvatar(row, className = "resident-directory-avatar") {
 async function residentDirectoryPage() {
   if (!["resident", "assessor", "owner"].includes(s.p.role)) return g("dashboard");
   t("#title").textContent = "Residents";
-  const rows = u(await e.rpc("get_resident_directory_v1071")) || [];
+  const directoryPromise = e.rpc("get_resident_directory_v1071");
+  const assignedPromise = s.p.role === "assessor" ? S() : Promise.resolve({ data: [], error: null });
+  const [directoryResult, assignedResult] = await Promise.all([directoryPromise, assignedPromise]);
+  if (directoryResult?.error) throw directoryResult.error;
+  if (assignedResult?.error) throw assignedResult.error;
+  const rows = directoryResult.data || [];
+  const assigned = assignedResult.data || [];
+  const assignedIds = new Set(assigned.map((row) => String(row.resident_id)));
   window.residentDirectoryRows = new Map(rows.map((row) => [String(row.id), row]));
-  const cards = rows.map((row) => `<button type="button" class="resident-directory-card ${yearClass(row.residency_year)}" data-directory-resident="${o(row.id)}" data-directory-search="${o(`${row.display_name || ""} ${row.username || ""}`.toLowerCase())}" data-directory-year="${o(row.residency_year)}">
+
+  const assignedCards = assigned.map((item) => {
+    const row = window.residentDirectoryRows.get(String(item.resident_id)) || {
+      id: item.resident_id,
+      display_name: item.resident_name || item.username || "Resident",
+      username: item.username || "",
+      residency_year: item.residency_year,
+      avatar_url: item.avatar_url || null,
+    };
+    return `<article class="assigned-resident-card ${yearClass(row.residency_year)}">
+      ${penaltyAvatar(row, "assigned-resident-avatar")}
+      <div class="assigned-resident-copy"><b>${o(row.display_name || row.username || "Resident")}</b>${yearChip(row.residency_year)}</div>
+      <div class="assigned-resident-actions"><button type="button" class="btn small assigned-open-record" data-candidate="${o(row.id)}~">Open record</button><button type="button" class="btn small secondary" data-directory-resident="${o(row.id)}">Profile</button></div>
+    </article>`;
+  }).join("");
+
+  const cards = rows.map((row) => `<button type="button" class="resident-directory-card ${yearClass(row.residency_year)} ${assignedIds.has(String(row.id)) ? "is-assigned-resident" : ""}" data-directory-resident="${o(row.id)}" data-directory-search="${o(`${row.display_name || ""} ${row.username || ""}`.toLowerCase())}" data-directory-year="${o(row.residency_year)}">
       ${penaltyAvatar(row)}
-      <span class="resident-directory-copy"><b>${o(row.display_name || row.username || "Resident")}</b>${yearChip(row.residency_year)}</span>
+      <span class="resident-directory-copy"><b>${o(row.display_name || row.username || "Resident")}</b>${yearChip(row.residency_year)}${s.p.role === "assessor" && assignedIds.has(String(row.id)) ? '<small class="assigned-mini-label">Assigned to you</small>' : ""}</span>
     </button>`).join("");
-  a.innerHTML = h("Residents", "Meet the residents in the training program. Select a resident to open their profile card.") + `
+
+  const assignedPanel = s.p.role === "assessor" ? `<section class="assigned-residents-spotlight">
+      <div class="assigned-residents-heading"><div><span class="assigned-residents-kicker">MY ASSIGNED RESIDENTS</span><h2>Residents under your assessment</h2><p>Open their full record directly from here.</p></div><span class="assigned-residents-count">${assigned.length}</span></div>
+      <div class="assigned-residents-grid">${assignedCards || '<div class="assigned-residents-empty">No residents are currently assigned to your cohorts.</div>'}</div>
+    </section>` : "";
+
+  a.innerHTML = h("Residents", s.p.role === "assessor" ? "Your assigned residents are highlighted first. The full resident directory remains available below." : "Meet the residents in the training program. Select a resident to open their profile card.") + assignedPanel + `
     <section class="card resident-directory-panel">
+      <div class="section-head resident-directory-section-head"><div><h2>${s.p.role === "assessor" ? "All residents" : "Resident directory"}</h2><p>${s.p.role === "assessor" ? "Browse any resident profile in the program." : "Search by name or residency year."}</p></div></div>
       <div class="resident-directory-toolbar"><input id="residentDirectorySearch" type="search" placeholder="Search resident name"><select id="residentDirectoryYear"><option value="">All residency years</option>${n.map((year)=>`<option value="${year}">Year ${year}</option>`).join("")}</select></div>
       <div id="residentDirectoryGrid" class="resident-directory-grid">${cards || '<div class="panel-empty">No active residents.</div>'}</div>
       <div id="residentDirectoryEmpty" class="panel-empty" hidden>No residents match these filters.</div>
@@ -2019,7 +2032,7 @@ async function k() {
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Your assessment workspace is divided into six quick areas.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
       `<div class="dashboard-grid dashboard-grid-6">
-        ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "residents")}
+        ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "resident-directory")}
         ${dashboardTile(nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "CURRENT ASSESSMENT" : "Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? `assessment-session:${nextAssessment.id}` : "assessments", nextAssessment ? (new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "current-assessment-tile" : "accent-tile") : "")}
         ${dashboardTile("Assessments done", String(assessmentsResult.count || 0), "Your submitted assessments", "assessments")}
         ${dashboardTile("Reviews", String((commentsResult.data || []).length), "Mine + assigned residents", "write-review")}
