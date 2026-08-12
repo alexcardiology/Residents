@@ -119,9 +119,10 @@ const s = {
   p = {
     resident: [
       ["dashboard", "Dashboard"],
+      ["resident-directory", "Residents"],
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
-      ["reviews", "My reviews"],
+      ["reviews", "Reviews & penalties"],
       ["logbook", "My logbook"],
       ["prior-experience", "Prior experience"],
       ["logbook-requests", "Logbook requests"],
@@ -139,8 +140,9 @@ const s = {
     ],
     assessor: [
       ["dashboard", "Dashboard"],
+      ["resident-directory", "Residents"],
       ["residents", "Assigned residents"],
-      ["write-review", "Reviews"],
+      ["write-review", "Reviews & penalties"],
       ["assessments", "Assessments"],
       ["logbook", "Resident logbooks"],
       ["logbook-requests", "Logbook requests"],
@@ -149,9 +151,11 @@ const s = {
     ],
     owner: [
       ["dashboard", "Overview"],
+      ["resident-directory", "Residents"],
       ["users", "Accounts"],
       ["curriculum", "Curriculum"],
       ["owner-assessment-center", "Assessments"],
+      ["reviews-penalties", "Reviews & penalties"],
       ["owner-logbook-center", "Logbooks"],
       ["inbox", "Inbox"],
       ["owner-tools", "More"],
@@ -424,7 +428,8 @@ const w = {
   logbook: P,
   profile: x,
   reviews: async function () {
-    if (!["observer", "assessor", "resident"].includes(s.p.role)) return g("dashboard");
+    if (s.p.role === "resident") return residentReviewsPenaltiesPage();
+    if (!["observer", "assessor"].includes(s.p.role)) return g("dashboard");
     if (s.p.role === "assessor") return g("write-review");
     t("#title").textContent = "My reviews";
     const reviewResult = await reviewRpcResult(s.p.role === "resident" ? s.p.id : null);
@@ -682,6 +687,8 @@ const w = {
   "owner-prior-experience-assignments": ownerPriorExperienceAssignmentsPage,
   "owner-prior-experience-status": ownerPriorExperienceStatusPage,
   "owner-pending-requests": ownerPendingRequestsPage,
+  "resident-directory": residentDirectoryPage,
+  "reviews-penalties": ownerReviewsPenaltiesPage,
   "prior-experience": priorExperiencePage,
   "owner-tools": ownerToolsPage,
   "owner-test-reset": ownerTestResetPage,
@@ -689,9 +696,178 @@ const w = {
   password: x,
 };
 
+
+// =============================================================================
+// v1.0.71 — Residents Directory + Reviews & Penalties
+// =============================================================================
+function penaltyStatusLabel(status) {
+  return ({
+    pending_owner: "Pending owner approval",
+    approved: "Approved",
+    rejected: "Rejected by owner",
+    appeal_pending: "Complaint under review",
+    appeal_upheld: "Penalty upheld after complaint",
+    appeal_overturned: "Penalty cancelled after complaint",
+  })[String(status || "")] || String(status || "—").replaceAll("_", " ");
+}
+function penaltyStatusClass(status) {
+  return status === "approved" || status === "appeal_upheld" ? "danger" : status === "rejected" || status === "appeal_overturned" ? "neutral" : "warning";
+}
+function penaltyAvatar(row, className = "resident-directory-avatar") {
+  return row?.avatar_url
+    ? `<img class="${className}" src="${o(row.avatar_url)}" alt="">`
+    : `<span class="${className} avatar-fallback">${o((row?.display_name || "R").charAt(0).toUpperCase())}</span>`;
+}
+async function residentDirectoryPage() {
+  if (!["resident", "assessor", "owner"].includes(s.p.role)) return g("dashboard");
+  t("#title").textContent = "Residents";
+  const rows = u(await e.rpc("get_resident_directory_v1071")) || [];
+  window.residentDirectoryRows = new Map(rows.map((row) => [String(row.id), row]));
+  const cards = rows.map((row) => `<button type="button" class="resident-directory-card ${yearClass(row.residency_year)}" data-directory-resident="${o(row.id)}" data-directory-search="${o(`${row.display_name || ""} ${row.username || ""}`.toLowerCase())}" data-directory-year="${o(row.residency_year)}">
+      ${penaltyAvatar(row)}
+      <span class="resident-directory-copy"><b>${o(row.display_name || row.username || "Resident")}</b>${yearChip(row.residency_year)}</span>
+    </button>`).join("");
+  a.innerHTML = h("Residents", "Meet the residents in the training program. Select a resident to open their profile card.") + `
+    <section class="card resident-directory-panel">
+      <div class="resident-directory-toolbar"><input id="residentDirectorySearch" type="search" placeholder="Search resident name"><select id="residentDirectoryYear"><option value="">All residency years</option>${n.map((year)=>`<option value="${year}">Year ${year}</option>`).join("")}</select></div>
+      <div id="residentDirectoryGrid" class="resident-directory-grid">${cards || '<div class="panel-empty">No active residents.</div>'}</div>
+      <div id="residentDirectoryEmpty" class="panel-empty" hidden>No residents match these filters.</div>
+    </section>`;
+}
+function openResidentDirectoryProfile(row) {
+  if (!row) return;
+  const privileged = ["assessor","owner"].includes(s.p.role);
+  y(`<article class="modal resident-profile-modal"><div class="modal-head"><div><span class="eyebrow">Resident profile</span><h2>${o(row.display_name || row.username || "Resident")}</h2></div><button type="button" data-close>×</button></div>
+    <div class="resident-profile-hero">${penaltyAvatar(row,"resident-profile-photo")}<div><h3>${o(row.display_name || row.username || "Resident")}</h3>${yearChip(row.residency_year)}<small>@${o(row.username || "")}</small></div></div>
+    <div class="resident-profile-details"><div><span>Residency year</span><b>Year ${o(row.residency_year)}</b></div>${privileged && row.email ? `<div><span>Email</span><b>${o(row.email)}</b></div>` : ""}${privileged && row.whatsapp ? `<div><span>WhatsApp</span><b>${o(row.whatsapp)}</b></div>` : ""}</div>
+    <div class="resident-profile-placeholder"><b>Additional resident details</b><p>This profile is ready for the additional fields you want to define later.</p></div>
+    <div class="actions"><button type="button" class="btn secondary" data-close>Close</button></div></article>`);
+}
+function filterResidentDirectory() {
+  const search = (t("#residentDirectorySearch")?.value || "").trim().toLowerCase();
+  const year = t("#residentDirectoryYear")?.value || "";
+  let visible = 0;
+  document.querySelectorAll("[data-directory-resident]").forEach((card) => {
+    const match = (!search || (card.dataset.directorySearch || "").includes(search)) && (!year || card.dataset.directoryYear === year);
+    card.hidden = !match;
+    if (match) visible += 1;
+  });
+  const empty = t("#residentDirectoryEmpty");
+  if (empty) empty.hidden = visible > 0;
+}
+async function loadPenaltyWorkspaceData() {
+  const tasks = [e.rpc("get_penalty_config_v1071"), e.rpc("get_penalties_for_me_v1071")];
+  if (["resident","assessor"].includes(s.p.role)) tasks.push(e.rpc("get_penalty_targets_v1071"));
+  else tasks.push(Promise.resolve({data:[]}));
+  if (s.p.role === "assessor") tasks.push(e.rpc("get_my_penalty_appeals_v1071"));
+  else tasks.push(Promise.resolve({data:[]}));
+  const [configResult,penaltyResult,targetResult,appealResult] = await Promise.all(tasks);
+  const failed=[configResult,penaltyResult,targetResult,appealResult].find((r)=>r?.error); if (failed?.error) throw failed.error;
+  return {config:configResult.data || {categories:[],problems:[],punishments:[]},penalties:penaltyResult.data || [],targets:targetResult.data || [],appeals:appealResult.data || []};
+}
+function penaltyIssuePanel(data, heading = "Sign a penalty") {
+  const {config,targets} = data;
+  if (!targets.length) return `<section class="penalty-eligibility-note"><b>${o(heading)}</b><p>${s.p.role === "resident" && Number(s.p.residency_year)<=1 ? "Year 1 residents cannot sign penalties. From Year 2 onward, a resident may sign a penalty only against a resident in a lower residency year." : "No eligible residents are available."}</p></section>`;
+  const cats=(config.categories||[]).filter(x=>x.is_active!==false), probs=(config.problems||[]).filter(x=>x.is_active!==false), punishments=(config.punishments||[]).filter(x=>x.is_active!==false);
+  const firstCat=String(cats[0]?.id || "");
+  return `<form id="penaltyIssueForm" class="penalty-issue-form">
+    <div class="penalty-form-grid">
+      <label>Resident<select name="resident_id" required><option value="">Choose resident</option>${targets.map((row)=>`<option value="${o(row.id)}">${o(row.display_name)} · Year ${o(row.residency_year)}</option>`).join("")}</select></label>
+      <label>Type<select name="category_id" id="penaltyCategory" required>${cats.map((row)=>`<option value="${row.id}">${o(row.name)}</option>`).join("")}</select></label>
+      <label>Problem<select name="problem_id" id="penaltyProblem" required>${probs.map((row)=>`<option value="${row.id}" data-category="${row.category_id}" ${String(row.category_id)!==firstCat ? "hidden disabled" : ""}>${o(row.name)}</option>`).join("")}</select></label>
+      <label>Punishment<select name="punishment_id" required><option value="">Choose punishment</option>${punishments.map((row)=>`<option value="${row.id}">${o(row.name)}</option>`).join("")}</select></label>
+      <label class="full">Incident / justification<textarea name="details" required placeholder="Briefly describe what happened and why this penalty is being proposed."></textarea></label>
+    </div><div class="actions"><button>Sign penalty and send to Program Owner</button></div></form>`;
+}
+function penaltyActionButtons(row, context = "self") {
+  const id=o(row.id);
+  if (context === "owner" && row.status === "pending_owner") return `<div class="table-row-actions"><button class="btn small success" data-owner-penalty-decision="${id}" data-decision="approved">Approve</button><button class="btn small danger" data-owner-penalty-decision="${id}" data-decision="rejected">Reject</button></div>`;
+  if (context === "resident" && String(row.resident_id)===String(s.p.id) && row.status === "approved") return `<button class="btn small danger" data-penalty-complain="${id}">Complain</button>`;
+  if (context === "assessor-appeal") {
+    const my = row.my_appeal_decision;
+    return my ? `<span class="tag ${my === "uphold" ? "danger" : "success"}">${my === "uphold" ? "Penalty upheld" : "Penalty overturned"}</span>` : `<div class="table-row-actions"><button class="btn small danger" data-penalty-appeal-vote="${id}" data-decision="uphold">Uphold penalty</button><button class="btn small success" data-penalty-appeal-vote="${id}" data-decision="overturn">Overturn penalty</button></div>`;
+  }
+  return "";
+}
+function renderPenaltyTable(rows, context = "self") {
+  const data=rows||[];
+  const body=data.map((row)=>`<tr class="penalty-row" data-penalty-search="${o(`${row.resident_name||""} ${row.issuer_name||""} ${row.category||""} ${row.problem||""} ${row.punishment||""} ${row.details||""}`.toLowerCase())}" data-penalty-status="${o(row.status)}" data-penalty-category="${o(row.category)}">
+    <td><b>${o(row.resident_name || "Resident")}</b><small>${row.residency_year ? `Year ${o(row.residency_year)}` : ""}</small></td>
+    <td>${o(row.issuer_name || "—")}<small>${o(row.issuer_role || "")}${row.issuer_year ? ` · Year ${o(row.issuer_year)}` : ""}</small></td>
+    <td><b>${o(row.category || "—")}</b><small>${o(row.problem || "—")}</small></td>
+    <td><b>${o(row.punishment || "—")}</b><small>${o(row.details || "—")}</small></td>
+    <td><span class="tag ${penaltyStatusClass(row.status)}">${o(penaltyStatusLabel(row.status))}</span>${row.complaint_text ? `<small class="penalty-complaint-mini">Complaint: ${o(row.complaint_text)}</small>` : ""}</td>
+    <td>${penaltyActionButtons(row,context)}</td>
+  </tr>`).join("");
+  return `<div class="penalty-table-tools"><input type="search" data-penalty-filter="search" placeholder="Search resident, problem or punishment"><select data-penalty-filter="status"><option value="">All statuses</option><option value="pending_owner">Pending owner approval</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="appeal_pending">Complaint under review</option><option value="appeal_upheld">Upheld after complaint</option><option value="appeal_overturned">Cancelled after complaint</option></select></div><div class="table-scroll"><table class="table penalty-table"><thead><tr><th>Resident</th><th>Signed by</th><th>Type / problem</th><th>Punishment / details</th><th>Status</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="6">No penalties recorded.</td></tr>'}</tbody></table></div>`;
+}
+function filterPenaltyTables(root=document) {
+  root.querySelectorAll(".penalty-table").forEach((table)=>{
+    const container=table.closest(".review-workspace-panel,.card,.modal") || document;
+    const search=(container.querySelector('[data-penalty-filter="search"]')?.value||"").toLowerCase();
+    const status=container.querySelector('[data-penalty-filter="status"]')?.value||"";
+    table.querySelectorAll(".penalty-row").forEach((row)=> row.hidden=Boolean((search && !(row.dataset.penaltySearch||"").includes(search)) || (status && row.dataset.penaltyStatus!==status)));
+  });
+}
+async function residentReviewsPenaltiesPage() {
+  if (s.p.role !== "resident") return g("dashboard");
+  t("#title").textContent = "Reviews & penalties";
+  const [reviewResult,penaltyData] = await Promise.all([reviewRpcResult(s.p.id),loadPenaltyWorkspaceData()]);
+  if (reviewResult.error) throw reviewResult.error;
+  const reviews=reviewResult.data||[];
+  window.observerReviewRows = new Map(reviews.map((row)=>[String(row.id),row]));
+  const against=penaltyData.penalties.filter((row)=>String(row.resident_id)===String(s.p.id));
+  const issued=penaltyData.penalties.filter((row)=>String(row.issued_by)===String(s.p.id));
+  a.innerHTML = h("Reviews & penalties","Your feedback and disciplinary records are kept in one transparent workspace.") + `<section class="card review-workspace">
+    <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="resident-reviews">Reviews about me <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="resident-penalties">Penalties <small>${against.length}</small></button>${Number(s.p.residency_year)>1 ? '<button class="review-workspace-tab" data-review-section="resident-sign-penalty">Sign a penalty</button>' : ''}</div>
+    <div class="review-workspace-panel" data-review-panel="resident-reviews">${renderResidentReviewGroups(reviews)}</div>
+    <div class="review-workspace-panel" data-review-panel="resident-penalties" hidden><div class="review-section-heading"><div><span class="eyebrow">Disciplinary record</span><h2>Penalties involving you</h2><p>Approved penalties can be challenged through the complaint process.</p></div></div>${renderPenaltyTable(against,"resident")}</div>
+    ${Number(s.p.residency_year)>1 ? `<div class="review-workspace-panel" data-review-panel="resident-sign-penalty" hidden><div class="review-section-heading"><div><span class="eyebrow">Senior resident responsibility</span><h2>Sign a penalty</h2><p>You may sign a penalty only against a resident in a lower residency year. Every penalty requires Program Owner approval.</p></div></div>${penaltyIssuePanel(penaltyData)}<div class="top-gap"><h3>Penalties signed by me</h3>${renderPenaltyTable(issued,"self")}</div></div>` : ""}
+  </section>`;
+}
+function renderPenaltyAppeals(rows) {
+  return `<div class="review-section-heading"><div><span class="eyebrow">Neutral review</span><h2>Penalty complaints assigned to you</h2><p>Your decision is one of three votes: the Program Owner plus two neutral assessors. The final result follows the majority.</p></div><span class="tag">${rows.length}</span></div>${renderPenaltyTable(rows,"assessor-appeal")}`;
+}
+async function ownerReviewsPenaltiesPage() {
+  if (s.p.role !== "owner") return g("dashboard");
+  t("#title").textContent = "Reviews & penalties";
+  const [reviewsResult,penaltiesResult,configResult,assessorsResult] = await Promise.all([
+    reviewRpcResult(null),e.rpc("get_penalty_admin_rows_v1071"),e.rpc("get_penalty_config_v1071"),e.from("profiles").select("id,display_name").eq("role","assessor").eq("is_active",true).order("display_name")
+  ]);
+  const failed=[reviewsResult,penaltiesResult,configResult,assessorsResult].find(r=>r?.error); if(failed?.error) throw failed.error;
+  const reviews=reviewsResult.data||[], penalties=penaltiesResult.data||[], config=configResult.data||{categories:[],problems:[],punishments:[]}, assessors=assessorsResult.data||[];
+  window.observerReviewRows = new Map(reviews.map((row)=>[String(row.id),row]));
+  window.penaltyAdminRows = new Map(penalties.map((row)=>[String(row.id),row]));
+  window.penaltyConfig = config;
+  const pending=penalties.filter(r=>r.status==="pending_owner"), appeals=penalties.filter(r=>r.status==="appeal_pending");
+  const optionRows=(kind,rows)=>rows.map((row)=>`<tr><td>${o(row.name)}</td><td>${o(row.sort_order||0)}</td><td><span class="tag ${row.is_active===false ? "neutral" : "success"}">${row.is_active===false ? "Hidden" : "Active"}</span></td><td><div class="table-row-actions"><button class="btn small secondary" data-penalty-option-edit="${kind}" data-option-id="${row.id}">Edit</button><button class="btn small ${row.is_active===false ? "success" : "danger"}" data-penalty-option-active="${kind}" data-option-id="${row.id}" data-active="${row.is_active===false ? "true" : "false"}">${row.is_active===false ? "Restore" : "Delete"}</button></div></td></tr>`).join("");
+  const problemRows=(config.problems||[]).map((row)=>{const cat=(config.categories||[]).find(c=>String(c.id)===String(row.category_id));return `<tr><td>${o(cat?.name||"—")}</td><td>${o(row.name)}</td><td>${o(row.sort_order||0)}</td><td><span class="tag ${row.is_active===false ? "neutral" : "success"}">${row.is_active===false ? "Hidden" : "Active"}</span></td><td><div class="table-row-actions"><button class="btn small secondary" data-penalty-option-edit="problem" data-option-id="${row.id}">Edit</button><button class="btn small ${row.is_active===false ? "success" : "danger"}" data-penalty-option-active="problem" data-option-id="${row.id}" data-active="${row.is_active===false ? "true" : "false"}">${row.is_active===false ? "Restore" : "Delete"}</button></div></td></tr>`}).join("");
+  const appealRows=appeals.map((row)=>{
+    const assigned=row.appeal_reviewers||[]; const a1=assigned.find(x=>Number(x.slot)===1)?.assessor_id||""; const a2=assigned.find(x=>Number(x.slot)===2)?.assessor_id||"";
+    return `<article class="penalty-appeal-admin-card"><div><span class="eyebrow">Complaint</span><h3>${o(row.resident_name)} · ${o(row.problem)}</h3><p><b>Penalty:</b> ${o(row.punishment)}</p><p><b>Resident complaint:</b> ${o(row.complaint_text||"—")}</p></div><div class="penalty-neutral-selects"><label>Neutral assessor 1<select data-appeal-assessor-1="${row.id}"><option value="">Choose assessor</option>${assessors.filter(x=>String(x.id)!==String(row.issued_by)).map(x=>`<option value="${x.id}" ${String(x.id)===String(a1)?"selected":""}>${o(x.display_name)}</option>`).join("")}</select></label><label>Neutral assessor 2<select data-appeal-assessor-2="${row.id}"><option value="">Choose assessor</option>${assessors.filter(x=>String(x.id)!==String(row.issued_by)).map(x=>`<option value="${x.id}" ${String(x.id)===String(a2)?"selected":""}>${o(x.display_name)}</option>`).join("")}</select></label><button class="btn secondary" data-assign-penalty-panel="${row.id}">Save neutral panel</button></div><div class="penalty-owner-vote"><b>Program Owner vote</b>${row.appeal_owner_decision ? `<span class="tag">${o(row.appeal_owner_decision)}</span>` : `<button class="btn small danger" data-owner-penalty-appeal="${row.id}" data-decision="uphold">Uphold</button><button class="btn small success" data-owner-penalty-appeal="${row.id}" data-decision="overturn">Overturn</button>`}</div></article>`;
+  }).join("");
+  a.innerHTML = h("Reviews & penalties","Approve disciplinary penalties, review complaints, and maintain every dropdown used in the penalty workflow.") + `<section class="card review-workspace">
+    <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="owner-reviews">Reviews <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="owner-pending-penalties">Penalty approval <small>${pending.length}</small></button><button class="review-workspace-tab" data-review-section="owner-appeals">Complaints <small>${appeals.length}</small></button><button class="review-workspace-tab" data-review-section="owner-all-penalties">All penalties <small>${penalties.length}</small></button><button class="review-workspace-tab" data-review-section="owner-penalty-config">Dropdown settings</button></div>
+    <div class="review-workspace-panel" data-review-panel="owner-reviews">${renderCommentsTable(reviews,"owner")}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-pending-penalties" hidden><div class="review-section-heading"><div><span class="eyebrow">Owner approval</span><h2>Penalties awaiting your decision</h2><p>No penalty becomes active until the Program Owner approves it.</p></div></div>${renderPenaltyTable(pending,"owner")}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-appeals" hidden>${appealRows || '<div class="panel-empty">No penalty complaints are awaiting review.</div>'}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-all-penalties" hidden>${renderPenaltyTable(penalties,"self")}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-penalty-config" hidden><div class="penalty-config-head"><div><span class="eyebrow">Owner editable</span><h2>Penalty dropdown lists</h2><p>Deleting an option hides it from future penalties; old penalty records keep their original wording.</p></div></div>
+      <div class="penalty-config-grid"><section><div class="section-head"><h3>Penalty types</h3><button class="btn small" data-penalty-option-add="category">Add</button></div><div class="table-scroll"><table class="table"><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${optionRows("category",config.categories||[])}</tbody></table></div></section>
+      <section><div class="section-head"><h3>Problems</h3><button class="btn small" data-penalty-option-add="problem">Add</button></div><div class="table-scroll"><table class="table"><thead><tr><th>Type</th><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${problemRows}</tbody></table></div></section>
+      <section><div class="section-head"><h3>Punishments</h3><button class="btn small" data-penalty-option-add="punishment">Add</button></div><div class="table-scroll"><table class="table"><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${optionRows("punishment",config.punishments||[])}</tbody></table></div></section></div>
+    </div>
+  </section>`;
+}
+function openPenaltyOptionEditor(kind,row=null) {
+  const config=window.penaltyConfig||{categories:[]};
+  y(`<form id="penaltyOptionForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Owner setting</span><h2>${row?"Edit":"Add"} ${kind === "category" ? "penalty type" : kind === "problem" ? "problem" : "punishment"}</h2></div><button type="button" data-close>×</button></div><div class="form-grid"><label class="full">Name<input name="name" value="${o(row?.name||"")}" required></label>${kind==="problem" ? `<label class="full">Penalty type<select name="category_id" required>${(config.categories||[]).filter(x=>x.is_active!==false).map(c=>`<option value="${c.id}" ${String(c.id)===String(row?.category_id)?"selected":""}>${o(c.name)}</option>`).join("")}</select></label>` : ""}<label>Order<input name="sort_order" type="number" value="${o(row?.sort_order??10)}"></label></div><input type="hidden" name="kind" value="${o(kind)}"><input type="hidden" name="option_id" value="${o(row?.id||"")}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save</button></div></form>`);
+}
+
+
 async function reviewPage() {
   if (!["observer", "assessor"].includes(s.p.role)) return g("dashboard");
-  t("#title").textContent = s.p.role === "assessor" ? "Reviews" : "Write a review";
+  t("#title").textContent = s.p.role === "assessor" ? "Reviews & penalties" : "Write a review";
 
   if (s.p.role === "observer") {
     a.innerHTML =
@@ -707,9 +883,9 @@ async function reviewPage() {
     return;
   }
 
-  const reviewResult = await reviewRpcResult(null);
+  const [reviewResult, penaltyData] = await Promise.all([reviewRpcResult(null), loadPenaltyWorkspaceData()]);
   if (reviewResult.error) {
-    a.innerHTML = h("Reviews", "Submit and navigate clinical reviews from one workspace.") +
+    a.innerHTML = h("Reviews & penalties", "Submit reviews and penalties from one workspace.") +
       `<section class="card review-load-error"><h3>Reviews could not load</h3><p>${o(reviewResult.error.message || "Temporary connection problem")}</p><button class="btn" data-retry-reviews>Try again</button></section>`;
     return;
   }
@@ -717,20 +893,23 @@ async function reviewPage() {
   const visible = reviewResult.data || [];
   const mine = visible.filter((row) => row.is_mine === true || String(row.observer_id || "") === String(s.p.id));
   const others = visible.filter((row) => !(row.is_mine === true || String(row.observer_id || "") === String(s.p.id)));
+  const issuedPenalties = penaltyData.penalties.filter((row) => String(row.issued_by) === String(s.p.id));
   const mineHtml = renderCommentsTable(mine, "author");
   const othersHtml = renderCommentsTable(others, "assessor");
   window.observerReviewRows = new Map(visible.map((row) => [String(row.id), row]));
 
   a.innerHTML =
     h(
-      "Reviews",
-      "Submit a review, revisit your previous reviews, or browse reviews written by others about residents assigned to you.",
+      "Reviews & penalties",
+      "Submit reviews, sign penalties, revisit your previous reviews, and complete any neutral penalty reviews assigned to you.",
     ) +
     `<section class="card review-workspace">
-      <div class="review-workspace-tabs" role="tablist" aria-label="Review workspace">
+      <div class="review-workspace-tabs" role="tablist" aria-label="Reviews and penalties workspace">
         <button type="button" class="review-workspace-tab active" data-review-section="submit"><span>Submit a review</span><small>Write new</small></button>
+        <button type="button" class="review-workspace-tab" data-review-section="penalty"><span>Sign a penalty</span><small>${issuedPenalties.length}</small></button>
         <button type="button" class="review-workspace-tab" data-review-section="mine"><span>My previous reviews</span><small>${mine.length}</small></button>
         <button type="button" class="review-workspace-tab" data-review-section="assigned"><span>Others' reviews on assigned residents</span><small>${others.length}</small></button>
+        <button type="button" class="review-workspace-tab" data-review-section="appeals"><span>Penalty appeals</span><small>${penaltyData.appeals.filter((row)=>!row.my_appeal_decision).length}</small></button>
       </div>
 
       <div class="review-workspace-panel" data-review-panel="submit">
@@ -742,6 +921,12 @@ async function reviewPage() {
         <div id="results" class="top-gap">${v("Loading residents…")}</div>
       </div>
 
+      <div class="review-workspace-panel" data-review-panel="penalty" hidden>
+        <div class="review-section-heading"><div><span class="eyebrow">Disciplinary action</span><h2>Sign a penalty</h2><p>Assessors may sign a penalty for any resident. Every penalty remains pending until the Program Owner approves it.</p></div></div>
+        ${penaltyIssuePanel(penaltyData)}
+        <div class="top-gap"><h3>Penalties signed by me</h3>${renderPenaltyTable(issuedPenalties,"self")}</div>
+      </div>
+
       <div class="review-workspace-panel" data-review-panel="mine" hidden>
         <div class="review-section-heading"><div><span class="eyebrow">My previous reviews</span><h2>Reviews written by you</h2><p>Your prior reviews and any reconsideration requests are kept here.</p></div><span class="tag">${mine.length}</span></div>
         ${mineHtml}
@@ -751,6 +936,8 @@ async function reviewPage() {
         <div class="review-section-heading"><div><span class="eyebrow">Assigned residents</span><h2>Reviews written by others</h2><p>Only reviews about residents within your assigned cohorts are shown. Anonymous reviewer identity remains hidden.</p></div><span class="tag">${others.length}</span></div>
         ${othersHtml}
       </div>
+
+      <div class="review-workspace-panel" data-review-panel="appeals" hidden>${renderPenaltyAppeals(penaltyData.appeals)}</div>
     </section>`;
   await R();
 }
@@ -861,7 +1048,7 @@ async function printResidentAssessmentPortfolio(residentId) {
     if (!profile) throw new Error("Resident profile not found");
     const chapters = u(await e.from("chapters").select("id,title,year_from,year_to,sort_order,is_active").eq("is_active", true).lte("year_from", profile.residency_year).order("year_from").order("sort_order")) || [];
     const chapterIds = chapters.map((chapter) => Number(chapter.id));
-    const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments] = await Promise.all([
+    const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult] = await Promise.all([
       chapterIds.length ? e.from("knowledge_items").select("id,chapter_id,title,description,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({data:[]}),
       e.from("knowledge_progress").select("knowledge_item_id,status").eq("resident_id", residentId),
       chapterIds.length ? e.from("skills").select("id,chapter_id,title,description,expected_level,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({data:[]}),
@@ -870,8 +1057,9 @@ async function printResidentAssessmentPortfolio(residentId) {
       e.rpc("get_logbook_entries_v2", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
       reviewRpcResult(residentId),
       e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
+      e.rpc("get_resident_penalties_for_assessment_v1071", { p_resident_id: residentId }),
     ]);
-    const datasets = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments];
+    const datasets = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult];
     const failed = datasets.find((result) => result?.error);
     if (failed?.error) throw failed.error;
     const kRows = knowledge.data || [], completedIds = new Set((progress.data || []).filter((row) => row.status === "completed").map((row) => Number(row.knowledge_item_id)));
@@ -887,15 +1075,18 @@ async function printResidentAssessmentPortfolio(residentId) {
     const approvedLogbook = (logbookResult.data || []).filter((entry) => String(entry.resident_id) === String(residentId) && entry.status === "approved");
     const reviews = reviewsResult.data || [];
     const previousAssessments = assessments.data || [];
-    const summary = `<section class="portfolio-summary"><div><span>Residency</span><b>Year ${o(profile.residency_year || "—")}</b></div><div><span>Knowledge</span><b>${completed.length}/${kRows.length} checked</b></div><div><span>Skills</span><b>${[...levelMap.values()].length}/${skillRows.length} levels recorded</b></div><div><span>Approved logbook</span><b>${approvedLogbook.length} records</b></div><div><span>Reviews</span><b>${reviews.length}</b></div><div><span>Assessments</span><b>${previousAssessments.length}</b></div></section>`;
+    const penalties = penaltiesResult.data || [];
+    const penaltyHtml = penalties.length ? `<table class="portfolio-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penalties.map((row)=>`<tr><td>${d(row.created_at)}</td><td><b>${o(row.category||"—")}</b><br>${o(row.problem||"—")}</td><td>${o(row.punishment||"—")}</td><td>${o(row.details||"—")}</td><td>${o(penaltyStatusLabel(row.status))}</td></tr>`).join("")}</tbody></table>` : '<div class="portfolio-empty">No active approved penalties.</div>';
+    const summary = `<section class="portfolio-summary"><div><span>Residency</span><b>Year ${o(profile.residency_year || "—")}</b></div><div><span>Knowledge</span><b>${completed.length}/${kRows.length} checked</b></div><div><span>Skills</span><b>${[...levelMap.values()].length}/${skillRows.length} levels recorded</b></div><div><span>Approved logbook</span><b>${approvedLogbook.length} records</b></div><div><span>Reviews</span><b>${reviews.length}</b></div><div><span>Penalties</span><b>${penalties.length}</b></div><div><span>Assessments</span><b>${previousAssessments.length}</b></div></section>`;
     popup.document.open();
     popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${o(profile.display_name || profile.username)} - Assessment Portfolio</title><style>
-      @page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{margin:0;color:#142033;font-family:Arial,sans-serif;font-size:9px}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #0d4963;padding-bottom:7px;margin-bottom:8px}header h1{margin:0;font-size:19px;color:#081c35}header p{margin:2px 0 0;color:#5b6877}.portfolio-summary{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:8px 0 12px}.portfolio-summary div{border:1px solid #c4d0dc;border-radius:6px;padding:6px;background:#f7fafc}.portfolio-summary span{display:block;text-transform:uppercase;font-size:7px;color:#64748b;font-weight:700}.portfolio-summary b{display:block;margin-top:2px;font-size:11px;color:#0d2d50}.portfolio-section{margin:14px 0;break-inside:auto}.portfolio-section>h2{margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #aebbc8;font-size:14px;color:#0d2d50}.portfolio-section>h3{margin:9px 0 5px;font-size:11px;color:#0d4963}.portfolio-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:7px}.portfolio-table th,.portfolio-table td{border:1px solid #b8c5d2;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}.portfolio-table th{background:#0d4963;color:#fff;font-size:7.5px;text-transform:uppercase}.portfolio-table tbody tr:nth-child(even){background:#f7f9fb}.status-cell{width:11%;font-weight:800;text-align:center}.status-cell.done{color:#08783e;background:#edf9f2}.status-cell.todo{color:#7b4c00;background:#fff8e7}.skills-table th:nth-child(3),.skills-table td:nth-child(3){width:22%}.skills-table th:nth-child(4),.skills-table td:nth-child(4),.skills-table th:nth-child(5),.skills-table td:nth-child(5){width:11%;text-align:center}.skills-table small{display:block;margin-top:2px;color:#64748b}.level-cell{font-weight:800}.level-cell.recorded{color:#0b4f82}.level-cell.not-recorded{color:#9a3412}.dependence-guide{padding:6px 8px;margin-bottom:6px;border:1px solid #c9d8e5;background:#f1f7fb;border-radius:5px}.portfolio-empty{padding:10px;border:1px dashed #b8c5d2;color:#64748b}.reviews-table th:nth-child(4){width:30%}.assessments-table th:last-child{width:28%}.logbook-wrap{margin-top:6px}.logbook-wrap ${logbookExportCss().replace(/@page\{[^}]*\}/,'').replace(/body\{[^}]*\}/,'')}footer{margin-top:12px;padding-top:6px;border-top:1px solid #cbd5e1;text-align:right;color:#64748b;font-size:7px}@media print{.page-break{break-before:page;page-break-before:always}}
+      @page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{margin:0;color:#142033;font-family:Arial,sans-serif;font-size:9px}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #0d4963;padding-bottom:7px;margin-bottom:8px}header h1{margin:0;font-size:19px;color:#081c35}header p{margin:2px 0 0;color:#5b6877}.portfolio-summary{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:8px 0 12px}.portfolio-summary div{border:1px solid #c4d0dc;border-radius:6px;padding:6px;background:#f7fafc}.portfolio-summary span{display:block;text-transform:uppercase;font-size:7px;color:#64748b;font-weight:700}.portfolio-summary b{display:block;margin-top:2px;font-size:11px;color:#0d2d50}.portfolio-section{margin:14px 0;break-inside:auto}.portfolio-section>h2{margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #aebbc8;font-size:14px;color:#0d2d50}.portfolio-section>h3{margin:9px 0 5px;font-size:11px;color:#0d4963}.portfolio-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:7px}.portfolio-table th,.portfolio-table td{border:1px solid #b8c5d2;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}.portfolio-table th{background:#0d4963;color:#fff;font-size:7.5px;text-transform:uppercase}.portfolio-table tbody tr:nth-child(even){background:#f7f9fb}.status-cell{width:11%;font-weight:800;text-align:center}.status-cell.done{color:#08783e;background:#edf9f2}.status-cell.todo{color:#7b4c00;background:#fff8e7}.skills-table th:nth-child(3),.skills-table td:nth-child(3){width:22%}.skills-table th:nth-child(4),.skills-table td:nth-child(4),.skills-table th:nth-child(5),.skills-table td:nth-child(5){width:11%;text-align:center}.skills-table small{display:block;margin-top:2px;color:#64748b}.level-cell{font-weight:800}.level-cell.recorded{color:#0b4f82}.level-cell.not-recorded{color:#9a3412}.dependence-guide{padding:6px 8px;margin-bottom:6px;border:1px solid #c9d8e5;background:#f1f7fb;border-radius:5px}.portfolio-empty{padding:10px;border:1px dashed #b8c5d2;color:#64748b}.reviews-table th:nth-child(4){width:30%}.assessments-table th:last-child{width:28%}.logbook-wrap{margin-top:6px}.logbook-wrap ${logbookExportCss().replace(/@page\{[^}]*\}/,'').replace(/body\{[^}]*\}/,'')}footer{margin-top:12px;padding-top:6px;border-top:1px solid #cbd5e1;text-align:right;color:#64748b;font-size:7px}@media print{.page-break{break-before:page;page-break-before:always}}
     </style></head><body><header><div><h1>Resident Assessment Portfolio</h1><p>${o(profile.display_name || profile.username)} · Year ${o(profile.residency_year || "—")} · Evidence available to assessor before formal scoring</p></div><p>Generated ${d(new Date().toISOString())}</p></header>${summary}
       <section class="portfolio-section"><h2>Knowledge evidence</h2><h3>✓ Checked knowledge</h3>${knowledgeTable(completed, true)}<h3>☐ Not checked knowledge</h3>${knowledgeTable(unchecked, false)}</section>
       <section class="portfolio-section page-break"><h2>Skills and level of dependence</h2>${skillsHtml}</section>
       <section class="portfolio-section page-break logbook-wrap"><h2>Approved e-logbook</h2>${logbookExportSections(approvedLogbook, false)}</section>
       <section class="portfolio-section page-break"><h2>Clinical and behavioural reviews</h2>${assessmentPortfolioReviewRows(reviews)}</section>
+      <section class="portfolio-section"><h2>Approved penalties / disciplinary record</h2>${penaltyHtml}</section>
       <section class="portfolio-section"><h2>Previous formal assessments</h2>${assessmentPortfolioAssessmentRows(previousAssessments)}</section>
       <footer>Cardiology Resident Training & Assessment · Resident evidence portfolio</footer></body></html>`);
     popup.document.close();
@@ -929,7 +1120,7 @@ async function loadResidentAssessmentEvidence(residentId, scheduleId = "") {
   if (chaptersResult.error) throw chaptersResult.error;
   const chapters = chaptersResult.data || [];
   const chapterIds = chapters.map((chapter) => Number(chapter.id));
-  const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments] = await Promise.all([
+  const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult] = await Promise.all([
     chapterIds.length ? e.from("knowledge_items").select("id,chapter_id,title,description,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({ data: [] }),
     e.from("knowledge_progress").select("knowledge_item_id,status").eq("resident_id", residentId),
     chapterIds.length ? e.from("skills").select("id,chapter_id,title,description,expected_level,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({ data: [] }),
@@ -938,8 +1129,9 @@ async function loadResidentAssessmentEvidence(residentId, scheduleId = "") {
     e.rpc("get_logbook_entries_v2", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
     reviewRpcResult(residentId),
     e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
+    e.rpc("get_resident_penalties_for_assessment_v1071", { p_resident_id: residentId }),
   ]);
-  const failed = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments].find((result) => result?.error);
+  const failed = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult].find((result) => result?.error);
   if (failed?.error) throw failed.error;
   const chapterMap = new Map(chapters.map((chapter) => [Number(chapter.id), chapter]));
   const completedIds = new Set((progress.data || []).filter((row) => row.status === "completed").map((row) => Number(row.knowledge_item_id)));
@@ -959,11 +1151,12 @@ async function loadResidentAssessmentEvidence(residentId, scheduleId = "") {
     logbook: (logbookResult.data || []).filter((entry) => String(entry.resident_id) === String(residentId) && entry.status === "approved"),
     reviews: reviewsResult.data || [],
     assessments: assessments.data || [],
+    penalties: penaltiesResult.data || [],
   };
 }
 
 function assessmentEvidenceHtml(data, options = {}) {
-  const { profile, schedule, chapterMap, knowledge, completedIds, skills, levelMap, logCount, logbook, reviews, assessments } = data;
+  const { profile, schedule, chapterMap, knowledge, completedIds, skills, levelMap, logCount, logbook, reviews, assessments, penalties = [] } = data;
   const checked = knowledge.filter((item) => completedIds.has(Number(item.id)));
   const unchecked = knowledge.filter((item) => !completedIds.has(Number(item.id)));
   const knowledgeList = (items, done) => items.length
@@ -984,18 +1177,23 @@ function assessmentEvidenceHtml(data, options = {}) {
   const assessmentRows = assessments.length
     ? assessments.slice(0, 10).map((row) => `<tr><td>${d(row.assessment_date || row.created_at)}</td><td>${o(row.knowledge_score)}/10</td><td>${o(row.skills_score)}/10</td><td>${o(row.attitude_score)}/10</td><td>${row.overall_pass ? '<span class="tag success">Passed</span>' : '<span class="tag danger">Failed</span>'}</td></tr>`).join("")
     : `<tr><td colspan="5">No previous assessments.</td></tr>`;
+  const penaltyRows = penalties.length
+    ? penalties.map((row) => `<tr><td>${d(row.created_at)}</td><td><b>${o(row.category || "—")}</b><small>${o(row.problem || "—")}</small></td><td>${o(row.punishment || "—")}</td><td>${o(row.details || "—")}</td><td><span class="tag ${penaltyStatusClass(row.status)}">${o(penaltyStatusLabel(row.status))}</span>${row.complaint_text ? `<small>Complaint: ${o(row.complaint_text)}</small>` : ""}</td></tr>`).join("")
+    : `<tr><td colspan="5">No active approved penalties.</td></tr>`;
   return `<section class="assessment-live-evidence">
     <div class="assessment-evidence-summary">
       <div><span>Resident</span><b>${o(profile.display_name || profile.username)}</b></div>
       <div><span>Knowledge</span><b>${checked.length}/${knowledge.length}</b></div>
       <div><span>Skills with level</span><b>${[...levelMap.values()].filter(Boolean).length}/${skills.length}</b></div>
       <div><span>Approved logbook</span><b>${logbook.length}</b></div>
+      <div><span>Active penalties</span><b>${penalties.length}</b></div>
     </div>
     ${schedule ? `<div class="assessment-scope-note"><b>Assessment scope:</b> ${o(schedule.title)} · Year ${o(schedule.residency_year)}</div>` : ""}
     <details class="assessment-evidence-section" open><summary>Knowledge evidence <span>${checked.length} checked · ${unchecked.length} not checked</span></summary><div class="assessment-knowledge-columns"><section><h4>✓ Checked knowledge</h4>${knowledgeList(checked, true)}</section><section><h4>○ Not checked knowledge</h4>${knowledgeList(unchecked, false)}</section></div></details>
     <details class="assessment-evidence-section" open><summary>Skills & level of dependence <span>${skills.length} skills</span></summary><div class="dependence-guide compact"><b>1</b> Observer · <b>2</b> Direct supervision · <b>3</b> Limited supervision · <b>4</b> Independent · <b>5</b> Expert / supervisor</div><div class="table-scroll"><table class="table assessment-skill-evidence-table"><thead><tr><th>Skill</th><th>Current level</th><th>Expected</th><th>Logs</th></tr></thead><tbody>${skillRows}</tbody></table></div></details>
     <details class="assessment-evidence-section"><summary>Approved e-logbook <span>${logbook.length} entries</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Activity</th><th>Participation</th><th>Date</th><th>Hospital</th></tr></thead><tbody>${logbookRows}</tbody></table></div></details>
     <details class="assessment-evidence-section"><summary>Clinical & behavioural reviews <span>${reviews.length}</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Date</th><th>Domain</th><th>Type</th><th>Review</th></tr></thead><tbody>${reviewRows}</tbody></table></div></details>
+    <details class="assessment-evidence-section" ${penalties.length ? "open" : ""}><summary>Approved penalties / disciplinary record <span>${penalties.length}</span></summary><div class="assessment-penalty-note">Only active penalties approved by the Program Owner are shown. A complaint under review is labelled clearly.</div><div class="table-scroll"><table class="table compact-evidence-table assessment-penalty-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penaltyRows}</tbody></table></div></details>
     <details class="assessment-evidence-section"><summary>Previous formal assessments <span>${assessments.length}</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Date</th><th>Knowledge</th><th>Skills</th><th>Behaviour</th><th>Outcome</th></tr></thead><tbody>${assessmentRows}</tbody></table></div></details>
   </section>`;
 }
@@ -1249,7 +1447,7 @@ function reviewThreadActions(review) {
   const residentOwnReview = s.p.role === "resident" && String(review.resident_id) === String(s.p.id);
   const reconsideration = String(review.reconsideration_status || "none");
   const openLabel = residentOwnReview ? "Open review" : "View review";
-  const openTarget = s.p.role === "resident" ? "reviews" : s.p.role === "assessor" ? "write-review" : s.p.role === "owner" ? "comments" : "reviews";
+  const openTarget = s.p.role === "resident" ? "reviews" : s.p.role === "assessor" ? "write-review" : s.p.role === "owner" ? "reviews-penalties" : "reviews";
   return `<div class="message-actions review-message-actions thread-review-actions">
     <button class="btn small secondary" data-open-review-notification="${o(id)}" data-review-target="${o(openTarget)}">${openLabel}</button>
     ${residentOwnReview && reconsideration === "none" ? `<button class="btn small reclaim-button" data-review-reconsider="${o(id)}">Request to reconsider</button>` : ""}
@@ -2011,7 +2209,7 @@ async function ownerToolsPage() {
   if (s.p.role !== "owner") return g("dashboard");
   t("#title").textContent = "More";
   a.innerHTML = h("More owner tools", "Less-used tools live here so the side drawer stays short.") + `<div class="dashboard-grid dashboard-grid-4 hub-grid">
-    ${dashboardTile("Observer reviews", "Reviews", "Signed observer comments", "comments")}
+    ${dashboardTile("Reviews & penalties", "Reviews", "Feedback, penalties and complaints", "reviews-penalties")}
     ${dashboardTile("Message cleanup", "Cleanup", "Delete message categories safely", "message-cleanup")}
     ${dashboardTile("Test-period reset", "RESET", "Clear test reviews and resident learning progress", "owner-test-reset", "warning-tile")}
     ${dashboardTile("My profile", "Profile", "Photo, contact details and password", "profile")}
@@ -3544,6 +3742,35 @@ function H() {
     const a = t.target,
       r = new FormData(a);
     try {
+      if (a.id === "penaltyIssueForm") {
+        u(await e.rpc("create_resident_penalty_v1071", {
+          p_resident_id: r.get("resident_id"),
+          p_category_id: Number(r.get("category_id")),
+          p_problem_id: Number(r.get("problem_id")),
+          p_punishment_id: Number(r.get("punishment_id")),
+          p_details: String(r.get("details") || "").trim(),
+        }));
+        b("Penalty sent to the Program Owner for approval");
+        return void (await $());
+      }
+      if (a.id === "penaltyComplaintForm") {
+        u(await e.rpc("resident_complain_penalty_v1071", { p_penalty_id: Number(r.get("penalty_id")), p_complaint: String(r.get("complaint") || "").trim() }));
+        if (i.open) i.close();
+        b("Complaint sent to the Program Owner");
+        return void (await $());
+      }
+      if (a.id === "penaltyOptionForm") {
+        u(await e.rpc("owner_save_penalty_option_v1071", {
+          p_kind: r.get("kind"),
+          p_id: r.get("option_id") ? Number(r.get("option_id")) : null,
+          p_name: String(r.get("name") || "").trim(),
+          p_category_id: r.get("category_id") ? Number(r.get("category_id")) : null,
+          p_sort_order: Number(r.get("sort_order")) || 10,
+        }));
+        if (i.open) i.close();
+        b("Penalty dropdown updated");
+        return void (await ownerReviewsPenaltiesPage());
+      }
       if (
         ("logForm" === a.id &&
           u(
@@ -4133,6 +4360,97 @@ function H() {
     (await e.auth.signOut(), location.replace("index.html"));
   }),
   addEventListener("hashchange", $));
+
+// v1.0.71 interaction handlers
+function syncPenaltyProblemOptions() {
+  const category = String(t("#penaltyCategory")?.value || "");
+  const select = t("#penaltyProblem");
+  if (!select) return;
+  let first = null;
+  [...select.options].forEach((option) => {
+    const show = !option.dataset.category || option.dataset.category === category;
+    option.hidden = !show;
+    option.disabled = !show;
+    if (show && !first) first = option;
+  });
+  if (select.selectedOptions[0]?.disabled && first) select.value = first.value;
+}
+
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("button,[data-directory-resident]");
+  if (!button) return;
+  try {
+    if (button.dataset.directoryResident) {
+      openResidentDirectoryProfile(window.residentDirectoryRows?.get(String(button.dataset.directoryResident)));
+      return;
+    }
+    if (button.dataset.penaltyComplain) {
+      const row = (await e.rpc("get_penalties_for_me_v1071")).data?.find((x) => String(x.id) === String(button.dataset.penaltyComplain));
+      y(`<form id="penaltyComplaintForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Penalty complaint</span><h2>Complain against this penalty</h2></div><button type="button" data-close>×</button></div><div class="penalty-complaint-context"><b>${o(row?.category || "Penalty")} · ${o(row?.problem || "")}</b><p>${o(row?.punishment || "")}</p><small>${o(row?.details || "")}</small></div><label>Your complaint<textarea name="complaint" required placeholder="Explain why you believe this penalty should be reconsidered."></textarea></label><input type="hidden" name="penalty_id" value="${o(button.dataset.penaltyComplain)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send complaint</button></div></form>`);
+      return;
+    }
+    if (button.dataset.ownerPenaltyDecision) {
+      u(await e.rpc("owner_decide_penalty_v1071", { p_penalty_id: Number(button.dataset.ownerPenaltyDecision), p_decision: button.dataset.decision, p_note: null }));
+      b(button.dataset.decision === "approved" ? "Penalty approved and resident notified" : "Penalty rejected");
+      await ownerReviewsPenaltiesPage();
+      return;
+    }
+    if (button.dataset.assignPenaltyPanel) {
+      const id = button.dataset.assignPenaltyPanel;
+      const a1 = document.querySelector(`[data-appeal-assessor-1="${CSS.escape(id)}"]`)?.value || "";
+      const a2 = document.querySelector(`[data-appeal-assessor-2="${CSS.escape(id)}"]`)?.value || "";
+      if (!a1 || !a2) throw new Error("Choose two neutral assessors");
+      u(await e.rpc("owner_assign_penalty_appeal_reviewers_v1071", { p_penalty_id: Number(id), p_assessor_1: a1, p_assessor_2: a2 }));
+      b("Neutral appeal panel assigned");
+      await ownerReviewsPenaltiesPage();
+      return;
+    }
+    if (button.dataset.ownerPenaltyAppeal) {
+      u(await e.rpc("owner_vote_penalty_appeal_v1071", { p_penalty_id: Number(button.dataset.ownerPenaltyAppeal), p_decision: button.dataset.decision, p_note: null }));
+      b("Program Owner appeal vote recorded");
+      await ownerReviewsPenaltiesPage();
+      return;
+    }
+    if (button.dataset.penaltyAppealVote) {
+      u(await e.rpc("assessor_vote_penalty_appeal_v1071", { p_penalty_id: Number(button.dataset.penaltyAppealVote), p_decision: button.dataset.decision, p_note: null }));
+      b("Neutral appeal decision recorded");
+      await reviewPage();
+      return;
+    }
+    if (button.dataset.penaltyOptionAdd) {
+      openPenaltyOptionEditor(button.dataset.penaltyOptionAdd);
+      return;
+    }
+    if (button.dataset.penaltyOptionEdit) {
+      const kind = button.dataset.penaltyOptionEdit;
+      const id = String(button.dataset.optionId || "");
+      const config = window.penaltyConfig || {};
+      const list = kind === "category" ? config.categories : kind === "problem" ? config.problems : config.punishments;
+      openPenaltyOptionEditor(kind, (list || []).find((row) => String(row.id) === id));
+      return;
+    }
+    if (button.dataset.penaltyOptionActive) {
+      u(await e.rpc("owner_set_penalty_option_active_v1071", { p_kind: button.dataset.penaltyOptionActive, p_id: Number(button.dataset.optionId), p_active: button.dataset.active === "true" }));
+      b(button.dataset.active === "true" ? "Option restored" : "Option removed from future dropdowns");
+      await ownerReviewsPenaltiesPage();
+      return;
+    }
+  } catch (error) {
+    alert(error?.message || String(error));
+  }
+});
+
+document.addEventListener("input", (event) => {
+  if (event.target.id === "residentDirectorySearch") filterResidentDirectory();
+  if (event.target.matches?.('[data-penalty-filter="search"]')) filterPenaltyTables(event.target.closest(".review-workspace-panel,.card,.modal") || document);
+});
+document.addEventListener("change", (event) => {
+  if (event.target.id === "residentDirectoryYear") filterResidentDirectory();
+  if (event.target.id === "penaltyCategory") syncPenaltyProblemOptions();
+  if (event.target.matches?.('[data-penalty-filter="status"]')) filterPenaltyTables(event.target.closest(".review-workspace-panel,.card,.modal") || document);
+});
+
+
 const {
   data: { session: I },
 } = await e.auth.getSession();
