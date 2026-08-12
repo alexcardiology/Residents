@@ -2558,7 +2558,7 @@ function B(e) {
     : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(participationLabel(e.participation_mode))}</p><p><b>Total cases:</b> ${logbookCaseCount(e)}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>${logbookCaseDetailsHtml(e)}`;
   const approvalDetail = isConference
     ? `<div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div>`
-    : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${o(e.senior_resident_name)} <span class="tag">${o(e.senior_status)}</span>${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
+    : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${e.senior_resident_id ? `${o(e.senior_resident_name || "Senior resident")} <span class="tag">${o(e.senior_status)}</span>` : '<span class="tag success">Not required</span>'}${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
   return ` <article class="card logbook-entry" data-logbook-status="${o(e.status)}" data-logbook-type="${o(e.activity_category)}"> <div class="lead"> <div><span class="eyebrow">${o(F[e.activity_type] || e.activity_type)}</span><h3>${o(e.title)}</h3><p>${d(e.activity_date)} · ${o(e.resident_name)} · Year ${o(e.residency_year)}</p></div> <span class="tag ${statusClass}">${o(e.status)}</span> </div> <div class="logbook-details">${conferenceDetail}${e.description ? `<p><b>Details:</b> ${o(e.description)}</p>` : ""}${approvalDetail}</div> ${canReviewSenior || canReviewAssessor ? `<div class="actions no-print"><button class="btn" data-logbook-review="${e.id}" data-logbook-title="${o(e.title)}">Approve or reject</button></div>` : ""} </article>`;
 }
 
@@ -2589,7 +2589,7 @@ function renderAssessorLogbookTable(entries) {
       <td data-label="Participation">${o(participation || "—")}</td>
       <td data-label="Cases">${isConference ? "—" : logbookCaseCount(entry)}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
-      <td data-label="Senior">${isConference ? "—" : `${o(entry.senior_resident_name || "—")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
+      <td data-label="Senior">${isConference ? "—" : entry.senior_resident_id ? `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}` : '<span class="tag success">Not required</span>'}</td>
       <td data-label="Decision">${myDecision === "—" ? "—" : logbookDecisionBadge(myDecision)}</td>
       <td data-label="Actions"><div class="table-row-actions">${canAct ? `<button class="btn small" data-logbook-table-review="${entry.id}" data-logbook-title="${o(entry.title)}">Review</button>` : ""}<button class="btn small secondary" data-logbook-detail="${entry.id}">Details</button></div></td>
     </tr>`;
@@ -2710,7 +2710,7 @@ function openLogbookEntryDetail(entry) {
   const activity = isConference ? entry.title : (entry.procedure_name || entry.title);
   const participation = isConference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
   y(`<article class="modal"><div class="modal-head"><div><span class="eyebrow">${isConference ? "Conference" : "Intervention"}</span><h2>${o(activity || "Logbook activity")}</h2></div><button type="button" data-close>×</button></div>
-    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Total cases</span><b>${logbookCaseCount(entry)}</b></div><div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
+    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Total cases</span><b>${logbookCaseCount(entry)}</b></div><div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span>${entry.senior_resident_id ? `<b>${o(entry.senior_resident_name || "Senior resident")}</b> ${logbookDecisionBadge(entry.senior_status)}` : '<b>Not required</b>'}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
     ${!isConference ? logbookCaseDetailsHtml(entry) : ""}
     ${entry.senior_note ? `<div class="message-body"><b>Senior note</b><br>${o(entry.senior_note)}</div>` : ""}${entry.assessor_note ? `<div class="message-body"><b>Assessor note</b><br>${o(entry.assessor_note)}</div>` : ""}${entry.description ? `<div class="message-body"><b>Resident notes / evidence</b><br>${o(entry.description)}</div>` : ""}
     <div class="actions"><button class="btn secondary" type="button" data-close>Close</button></div></article>`);
@@ -2761,7 +2761,7 @@ function logbookExportSections(entries, includeResident = false) {
       running += 1;
       const details = logbookCaseDetails(entry).map((text,index)=>text ? `Case ${index+1}: ${text}` : "").filter(Boolean).join(" | ");
       const notes = [entry.description, details].filter(Boolean).join(" · ") || "—";
-      return `<tr><td>${running}</td>${includeResident ? `<td>${o(entry.resident_name || "—")}</td>` : ""}<td>${logbookCaseCount(entry)}</td><td>${d(entry.activity_date)}</td><td>${o(participationLabel(entry.participation_mode))}</td><td>${o(entry.hospital || "—")}</td><td>${o(entry.senior_resident_name || "—")}</td><td class="signature">${o(entry.assessor_name || "—")}</td><td>${o(notes)}</td></tr>`;
+      return `<tr><td>${running}</td>${includeResident ? `<td>${o(entry.resident_name || "—")}</td>` : ""}<td>${logbookCaseCount(entry)}</td><td>${d(entry.activity_date)}</td><td>${o(participationLabel(entry.participation_mode))}</td><td>${o(entry.hospital || "—")}</td><td>${o(entry.senior_resident_id ? (entry.senior_resident_name || "Senior resident") : "Not required")}</td><td class="signature">${o(entry.assessor_name || "—")}</td><td>${o(notes)}</td></tr>`;
     }).join("")}`;
   }).join("");
   const summaryRows = groupNames.map((name) => `<tr><td>${o(name)}</td><td>${groups.get(name).reduce((sum, entry) => sum + logbookCaseCount(entry), 0)}</td></tr>`).join("");
@@ -3115,7 +3115,7 @@ async function P() {
   const submitCard =
     "resident" === s.p.role
       ? ` <section class="card no-print">
-          <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>For interventions performed in the same setting, record them together as one batch. The senior resident receives the request first; the assessor receives it only after senior approval.</p></div></div>
+          <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>For interventions performed in the same setting, record them together as one batch. Choose a senior verifier; Year 4–5 residents may send the intervention directly to the assessor.</p></div></div>
           <form id="logbookForm" class="form-grid">
             <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label>
             <div class="full form-grid" id="manualFields">
@@ -3125,7 +3125,7 @@ async function P() {
               <div class="full case-details-builder"><div class="case-details-heading"><div><b>Optional case details</b><small>One box is created for each case. You may leave any box empty.</small></div><span id="logbookCaseCountBadge" class="tag">1 case</span></div><div id="logbookCaseDetails" class="case-detail-input-grid"></div></div>
               <label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label>
               <label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label>
-              <label class="senior-search-field">Senior resident<input id="seniorResidentSearch" type="search" placeholder="Type letters to filter Year 2–5 residents" autocomplete="off"><select name="senior_resident_id" id="seniorResidentSelect" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${o(person.residency_year || "")}</option>`).join("")}</select><small id="seniorResidentMatchCount">${seniorResidents.length} available senior residents</small></label>
+              <div class="senior-picker-field"><span class="field-label">Senior resident</span>${Number(s.p.residency_year) >= 4 ? `<label class="senior-skip-option"><input id="skipSeniorResident" type="checkbox"><span><b>No senior resident</b><small>Send this intervention directly to the assessor.</small></span></label>` : ""}<input id="seniorResidentSearch" type="search" placeholder="Search senior resident by name" autocomplete="off"><input id="seniorResidentId" type="hidden" name="senior_resident_id" value=""><div id="seniorResidentSelected" class="senior-selected-chip" hidden></div><div id="seniorResidentResults" class="senior-autocomplete-list">${seniorResidents.map((person) => `<button type="button" class="senior-autocomplete-option" data-senior-resident-choice="${person.id}" data-senior-resident-name="${o(person.display_name)}"><span>${o(person.display_name)}</span><small>Year ${o(person.residency_year || "")}</small></button>`).join("")}</div></div>
               <label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label>
             </div>
             <div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div>
@@ -3176,20 +3176,57 @@ async function P() {
       `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>`;
   }
   window.logbookSeniorResidents = seniorResidents.map((person) => ({ ...person }));
-  if (document.querySelector("#seniorResidentSelect")) filterSeniorResidentPicker();
+  if (document.querySelector("#seniorResidentResults")) filterSeniorResidentPicker();
   if (document.querySelector("#logbookCaseCount")) syncLogbookCaseDetailInputs();
+  syncSeniorResidentSkip();
 }
 
 function filterSeniorResidentPicker() {
-  const search = (document.querySelector("#seniorResidentSearch")?.value || "").trim().toLowerCase();
-  const select = document.querySelector("#seniorResidentSelect");
-  if (!select) return;
-  const selected = select.value;
+  const searchInput = document.querySelector("#seniorResidentSearch");
+  const results = document.querySelector("#seniorResidentResults");
+  const hidden = document.querySelector("#seniorResidentId");
+  if (!searchInput || !results || !hidden) return;
+  const search = String(searchInput.value || "").trim().toLowerCase();
+  const skip = Boolean(document.querySelector("#skipSeniorResident")?.checked);
   const people = (window.logbookSeniorResidents || []).filter((person) => !search || String(person.display_name || "").toLowerCase().includes(search));
-  select.innerHTML = `<option value="">Choose senior resident</option>${people.map((person) => `<option value="${o(person.id)}" ${String(person.id) === String(selected) ? "selected" : ""}>${o(person.display_name)} · Year ${o(person.residency_year || "")}</option>`).join("")}`;
-  if (selected && !people.some((person) => String(person.id) === String(selected))) select.value = "";
-  const count = document.querySelector("#seniorResidentMatchCount");
-  if (count) count.textContent = `${people.length} match${people.length === 1 ? "" : "es"} · Year 2–5`;
+  results.innerHTML = skip
+    ? ""
+    : people.length
+      ? people.map((person) => `<button type="button" class="senior-autocomplete-option${String(hidden.value) === String(person.id) ? " selected" : ""}" data-senior-resident-choice="${o(person.id)}" data-senior-resident-name="${o(person.display_name)}"><span>${o(person.display_name)}</span><small>Year ${o(person.residency_year || "")}</small></button>`).join("")
+      : '<div class="senior-autocomplete-empty">No matching resident</div>';
+}
+
+function chooseSeniorResident(id, name) {
+  const hidden = document.querySelector("#seniorResidentId");
+  const search = document.querySelector("#seniorResidentSearch");
+  const selected = document.querySelector("#seniorResidentSelected");
+  if (!hidden || !search) return;
+  hidden.value = id || "";
+  search.value = name || "";
+  if (selected) {
+    selected.hidden = !id;
+    selected.innerHTML = id ? `<span>Selected: <b>${o(name || "Senior resident")}</b></span><button type="button" data-clear-senior-resident aria-label="Clear senior resident">×</button>` : "";
+  }
+  filterSeniorResidentPicker();
+}
+
+function syncSeniorResidentSkip() {
+  const skip = document.querySelector("#skipSeniorResident");
+  const search = document.querySelector("#seniorResidentSearch");
+  const results = document.querySelector("#seniorResidentResults");
+  const hidden = document.querySelector("#seniorResidentId");
+  const selected = document.querySelector("#seniorResidentSelected");
+  if (!search || !results || !hidden) return;
+  const active = Boolean(skip?.checked);
+  search.disabled = active;
+  if (active) {
+    hidden.value = "";
+    search.value = "";
+    if (selected) { selected.hidden = true; selected.innerHTML = ""; }
+    results.innerHTML = '<div class="senior-skip-active">Senior verification skipped — request will go directly to the assessor.</div>';
+  } else {
+    filterSeniorResidentPicker();
+  }
 }
 
 function syncLogbookCaseDetailInputs() {
@@ -3222,8 +3259,28 @@ function H() {
 
 document.addEventListener("input", (event) => {
   const target = event.target;
-  if (target?.id === "seniorResidentSearch") filterSeniorResidentPicker();
+  if (target?.id === "seniorResidentSearch") {
+    const hidden = document.querySelector("#seniorResidentId");
+    const selected = document.querySelector("#seniorResidentSelected");
+    const chosen = (window.logbookSeniorResidents || []).find((person) => String(person.id) === String(hidden?.value || ""));
+    if (chosen && String(target.value || "").trim() !== String(chosen.display_name || "").trim()) {
+      if (hidden) hidden.value = "";
+      if (selected) { selected.hidden = true; selected.innerHTML = ""; }
+    }
+    filterSeniorResidentPicker();
+  }
   if (target?.id === "logbookCaseCount") syncLogbookCaseDetailInputs();
+});
+
+document.addEventListener("change", (event) => {
+  if (event.target?.id === "skipSeniorResident") syncSeniorResidentSkip();
+});
+
+document.addEventListener("click", (event) => {
+  const choice = event.target.closest("[data-senior-resident-choice]");
+  if (choice) chooseSeniorResident(choice.dataset.seniorResidentChoice, choice.dataset.seniorResidentName);
+  const clear = event.target.closest("[data-clear-senior-resident]");
+  if (clear) chooseSeniorResident("", "");
 });
 
 (document.addEventListener("click", async (t) => {
@@ -4241,6 +4298,9 @@ document.addEventListener("input", (event) => {
         const manual = r.get("activity_category") === "manual_intervention";
         const caseCount = manual ? Math.max(1, Math.min(100, Number(r.get("case_count")) || 1)) : 1;
         const caseDetails = manual ? Array.from({ length: caseCount }, (_, index) => String(r.get(`case_detail_${index + 1}`) || "").trim()) : [];
+        const skipSenior = manual && Boolean(document.querySelector("#skipSeniorResident")?.checked);
+        const seniorResidentId = skipSenior ? null : (r.get("senior_resident_id") || null);
+        if (manual && !skipSenior && !seniorResidentId) throw new Error("Choose a senior resident");
         u(
           await e.rpc("submit_logbook_entry_v1073", {
             p_activity_category: r.get("activity_category"),
@@ -4250,7 +4310,7 @@ document.addEventListener("input", (event) => {
             p_procedure_name: r.get("procedure_name") || null,
             p_participation_mode: r.get("participation_mode") || null,
             p_hospital: r.get("hospital") || null,
-            p_senior_resident_id: r.get("senior_resident_id") || null,
+            p_senior_resident_id: seniorResidentId,
             p_assessor_id: r.get("assessor_id"),
             p_description: r.get("description") || null,
             p_case_count: caseCount,
