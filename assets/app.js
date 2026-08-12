@@ -3207,7 +3207,6 @@ function syncLogbookCaseDetailInputs() {
   const badge = document.querySelector("#logbookCaseCountBadge");
   if (badge) badge.textContent = `${count} case${count === 1 ? "" : "s"}`;
 }
-}
 function H() {
   const status = t("#logbookStatus")?.value || "";
   const type = t("#logbookType")?.value || "";
