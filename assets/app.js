@@ -123,8 +123,7 @@ const s = {
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
       ["reviews", "Reviews & penalties"],
-      ["logbook", "My logbook"],
-      ["prior-experience", "Prior experience"],
+      ["logbook", "E-logbook"],
       ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
       ["profile", "My profile"],
@@ -777,7 +776,7 @@ function penaltyIssuePanel(data, heading = "Sign a penalty") {
       <label>Problem<select name="problem_id" id="penaltyProblem" required>${probs.map((row)=>`<option value="${row.id}" data-category="${row.category_id}" ${String(row.category_id)!==firstCat ? "hidden disabled" : ""}>${o(row.name)}</option>`).join("")}</select></label>
       <label>Punishment<select name="punishment_id" required><option value="">Choose punishment</option>${punishments.map((row)=>`<option value="${row.id}">${o(row.name)}</option>`).join("")}</select></label>
       <label class="full">Incident / justification<textarea name="details" required placeholder="Briefly describe what happened and why this penalty is being proposed."></textarea></label>
-    </div><div class="actions"><button>Sign penalty and send to Program Owner</button></div></form>`;
+    </div><div class="actions"><button>Sign penalty and request approval</button></div></form>`;
 }
 function penaltyActionButtons(row, context = "self") {
   const id=o(row.id);
@@ -2900,7 +2899,7 @@ async function priorExperiencePage() {
   };
   const priority = `<section class="prior-experience-alert priority-alert"><div class="priority-alert-icon">🚨</div><div><span class="eyebrow">Top priority · one-time retrospective record</span><h2>Prior Experience Logbook</h2><p>Record clinical experience completed before routine use of this e-logbook. <b>Save and edit freely as a draft.</b> Final submission locks editing, then requires <b>two senior-resident approvals first</b> before intervention-specific assessors can review it.</p></div>${priorExperienceStatusBadge(header.status)}</section>`;
   if (!editable) {
-    a.innerHTML = h("Prior Experience Logbook", "Your retrospective experience is locked after final submission and follows the senior → assessor verification pathway.", '<button class="btn secondary" data-go="logbook">Back to My logbook</button>') + priority + priorExperienceSummaryHtml(data) + priorExperienceReviewTimeline(data);
+    a.innerHTML = h("Prior Experience Logbook", "Your retrospective experience is locked after final submission and follows the senior → assessor verification pathway.", '<button class="btn secondary" data-go="logbook">Back to E-logbook</button>') + priority + priorExperienceSummaryHtml(data) + priorExperienceReviewTimeline(data);
     return;
   }
   const rows = PRIOR_EXPERIENCE_INTERVENTIONS.map((name) => {
@@ -2908,7 +2907,7 @@ async function priorExperiencePage() {
     return `<tr data-prior-intervention="${o(name)}"><td><b>${o(name)}</b></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.attended_count)||0}" data-prior-count="attended_count"></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.assisted_count)||0}" data-prior-count="assisted_count"></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.solo_guided_count)||0}" data-prior-count="solo_guided_count"></td><td><input class="prior-count-input" type="number" min="0" max="9999" value="${Number(row.solo_unguided_count)||0}" data-prior-count="solo_unguided_count"></td><td><input value="${o(row.notes || "")}" data-prior-intervention-notes placeholder="Optional"></td></tr>`;
   }).join("");
   const conferences = data?.conferences || [];
-  a.innerHTML = h("Prior Experience Logbook", "Build your retrospective record as a draft, review it carefully, then submit once for formal verification.", '<button class="btn secondary" data-go="logbook">Back to My logbook</button>') + priority + `
+  a.innerHTML = h("Prior Experience Logbook", "Build your retrospective record as a draft, review it carefully, then submit once for formal verification.", '<button class="btn secondary" data-go="logbook">Back to E-logbook</button>') + priority + `
     <form id="priorExperienceDraftForm" class="prior-experience-form">
       <section class="card prior-draft-card"><div class="section-head"><div><span class="eyebrow">Step 1</span><h3>Previous interventions</h3><p>Enter summary counts only. <b>Failed trial is intentionally not used in Prior Experience.</b></p></div></div>
         <div class="prior-table-tools"><input type="search" id="priorInterventionSearch" placeholder="Search intervention"></div>
@@ -3013,7 +3012,7 @@ async function ownerPendingRequestsPage() {
 async function P() {
   t("#title").textContent =
     "resident" === s.p.role
-      ? "My logbook"
+      ? "E-logbook"
       : "observer" === s.p.role
         ? "Logbook approvals"
         : "Resident logbooks";
