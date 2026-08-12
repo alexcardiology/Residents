@@ -196,6 +196,24 @@ const s = {
       solo_unguided: "Performed solo without guidance",
       solo: "Performed solo without guidance",
     })[value] || String(value || "—"),
+  logbookCaseCount = (entry) => Math.max(1, Number(entry?.case_count) || 1),
+  logbookCaseDetails = (entry) => {
+    const raw = entry?.case_details;
+    if (Array.isArray(raw)) return raw.map((item) => String(item || "").trim());
+    if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.map((item) => String(item || "").trim());
+      } catch (_) {}
+    }
+    return [];
+  },
+  logbookCaseDetailsHtml = (entry) => {
+    const details = logbookCaseDetails(entry);
+    const useful = details.map((text, index) => ({ text, index })).filter((item) => item.text);
+    if (!useful.length) return "";
+    return `<div class="case-detail-summary"><b>Case details</b>${useful.map((item) => `<div><span>Case ${item.index + 1}</span><p>${o(item.text)}</p></div>`).join("")}</div>`;
+  },
   b = (e) => {
     const s = t("#toast");
     ((s.textContent = e),
@@ -1053,7 +1071,7 @@ async function printResidentAssessmentPortfolio(residentId) {
       chapterIds.length ? e.from("skills").select("id,chapter_id,title,description,expected_level,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({data:[]}),
       e.from("skill_levels").select("skill_id,level").eq("resident_id", residentId),
       e.from("skill_logs").select("skill_id").eq("resident_id", residentId),
-      e.rpc("get_logbook_entries_v2", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
+      e.rpc("get_logbook_entries_v1073", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
       reviewRpcResult(residentId),
       e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
       e.rpc("get_resident_penalties_for_assessment_v1071", { p_resident_id: residentId }),
@@ -2537,7 +2555,7 @@ function B(e) {
     (isConference || e.senior_status === "approved");
   const conferenceDetail = isConference
     ? `<p><b>Conference activity:</b> ${e.conference_participation === "gave_speech" ? "Gave a speech" : "Attended the conference"}</p><p><b>Conference name:</b> ${o(e.title)}</p>`
-    : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(participationLabel(e.participation_mode))}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>`;
+    : `<p><b>Intervention:</b> ${o(e.procedure_name || e.title)}</p><p><b>Participation:</b> ${o(participationLabel(e.participation_mode))}</p><p><b>Total cases:</b> ${logbookCaseCount(e)}</p><p><b>Hospital:</b> ${o(e.hospital)}</p>${logbookCaseDetailsHtml(e)}`;
   const approvalDetail = isConference
     ? `<div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div>`
     : `<div class="approval-grid"><div class="approval-line"><b>Senior resident:</b> ${o(e.senior_resident_name)} <span class="tag">${o(e.senior_status)}</span>${e.senior_note ? `<p><b>Note:</b> ${o(e.senior_note)}</p>` : ""}</div><div class="approval-line"><b>Assessor:</b> ${o(e.assessor_name)} <span class="tag">${o(e.assessor_status)}</span>${e.assessor_note ? `<p><b>Note:</b> ${o(e.assessor_note)}</p>` : ""}</div></div>`;
@@ -2569,6 +2587,7 @@ function renderAssessorLogbookTable(entries) {
       <td data-label="Resident"><b>${o(entry.resident_name || "Resident")}</b><small>${yearChip(entry.residency_year)}</small></td>
       <td data-label="Activity"><b>${o(activity || "Activity")}</b><small>${isConference ? "Conference" : "Intervention"}</small></td>
       <td data-label="Participation">${o(participation || "—")}</td>
+      <td data-label="Cases">${isConference ? "—" : logbookCaseCount(entry)}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
       <td data-label="Senior">${isConference ? "—" : `${o(entry.senior_resident_name || "—")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
       <td data-label="Decision">${myDecision === "—" ? "—" : logbookDecisionBadge(myDecision)}</td>
@@ -2585,7 +2604,7 @@ function renderAssessorLogbookTable(entries) {
       <select id="assessorLogbookParticipationFilter"><option value="">All participation</option>${participations.map((name) => `<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
       <select id="assessorLogbookStatusFilter"><option value="">All decisions</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
     </div>
-    <div class="table-scroll"><table class="table assessor-logbook-table"><thead><tr><th>Resident</th><th>Activity</th><th>Participation</th><th>Date</th><th>Senior</th><th>Decision</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="7">No logbook records are available.</td></tr>'}</tbody></table></div>
+    <div class="table-scroll"><table class="table assessor-logbook-table"><thead><tr><th>Resident</th><th>Activity</th><th>Participation</th><th>Cases</th><th>Date</th><th>Senior</th><th>Decision</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="8">No logbook records are available.</td></tr>'}</tbody></table></div>
     <div id="assessorLogbookEmpty" class="mail-empty" hidden>No records match these filters.</div>
   </section>`;
 }
@@ -2638,6 +2657,7 @@ function renderLogbookHistoryTable(entries, mode = "resident") {
       ${showResident ? `<td data-label="Resident"><b>${o(entry.resident_name || "Resident")}</b><small>${entry.residency_year ? yearChip(entry.residency_year) : ""}</small></td>` : ""}
       <td data-label="Activity"><b>${o(activity || "Activity")}</b><small>${conference ? "Conference" : "Intervention"}</small></td>
       <td data-label="Participation">${o(participation || "—")}</td>
+      <td data-label="Cases">${conference ? "—" : logbookCaseCount(entry)}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
       <td data-label="Hospital">${conference ? "—" : o(entry.hospital || "—")}</td>
       <td data-label="Senior">${conference ? "—" : `${o(entry.senior_resident_name || "—")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
@@ -2656,7 +2676,7 @@ function renderLogbookHistoryTable(entries, mode = "resident") {
       <select data-logbook-history-filter="participation"><option value="">All participation</option>${participations.map((name)=>`<option value="${o(String(name).toLowerCase())}">${o(name)}</option>`).join("")}</select>
       <select data-logbook-history-filter="status"><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
     </div>
-    <div class="table-scroll"><table class="table logbook-history-table"><thead><tr>${showResident ? "<th>Resident</th>" : ""}<th>Activity</th><th>Participation</th><th>Date</th><th>Hospital</th><th>Senior</th><th>Assessor</th><th>Status</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="${showResident ? 9 : 8}">No logbook activities are available yet.</td></tr>`}</tbody></table></div>
+    <div class="table-scroll"><table class="table logbook-history-table"><thead><tr>${showResident ? "<th>Resident</th>" : ""}<th>Activity</th><th>Participation</th><th>Cases</th><th>Date</th><th>Hospital</th><th>Senior</th><th>Assessor</th><th>Status</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="${showResident ? 10 : 9}">No logbook activities are available yet.</td></tr>`}</tbody></table></div>
     <div class="mail-empty" data-logbook-history-empty hidden>No activities match these filters.</div>
   </section>`;
 }
@@ -2690,7 +2710,8 @@ function openLogbookEntryDetail(entry) {
   const activity = isConference ? entry.title : (entry.procedure_name || entry.title);
   const participation = isConference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
   y(`<article class="modal"><div class="modal-head"><div><span class="eyebrow">${isConference ? "Conference" : "Intervention"}</span><h2>${o(activity || "Logbook activity")}</h2></div><button type="button" data-close>×</button></div>
-    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
+    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Total cases</span><b>${logbookCaseCount(entry)}</b></div><div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span><b>${o(entry.senior_resident_name || "—")}</b> ${logbookDecisionBadge(entry.senior_status)}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
+    ${!isConference ? logbookCaseDetailsHtml(entry) : ""}
     ${entry.senior_note ? `<div class="message-body"><b>Senior note</b><br>${o(entry.senior_note)}</div>` : ""}${entry.assessor_note ? `<div class="message-body"><b>Assessor note</b><br>${o(entry.assessor_note)}</div>` : ""}${entry.description ? `<div class="message-body"><b>Resident notes / evidence</b><br>${o(entry.description)}</div>` : ""}
     <div class="actions"><button class="btn secondary" type="button" data-close>Close</button></div></article>`);
 }
@@ -2731,18 +2752,21 @@ function logbookExportSections(entries, includeResident = false) {
     if (li >= 0 || ri >= 0) return (li < 0 ? 999 : li) - (ri < 0 ? 999 : ri);
     return left.localeCompare(right);
   });
-  const interventionColspan = includeResident ? 8 : 7;
+  const interventionColspan = includeResident ? 9 : 8;
   let running = 0;
   const interventionRows = groupNames.map((name) => {
     const items = groups.get(name).sort((x, y) => new Date(x.activity_date) - new Date(y.activity_date));
-    return `<tr class="procedure-group"><td colspan="${interventionColspan}">${o(name)} <span>${items.length} case${items.length === 1 ? "" : "s"}</span></td></tr>${items.map((entry) => {
+    const totalCases = items.reduce((sum, entry) => sum + logbookCaseCount(entry), 0);
+    return `<tr class="procedure-group"><td colspan="${interventionColspan}">${o(name)} <span>${totalCases} case${totalCases === 1 ? "" : "s"} · ${items.length} batch${items.length === 1 ? "" : "es"}</span></td></tr>${items.map((entry) => {
       running += 1;
-      return `<tr><td>${running}</td>${includeResident ? `<td>${o(entry.resident_name || "—")}</td>` : ""}<td>${d(entry.activity_date)}</td><td>${o(participationLabel(entry.participation_mode))}</td><td>${o(entry.hospital || "—")}</td><td>${o(entry.senior_resident_name || "—")}</td><td class="signature">${o(entry.assessor_name || "—")}</td><td>${o(entry.description || "—")}</td></tr>`;
+      const details = logbookCaseDetails(entry).map((text,index)=>text ? `Case ${index+1}: ${text}` : "").filter(Boolean).join(" | ");
+      const notes = [entry.description, details].filter(Boolean).join(" · ") || "—";
+      return `<tr><td>${running}</td>${includeResident ? `<td>${o(entry.resident_name || "—")}</td>` : ""}<td>${logbookCaseCount(entry)}</td><td>${d(entry.activity_date)}</td><td>${o(participationLabel(entry.participation_mode))}</td><td>${o(entry.hospital || "—")}</td><td>${o(entry.senior_resident_name || "—")}</td><td class="signature">${o(entry.assessor_name || "—")}</td><td>${o(notes)}</td></tr>`;
     }).join("")}`;
   }).join("");
-  const summaryRows = groupNames.map((name) => `<tr><td>${o(name)}</td><td>${groups.get(name).length}</td></tr>`).join("");
+  const summaryRows = groupNames.map((name) => `<tr><td>${o(name)}</td><td>${groups.get(name).reduce((sum, entry) => sum + logbookCaseCount(entry), 0)}</td></tr>`).join("");
   const conferenceRows = conferences.sort((x, y) => new Date(x.activity_date) - new Date(y.activity_date)).map((entry, index) => `<tr><td>${index + 1}</td>${includeResident ? `<td>${o(entry.resident_name || "—")}</td>` : ""}<td>${o(entry.title || "Conference")}</td><td>${entry.conference_participation === "gave_speech" ? "Presenter" : "Attended"}</td><td>${d(entry.activity_date)}</td><td class="signature">${o(entry.assessor_name || "—")}</td><td>${o(entry.description || "—")}</td></tr>`).join("");
-  return `<section class="export-section"><h2>Interventions</h2>${interventions.length ? `<table class="intervention-table"><thead><tr><th>No.</th>${includeResident ? "<th>Resident</th>" : ""}<th>Date</th><th>Participation</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th><th>Notes</th></tr></thead><tbody>${interventionRows}</tbody></table><div class="intervention-summary"><h3>Intervention summary</h3><table><thead><tr><th>Intervention</th><th>Total</th></tr></thead><tbody>${summaryRows}<tr class="summary-total"><td><b>Total interventions</b></td><td><b>${interventions.length}</b></td></tr></tbody></table></div>` : '<div class="empty-logbook">No approved interventions.</div>'}</section>
+  return `<section class="export-section"><h2>Interventions</h2>${interventions.length ? `<table class="intervention-table"><thead><tr><th>Batch</th>${includeResident ? "<th>Resident</th>" : ""}<th>Cases</th><th>Date</th><th>Participation</th><th>Hospital</th><th>Senior resident</th><th>Assessor signature</th><th>Notes / case details</th></tr></thead><tbody>${interventionRows}</tbody></table><div class="intervention-summary"><h3>Intervention summary</h3><table><thead><tr><th>Intervention</th><th>Total</th></tr></thead><tbody>${summaryRows}<tr class="summary-total"><td><b>Total intervention cases</b></td><td><b>${interventions.reduce((sum, entry) => sum + logbookCaseCount(entry), 0)}</b></td></tr></tbody></table></div>` : '<div class="empty-logbook">No approved interventions.</div>'}</section>
     <section class="export-section conferences-section"><h2>Conferences</h2>${conferences.length ? `<table class="conference-table"><thead><tr><th>No.</th>${includeResident ? "<th>Resident</th>" : ""}<th>Conference</th><th>Participation</th><th>Date</th><th>Assessor signature</th><th>Notes</th></tr></thead><tbody>${conferenceRows}</tbody></table><p class="section-total"><b>Total conferences:</b> ${conferences.length}</p>` : '<div class="empty-logbook">No approved conferences.</div>'}</section>`;
 }
 function logbookExportCss() {
@@ -2758,7 +2782,7 @@ function printOwnerLogbooks(residentIds = null) {
   const allEntries = s.logbookPrintEntries || [];
   const pages = chosenResidents.map((resident) => {
     const entries = allEntries.filter((entry) => String(entry.resident_id) === String(resident.id) && entry.status === "approved");
-    return `<section class="resident-page"><header><div><h1>Approved Resident E-logbook</h1><p>${o(resident.display_name)} · Year ${o(resident.logbook_year || resident.residency_year || "—")}${resident.role && resident.role !== "resident" ? ` · archived ${o(m(resident.role))}` : ""}</p></div><p>${entries.length} approved record${entries.length === 1 ? "" : "s"}</p></header>${logbookExportSections(entries, false)}<footer>Generated ${d(new Date().toISOString())}</footer></section>`;
+    return `<section class="resident-page"><header><div><h1>Approved Resident E-logbook</h1><p>${o(resident.display_name)} · Year ${o(resident.logbook_year || resident.residency_year || "—")}${resident.role && resident.role !== "resident" ? ` · archived ${o(m(resident.role))}` : ""}</p></div><p>${entries.length} approved batch${entries.length === 1 ? "" : "es"} · ${entries.filter((entry)=>entry.activity_category!=="conference").reduce((sum,entry)=>sum+logbookCaseCount(entry),0)} intervention cases</p></header>${logbookExportSections(entries, false)}<footer>Generated ${d(new Date().toISOString())}</footer></section>`;
   }).join("");
   const popup = window.open("", "_blank");
   if (!popup) return alert("Please allow pop-ups to export the PDF.");
@@ -3025,7 +3049,7 @@ async function P() {
   ];
   requests.push(
     "resident" === s.p.role
-      ? e.rpc("logbook_approvers")
+      ? e.rpc("logbook_approvers_v1073")
       : Promise.resolve({ data: [] }),
   );
   requests.push(
@@ -3090,7 +3114,25 @@ async function P() {
   const todayValue = today.toISOString().slice(0, 10);
   const submitCard =
     "resident" === s.p.role
-      ? ` <section class="card no-print"> <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>The senior resident receives the request first; the assessor receives it only after senior approval.</p></div></div> <form id="logbookForm" class="form-grid"> <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label><div class="full form-grid" id="manualFields"><label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR", "CPR"].map((item) => `<option>${item}</option>`).join("")}</select></label><fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="failed_trial" required><span>Failed trial</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label><label>Senior resident<select name="senior_resident_id" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label><label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div><label class="full">Notes / evidence<textarea name="description" placeholder="Optional supporting details"></textarea></label><div class="full form-submit"><button>Submit for approval</button></div></form> </section>`
+      ? ` <section class="card no-print">
+          <div class="card-heading"><span class="card-icon">＋</span><div><h3>Record an activity</h3><p>For interventions performed in the same setting, record them together as one batch. The senior resident receives the request first; the assessor receives it only after senior approval.</p></div></div>
+          <form id="logbookForm" class="form-grid">
+            <label class="full">Activity type<select name="activity_category" id="logbookCategory" required><option value="manual_intervention">Manual intervention</option><option value="conference">Conference</option></select></label>
+            <div class="full form-grid" id="manualFields">
+              <label>Manual intervention<select name="procedure_name" required><option value="">Choose intervention</option>${["CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming", "ICD implantation", "CRT implantation", "Pericardiocentesis", "TEE", "DSE", "Coronary angiography", "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy", "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR", "CPR"].map((item) => `<option>${item}</option>`).join("")}</select></label>
+              <fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="failed_trial" required><span>Failed trial</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label></div></fieldset>
+              <label class="case-count-box">Total number of cases<input id="logbookCaseCount" name="case_count" type="number" min="1" max="100" step="1" value="1" required><small>Cases done in this same setting with the same intervention, participation level, date, hospital and reviewers.</small></label>
+              <div class="full case-details-builder"><div class="case-details-heading"><div><b>Optional case details</b><small>One box is created for each case. You may leave any box empty.</small></div><span id="logbookCaseCountBadge" class="tag">1 case</span></div><div id="logbookCaseDetails" class="case-detail-input-grid"></div></div>
+              <label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label>
+              <label>Hospital<select name="hospital" required><option value="">Choose hospital</option><option value="Miri">Miri</option><option value="Smouha">Smouha</option></select></label>
+              <label class="senior-search-field">Senior resident<input id="seniorResidentSearch" type="search" placeholder="Type letters to filter Year 2–5 residents" autocomplete="off"><select name="senior_resident_id" id="seniorResidentSelect" required><option value="">Choose senior resident</option>${seniorResidents.map((person) => `<option value="${person.id}">${o(person.display_name)} · Year ${o(person.residency_year || "")}</option>`).join("")}</select><small id="seniorResidentMatchCount">${seniorResidents.length} available senior residents</small></label>
+              <label>Assessor<select name="assessor_id" required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label>
+            </div>
+            <div class="full form-grid" id="conferenceFields" hidden><label>Conference role<select name="conference_participation" disabled required><option value="attended">Attendee</option><option value="gave_speech">Presenter</option></select></label><label>Conference name<input name="conference_name" minlength="3" maxlength="200" disabled required></label><label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" disabled required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label><label>Assessor<select name="assessor_id" disabled required><option value="">Choose assessor</option>${assessors.map((person) => `<option value="${person.id}">${o(person.display_name)}</option>`).join("")}</select></label></div>
+            <label class="full">General notes / evidence<textarea name="description" placeholder="Optional supporting details for the whole batch"></textarea></label>
+            <div class="full form-submit"><button>Submit for approval</button></div>
+          </form>
+        </section>`
       : "";
   const priorExperienceBanner = s.p.role === "resident"
     ? `<section class="prior-experience-alert priority-alert no-print"><div class="priority-alert-icon">🚨</div><div><span class="eyebrow">Top priority</span><h3>Prior Experience Logbook</h3><p>Before routine use of this e-logbook, record your previous interventions and conferences in one retrospective record. Keep it as an editable draft until you are ready for final verification.</p></div><button class="btn priority-submit" data-go="prior-experience">Open Prior Experience Logbook</button></section>`
@@ -3133,13 +3175,38 @@ async function P() {
         : "") +
       `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>`;
   }
-  const seniorSelect = document.querySelector('select[name="senior_resident_id"]');
-  if (seniorSelect) {
-    seniorSelect.options[0].textContent = "Choose senior resident";
-    [...seniorSelect.options].slice(1).forEach((option) => {
-      option.textContent = option.textContent.replace(/\s*·\s*Year\s+[3-5]\s*$/, "");
-    });
-  }
+  window.logbookSeniorResidents = seniorResidents.map((person) => ({ ...person }));
+  if (document.querySelector("#seniorResidentSelect")) filterSeniorResidentPicker();
+  if (document.querySelector("#logbookCaseCount")) syncLogbookCaseDetailInputs();
+}
+
+function filterSeniorResidentPicker() {
+  const search = (document.querySelector("#seniorResidentSearch")?.value || "").trim().toLowerCase();
+  const select = document.querySelector("#seniorResidentSelect");
+  if (!select) return;
+  const selected = select.value;
+  const people = (window.logbookSeniorResidents || []).filter((person) => !search || String(person.display_name || "").toLowerCase().includes(search));
+  select.innerHTML = `<option value="">Choose senior resident</option>${people.map((person) => `<option value="${o(person.id)}" ${String(person.id) === String(selected) ? "selected" : ""}>${o(person.display_name)} · Year ${o(person.residency_year || "")}</option>`).join("")}`;
+  if (selected && !people.some((person) => String(person.id) === String(selected))) select.value = "";
+  const count = document.querySelector("#seniorResidentMatchCount");
+  if (count) count.textContent = `${people.length} match${people.length === 1 ? "" : "es"} · Year 2–5`;
+}
+
+function syncLogbookCaseDetailInputs() {
+  const countInput = document.querySelector("#logbookCaseCount");
+  const container = document.querySelector("#logbookCaseDetails");
+  if (!countInput || !container) return;
+  const existing = {};
+  container.querySelectorAll("[data-logbook-case-detail]").forEach((input) => { existing[Number(input.dataset.logbookCaseDetail)] = input.value; });
+  const count = Math.max(1, Math.min(100, Number(countInput.value) || 1));
+  countInput.value = String(count);
+  container.innerHTML = Array.from({ length: count }, (_, index) => {
+    const number = index + 1;
+    return `<label class="case-detail-box"><span>Case ${number}</span><textarea name="case_detail_${number}" data-logbook-case-detail="${number}" rows="2" maxlength="1000" placeholder="Optional details for case ${number}">${o(existing[number] || "")}</textarea></label>`;
+  }).join("");
+  const badge = document.querySelector("#logbookCaseCountBadge");
+  if (badge) badge.textContent = `${count} case${count === 1 ? "" : "s"}`;
+}
 }
 function H() {
   const status = t("#logbookStatus")?.value || "";
@@ -3153,6 +3220,13 @@ function H() {
       );
     });
 }
+
+document.addEventListener("input", (event) => {
+  const target = event.target;
+  if (target?.id === "seniorResidentSearch") filterSeniorResidentPicker();
+  if (target?.id === "logbookCaseCount") syncLogbookCaseDetailInputs();
+});
+
 (document.addEventListener("click", async (t) => {
   const a = t.target.closest("button,[data-chapter]");
   if (a) {
@@ -4165,12 +4239,14 @@ function H() {
         return void (await inboxPage());
       }
       if ("logbookForm" === a.id) {
+        const manual = r.get("activity_category") === "manual_intervention";
+        const caseCount = manual ? Math.max(1, Math.min(100, Number(r.get("case_count")) || 1)) : 1;
+        const caseDetails = manual ? Array.from({ length: caseCount }, (_, index) => String(r.get(`case_detail_${index + 1}`) || "").trim()) : [];
         u(
-          await e.rpc("submit_logbook_entry_v2", {
+          await e.rpc("submit_logbook_entry_v1073", {
             p_activity_category: r.get("activity_category"),
             p_activity_date: r.get("activity_date"),
-            p_conference_participation:
-              r.get("conference_participation") || null,
+            p_conference_participation: r.get("conference_participation") || null,
             p_conference_name: r.get("conference_name") || null,
             p_procedure_name: r.get("procedure_name") || null,
             p_participation_mode: r.get("participation_mode") || null,
@@ -4178,6 +4254,8 @@ function H() {
             p_senior_resident_id: r.get("senior_resident_id") || null,
             p_assessor_id: r.get("assessor_id"),
             p_description: r.get("description") || null,
+            p_case_count: caseCount,
+            p_case_details: caseDetails,
           }),
         );
       }
