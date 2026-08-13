@@ -5278,3 +5278,53 @@ dialog:has(.review-thread-modal) {
 .assessor-choice-row:hover{background:#f3f7fb}
 .assessor-choice-row input[type="checkbox"]{width:18px!important;height:18px!important;flex:0 0 18px;margin:0}
 @media(max-width:700px){.assessor-choice-list{max-height:270px}.signature-chip.assessor{font-size:.76rem;padding:6px 8px}}
+
+/* v1.0.81 — Faculty Duty & Rotation Bot */
+.duty-bot-launch{
+  position:relative;overflow:hidden;width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;gap:16px;margin:0 0 18px;padding:17px 20px;border:0;border-radius:20px;text-align:left;
+  color:#fff;background:linear-gradient(120deg,#081c35 0%,#0b3159 60%,#126ab5 100%);
+  box-shadow:0 14px 32px rgba(8,28,53,.18);transition:transform .18s ease,box-shadow .18s ease
+}
+.duty-bot-launch::after{content:"";position:absolute;inset:-80% -5% auto auto;width:260px;height:260px;border-radius:50%;background:rgba(64,211,208,.13)}
+.duty-bot-launch:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(8,28,53,.24)}
+.duty-bot-launch-icon{position:relative;z-index:1;display:grid;place-items:center;width:48px;height:48px;border-radius:16px;background:linear-gradient(145deg,#40d3d0,#1670d2);font-size:24px;box-shadow:0 8px 20px rgba(0,0,0,.2)}
+.duty-bot-launch>span:nth-child(2){position:relative;z-index:1;display:grid;gap:2px}
+.duty-bot-launch small{color:#78e7e4;font-size:.68rem;font-weight:900;letter-spacing:.13em}
+.duty-bot-launch strong{font-size:1.22rem}.duty-bot-launch em{color:rgba(255,255,255,.72);font-size:.83rem;font-style:normal;font-weight:600}
+.duty-bot-launch>b{position:relative;z-index:1;font-size:.85rem;white-space:nowrap}
+.duty-bot-shell{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);min-height:610px;border:1px solid #d7e2ee;border-radius:24px;overflow:hidden;background:#fff;box-shadow:0 18px 42px rgba(8,28,53,.09)}
+.duty-bot-sidebar{padding:26px;background:linear-gradient(155deg,#081c35,#0d2d50);color:#fff}
+.duty-bot-sidebar h3{margin:7px 0 18px;font-size:1.32rem}.duty-quick-prompts{display:grid;gap:9px}
+.duty-quick-prompts button{width:100%;padding:11px 12px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.07);color:#fff;text-align:left;font-size:.82rem;font-weight:750;line-height:1.35;transition:background .15s ease,border-color .15s ease}
+.duty-quick-prompts button:hover{background:rgba(64,211,208,.15);border-color:rgba(64,211,208,.55)}
+.duty-shift-rule,.duty-owner-note{display:grid;gap:4px;margin-top:20px;padding:13px;border-radius:13px;background:rgba(64,211,208,.1);border:1px solid rgba(64,211,208,.22)}
+.duty-shift-rule b,.duty-owner-note b{font-size:.8rem}.duty-shift-rule span,.duty-owner-note span{color:rgba(255,255,255,.68);font-size:.73rem;line-height:1.45}
+.duty-owner-note{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.13)}
+.duty-chat-panel{min-width:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;background:#f7f9fc}
+.duty-chat-panel>header{display:flex;align-items:center;gap:11px;padding:18px 20px;border-bottom:1px solid #dce4ed;background:#fff}
+.duty-bot-avatar{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;color:#fff;background:linear-gradient(145deg,#40d3d0,#1670d2);font-size:20px}
+.duty-chat-panel>header>div:last-child{display:grid;gap:3px}.duty-chat-panel>header span{display:flex;align-items:center;gap:6px;color:#65758b;font-size:.75rem}
+.duty-chat-panel>header i{width:7px;height:7px;border-radius:50%;background:#19a66f;box-shadow:0 0 0 3px rgba(25,166,111,.12)}
+.duty-transcript{min-height:390px;max-height:560px;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:24px}
+.duty-message{max-width:min(680px,88%);padding:13px 15px;border-radius:16px;box-shadow:0 5px 18px rgba(8,28,53,.06)}
+.duty-message>span{display:block;margin-bottom:5px;font-size:.68rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase}.duty-message p{margin:0;line-height:1.55;font-size:.91rem}
+.duty-message-bot{align-self:flex-start;border:1px solid #dce4ed;border-top-left-radius:4px;background:#fff}.duty-message-bot>span{color:#1670d2}
+.duty-message-user{align-self:flex-end;border-top-right-radius:4px;background:#0d2d50;color:#fff}.duty-message-user>span{color:#7ee5e2}
+.duty-message.is-loading p{color:#65758b}.duty-message.is-loading p::after{content:"";display:inline-block;width:5px;height:5px;margin-left:7px;border-radius:50%;background:#1670d2;box-shadow:9px 0 #70a9e5,18px 0 #c5daf2;animation:dutyDots 1s infinite alternate}
+@keyframes dutyDots{to{opacity:.35}}
+.duty-assignment-list{display:grid;gap:8px;margin-top:12px}.duty-assignment-card{padding:11px;border:1px solid #e0e8f1;border-radius:12px;background:#f8fbff}
+.duty-assignment-card>div{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:9px}.duty-assignment-card>div span{padding:4px 7px;border-radius:999px;background:#e2efff;color:#0d5795;font-size:.69rem;font-weight:850}
+.duty-assignment-card dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}.duty-assignment-card dl div{display:grid;gap:2px;min-width:0}.duty-assignment-card dt{color:#718197;font-size:.62rem;font-weight:800;text-transform:uppercase}.duty-assignment-card dd{margin:0;font-size:.72rem;font-weight:750;overflow-wrap:anywhere}
+.duty-chat-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;padding:14px 18px 8px;border-top:1px solid #dce4ed;background:#fff}
+.duty-chat-form input{width:100%;min-height:48px;padding:0 15px;border:1px solid #cfdbe8;border-radius:14px;background:#f8fafc}.duty-chat-form input:focus{outline:3px solid rgba(22,112,210,.13);border-color:#1670d2}
+.duty-chat-form button{min-width:92px;border:0;border-radius:14px;background:#1670d2;color:#fff;font-weight:850}.duty-chat-form button:disabled{cursor:wait;opacity:.55}
+.duty-data-note{padding:2px 20px 13px;background:#fff;color:#718197;font-size:.67rem;line-height:1.4}
+@media(max-width:820px){
+  .duty-bot-shell{grid-template-columns:1fr}.duty-bot-sidebar{padding:18px}.duty-quick-prompts{display:flex;overflow:auto;padding-bottom:3px}.duty-quick-prompts button{min-width:220px}.duty-shift-rule,.duty-owner-note{margin-top:12px}
+  .duty-transcript{min-height:360px;padding:16px}.duty-assignment-card dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:540px){
+  .duty-bot-launch{grid-template-columns:auto minmax(0,1fr);padding:14px}.duty-bot-launch>b{display:none}.duty-bot-launch em{font-size:.76rem}
+  .duty-bot-shell{border-radius:18px}.duty-message{max-width:94%}.duty-chat-form{padding:10px}.duty-chat-form button{min-width:72px}.duty-data-note{padding:2px 12px 11px}
+}
