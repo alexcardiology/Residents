@@ -270,12 +270,13 @@ async function q() {
   // Fallback processor: pg_cron runs hourly when available; any active portal session also catches overdue reminders.
   void e.rpc("process_pending_requests_v1069");
   const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
-  const [normalResult, logbookResult, reconsiderationResult, reviewActionResult, priorExperienceResult] = await Promise.all([
+  const [normalResult, logbookResult, reconsiderationResult, reviewActionResult, priorExperienceResult, minimumRequirementResult] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_logbook_messages", { p_view: juniorResident ? "updates" : "received" }),
     e.rpc("get_my_logbook_reconsiderations_v1044"),
     e.rpc("get_my_review_message_actions_v1051"),
     e.rpc("get_prior_experience_review_queue_v1069"),
+    s.p.role === "assessor" ? e.rpc("get_my_logbook_requirement_review_queue_v1084") : Promise.resolve({ data: [], error: null }),
   ]);
   const count = countUnreadInboxThreads(normalResult.data || [], reviewActionResult.data || []);
   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
@@ -285,7 +286,8 @@ async function q() {
   const messageCount = (logbookResult.data || []).filter((message) => juniorResident ? !message.is_read : !message.logbook_action_taken).length;
   const reconsiderationCount = (reconsiderationResult.data || []).filter((row) => String(row.reviewer_id) === String(s.p.id) && row.status === "requested").length;
   const priorExperienceCount = (priorExperienceResult.data || []).length;
-  const logbookCount = messageCount + reconsiderationCount + priorExperienceCount;
+  const minimumRequirementCount = (minimumRequirementResult.data || []).length;
+  const logbookCount = messageCount + reconsiderationCount + priorExperienceCount + minimumRequirementCount;
   document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
     badge.textContent = logbookCount;
     badge.hidden = logbookCount === 0;
@@ -687,6 +689,8 @@ const w = {
   "owner-logbook-center": ownerLogbookCenterPage,
   "owner-intervention-audit": ownerInterventionAuditPage,
   "owner-logbook-requirements": ownerLogbookRequirementsPage,
+  "owner-logbook-requirement-assessors": ownerLogbookRequirementAssessorsPage,
+  "logbook-minimum-requirements": residentMinimumRequirementsPage,
   "owner-prior-experience-assignments": ownerPriorExperienceAssignmentsPage,
   "owner-prior-experience-status": ownerPriorExperienceStatusPage,
   "owner-pending-requests": ownerPendingRequestsPage,
@@ -1081,7 +1085,7 @@ async function printResidentAssessmentPortfolio(residentId) {
     if (!profile) throw new Error("Resident profile not found");
     const chapters = u(await e.from("chapters").select("id,title,year_from,year_to,sort_order,is_active").eq("is_active", true).lte("year_from", profile.residency_year).order("year_from").order("sort_order")) || [];
     const chapterIds = chapters.map((chapter) => Number(chapter.id));
-    const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult] = await Promise.all([
+    const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult, minimumRequirementsResult] = await Promise.all([
       chapterIds.length ? e.from("knowledge_items").select("id,chapter_id,title,description,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({data:[]}),
       e.from("knowledge_progress").select("knowledge_item_id,status").eq("resident_id", residentId),
       chapterIds.length ? e.from("skills").select("id,chapter_id,title,description,expected_level,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({data:[]}),
@@ -1091,8 +1095,9 @@ async function printResidentAssessmentPortfolio(residentId) {
       reviewRpcResult(residentId),
       e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
       e.rpc("get_resident_penalties_for_assessment_v1071", { p_resident_id: residentId }),
+      isStandardResidencyYear(profile.residency_year) ? e.rpc("get_logbook_minimum_progress_v1084", { p_resident_id: residentId }) : Promise.resolve({data:[]}),
     ]);
-    const datasets = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult];
+    const datasets = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult, minimumRequirementsResult];
     const failed = datasets.find((result) => result?.error);
     if (failed?.error) throw failed.error;
     const kRows = knowledge.data || [], completedIds = new Set((progress.data || []).filter((row) => row.status === "completed").map((row) => Number(row.knowledge_item_id)));
@@ -1109,6 +1114,9 @@ async function printResidentAssessmentPortfolio(residentId) {
     const reviews = reviewsResult.data || [];
     const previousAssessments = assessments.data || [];
     const penalties = penaltiesResult.data || [];
+    const minimumRequirements = minimumRequirementsResult.data || [];
+    const minimumSummary = minimumRequirementSummary(minimumRequirements);
+    const minimumHtml = isStandardResidencyYear(profile.residency_year) ? (minimumSummary.required ? `<table class="portfolio-table"><thead><tr><th>Intervention</th><th>Minimum</th><th>Verified</th><th>Pending</th><th>Missing</th><th>Status</th></tr></thead><tbody>${minimumRequirements.filter((row)=>Number(row.minimum_required)>0).map((row)=>`<tr><td><b>${o(row.intervention_name)}</b></td><td>${o(row.minimum_required)}</td><td>${o(row.verified_count)}</td><td>${o(row.pending_count)}</td><td>${o(row.missing_count)}</td><td>${Number(row.missing_count)===0?'MET':'NOT MET'}</td></tr>`).join('')}</tbody></table>` : '<div class="portfolio-empty">No minimum procedural requirements configured.</div>') : '<div class="portfolio-empty">Year-based minimum requirements are not applicable to this training status.</div>';
     const penaltyHtml = penalties.length ? `<table class="portfolio-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penalties.map((row)=>`<tr><td>${d(row.created_at)}</td><td><b>${o(row.category||"—")}</b><br>${o(row.problem||"—")}</td><td>${o(row.punishment||"—")}</td><td>${o(row.details||"—")}</td><td>${o(penaltyStatusLabel(row.status))}</td></tr>`).join("")}</tbody></table>` : '<div class="portfolio-empty">No active approved penalties.</div>';
     const summary = `<section class="portfolio-summary"><div><span>Residency</span><b>${o(residentTrainingLabel(profile.residency_year))}</b></div><div><span>Knowledge</span><b>${completed.length}/${kRows.length} checked</b></div><div><span>Skills</span><b>${[...levelMap.values()].length}/${skillRows.length} levels recorded</b></div><div><span>Approved logbook</span><b>${approvedLogbook.length} records</b></div><div><span>Reviews</span><b>${reviews.length}</b></div><div><span>Penalties</span><b>${penalties.length}</b></div><div><span>Assessments</span><b>${previousAssessments.length}</b></div></section>`;
     popup.document.open();
@@ -1117,6 +1125,7 @@ async function printResidentAssessmentPortfolio(residentId) {
     </style></head><body><header><div><h1>Resident Assessment Portfolio</h1><p>${o(profile.display_name || profile.username)} · ${o(residentTrainingLabel(profile.residency_year))} · Evidence available to assessor before formal scoring</p></div><p>Generated ${d(new Date().toISOString())}</p></header>${summary}
       <section class="portfolio-section"><h2>Knowledge evidence</h2><h3>✓ Checked knowledge</h3>${knowledgeTable(completed, true)}<h3>☐ Not checked knowledge</h3>${knowledgeTable(unchecked, false)}</section>
       <section class="portfolio-section page-break"><h2>Skills and level of dependence</h2>${skillsHtml}</section>
+      <section class="portfolio-section page-break"><h2>Minimum procedural requirements</h2>${minimumHtml}</section>
       <section class="portfolio-section page-break logbook-wrap"><h2>Approved e-logbook</h2>${logbookExportSections(approvedLogbook, false)}</section>
       <section class="portfolio-section page-break"><h2>Clinical and behavioural reviews</h2>${assessmentPortfolioReviewRows(reviews)}</section>
       <section class="portfolio-section"><h2>Approved penalties / disciplinary record</h2>${penaltyHtml}</section>
@@ -1153,18 +1162,19 @@ async function loadResidentAssessmentEvidence(residentId, scheduleId = "") {
   if (chaptersResult.error) throw chaptersResult.error;
   const chapters = chaptersResult.data || [];
   const chapterIds = chapters.map((chapter) => Number(chapter.id));
-  const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult] = await Promise.all([
+  const [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult, minimumRequirementsResult] = await Promise.all([
     chapterIds.length ? e.from("knowledge_items").select("id,chapter_id,title,description,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({ data: [] }),
     e.from("knowledge_progress").select("knowledge_item_id,status").eq("resident_id", residentId),
     chapterIds.length ? e.from("skills").select("id,chapter_id,title,description,expected_level,sort_order").in("chapter_id", chapterIds).eq("is_active", true).order("sort_order") : Promise.resolve({ data: [] }),
     e.from("skill_levels").select("skill_id,level").eq("resident_id", residentId),
     e.from("skill_logs").select("skill_id").eq("resident_id", residentId),
-    e.rpc("get_logbook_entries_v2", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
+    e.rpc("get_logbook_entries_v1073", { p_resident_id: residentId, p_status: null, p_activity_category: null }),
     reviewRpcResult(residentId),
     e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
     e.rpc("get_resident_penalties_for_assessment_v1071", { p_resident_id: residentId }),
+    isStandardResidencyYear(profile.residency_year) ? e.rpc("get_logbook_minimum_progress_v1084", { p_resident_id: residentId }) : Promise.resolve({ data: [] }),
   ]);
-  const failed = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult].find((result) => result?.error);
+  const failed = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult, minimumRequirementsResult].find((result) => result?.error);
   if (failed?.error) throw failed.error;
   const chapterMap = new Map(chapters.map((chapter) => [Number(chapter.id), chapter]));
   const completedIds = new Set((progress.data || []).filter((row) => row.status === "completed").map((row) => Number(row.knowledge_item_id)));
@@ -1185,11 +1195,12 @@ async function loadResidentAssessmentEvidence(residentId, scheduleId = "") {
     reviews: reviewsResult.data || [],
     assessments: assessments.data || [],
     penalties: penaltiesResult.data || [],
+    minimumRequirements: minimumRequirementsResult.data || [],
   };
 }
 
 function assessmentEvidenceHtml(data, options = {}) {
-  const { profile, schedule, chapterMap, knowledge, completedIds, skills, levelMap, logCount, logbook, reviews, assessments, penalties = [] } = data;
+  const { profile, schedule, chapterMap, knowledge, completedIds, skills, levelMap, logCount, logbook, reviews, assessments, penalties = [], minimumRequirements = [] } = data;
   const checked = knowledge.filter((item) => completedIds.has(Number(item.id)));
   const unchecked = knowledge.filter((item) => !completedIds.has(Number(item.id)));
   const knowledgeList = (items, done) => items.length
@@ -1224,6 +1235,7 @@ function assessmentEvidenceHtml(data, options = {}) {
     ${schedule ? `<div class="assessment-scope-note"><b>Assessment scope:</b> ${o(schedule.title)} · Year ${o(schedule.residency_year)}</div>` : ""}
     <details class="assessment-evidence-section" open><summary>Knowledge evidence <span>${checked.length} checked · ${unchecked.length} not checked</span></summary><div class="assessment-knowledge-columns"><section><h4>✓ Checked knowledge</h4>${knowledgeList(checked, true)}</section><section><h4>○ Not checked knowledge</h4>${knowledgeList(unchecked, false)}</section></div></details>
     <details class="assessment-evidence-section" open><summary>Skills & level of dependence <span>${skills.length} skills</span></summary><div class="dependence-guide compact"><b>1</b> Observer · <b>2</b> Direct supervision · <b>3</b> Limited supervision · <b>4</b> Independent · <b>5</b> Expert / supervisor</div><div class="table-scroll"><table class="table assessment-skill-evidence-table"><thead><tr><th>Skill</th><th>Current level</th><th>Expected</th><th>Logs</th></tr></thead><tbody>${skillRows}</tbody></table></div></details>
+    ${isStandardResidencyYear(profile.residency_year) ? `<details class="assessment-evidence-section" open><summary>Minimum procedural requirements <span>${minimumRequirementSummary(minimumRequirements).met}/${minimumRequirementSummary(minimumRequirements).required || 0} met</span></summary><div class="minimum-rules-note compact"><b>Verified qualifying cases only</b><span>Attended and failed-trial cases do not satisfy the minimum.</span></div>${renderMinimumRequirementTable(minimumRequirements,{requiredOnly:true})}</details>` : ""}
     <details class="assessment-evidence-section"><summary>Approved e-logbook <span>${logbook.length} entries</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Activity</th><th>Participation</th><th>Date</th><th>Hospital</th></tr></thead><tbody>${logbookRows}</tbody></table></div></details>
     <details class="assessment-evidence-section"><summary>Clinical & behavioural reviews <span>${reviews.length}</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Date</th><th>Domain</th><th>Type</th><th>Review</th></tr></thead><tbody>${reviewRows}</tbody></table></div></details>
     <details class="assessment-evidence-section" ${penalties.length ? "open" : ""}><summary>Approved penalties / disciplinary record <span>${penalties.length}</span></summary><div class="assessment-penalty-note">Only active penalties approved by the Program Owner are shown. A complaint under review is labelled clearly.</div><div class="table-scroll"><table class="table compact-evidence-table assessment-penalty-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penaltyRows}</tbody></table></div></details>
@@ -1739,7 +1751,7 @@ async function ownerMessageCleanupPage() {
 async function logbookRequestsPage() {
   t("#title").textContent = "Logbook requests";
   a.classList.add("mail-content");
-  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult, reconsiderationResult, priorExperienceQueueResult, supervisionResult] = await Promise.all([
+  const [receivedResult, sentResult, updatesResult, trashResult, hiddenResult, reconsiderationResult, priorExperienceQueueResult, supervisionResult, minimumReviewQueueResult] = await Promise.all([
     e.rpc("get_logbook_messages", { p_view: "received" }),
     e.rpc("get_logbook_messages", { p_view: "sent" }),
     e.rpc("get_logbook_messages", { p_view: "updates" }),
@@ -1748,6 +1760,7 @@ async function logbookRequestsPage() {
     e.rpc("get_my_logbook_reconsiderations_v1044"),
     e.rpc("get_prior_experience_review_queue_v1069"),
     s.p.role === "assessor" ? e.rpc("get_my_supervised_interventions_v1079") : Promise.resolve({ data: [], error: null }),
+    s.p.role === "assessor" ? e.rpc("get_my_logbook_requirement_review_queue_v1084") : Promise.resolve({ data: [], error: null }),
   ]);
   const hiddenIds = new Set((u(hiddenResult) || []).map((row) => String(row.message_id)));
   const keepVisible = (items) => (u(items) || []).filter((message) => !hiddenIds.has(String(message.id)));
@@ -1757,7 +1770,8 @@ async function logbookRequestsPage() {
     trash = keepVisible(trashResult),
     reconsiderations = u(reconsiderationResult) || [],
     priorExperienceQueue = u(priorExperienceQueueResult) || [],
-    supervisedInterventions = u(supervisionResult) || [];
+    supervisedInterventions = u(supervisionResult) || [],
+    minimumReviewQueue = u(minimumReviewQueueResult) || [];
 
   window.logbookReconsiderationRows = new Map(reconsiderations.map((row) => [String(row.id), row]));
   const reviewerReconsiderations = reconsiderations
@@ -1893,7 +1907,7 @@ async function logbookRequestsPage() {
   const requestBadgeCount = received.filter((item) => !item.logbook_action_taken).length + pendingReconsiderationCount;
   const supervisionStrip = assessor ? `<section class="assessor-supervision-strip"><div class="assessor-supervision-title"><span>You are assigned to supervise</span></div><div class="assessor-supervision-chips">${supervisedInterventions.length ? supervisedInterventions.map((row) => `<span class="assessor-supervision-chip">${o(row.scope_name)}</span>`).join("") : '<span class="assessor-supervision-empty">No manual interventions assigned yet.</span>'}</div></section>` : "";
 
-  a.innerHTML = h("Logbook requests", "Each reconsideration stays attached to the original request, so the activity, original decision, resident reason and your new decision remain in one place.") + supervisionStrip + renderPriorExperienceReviewQueue(priorExperienceQueue) + `
+  a.innerHTML = h("Logbook requests", "Each reconsideration stays attached to the original request, so the activity, original decision, resident reason and your new decision remain in one place.") + supervisionStrip + renderLogbookRequirementReviewQueue(minimumReviewQueue) + renderPriorExperienceReviewQueue(priorExperienceQueue) + `
     <section class="card mailbox wide-mailbox">
       <div class="mailbox-tabs" role="tablist">
         ${views.includes("received") ? `<button class="mailbox-tab ${firstView === "received" ? "active" : ""}" data-logbook-tab="received">Requests <span class="nav-badge inline-badge" ${requestBadgeCount ? "" : "hidden"}>${requestBadgeCount}</span></button>` : ""}
@@ -1976,19 +1990,21 @@ async function k() {
   t("#crumb").textContent = m(i.role);
 
   if ("resident" === i.role) {
-    const [chaptersResult, logsResult, knowledgeResult, skillLevelsResult, assessmentsResult, scheduleResult] = await Promise.all([
+    const [chaptersResult, logsResult, knowledgeResult, skillLevelsResult, assessmentsResult, scheduleResult, minimumProgressResult] = await Promise.all([
       e.from("chapters").select("id,title").lte("year_from", i.residency_year).eq("is_active", !0),
       e.from("skill_logs").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id),
       e.from("knowledge_progress").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id).eq("status", "completed"),
       e.from("skill_levels").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id),
       e.from("assessments").select("*").eq("resident_id", i.id).order("assessment_date", { ascending: !1 }).limit(1),
       e.from("assessment_schedules").select("id,title,starts_at,ends_at,location,assessment_type").eq("is_active", !0).eq("residency_year", i.residency_year).gte("ends_at", new Date().toISOString()).order("starts_at").limit(1),
+      isStandardResidencyYear(i.residency_year) ? e.rpc("get_logbook_minimum_progress_v1084", { p_resident_id: null }) : Promise.resolve({ data: [] }),
     ]);
     const latest = assessmentsResult.data?.[0];
     const upcoming = scheduleResult.data?.[0];
     const resultMeta = i.progression_status === "reassessment_required"
       ? `Reassessment ${d(i.reassessment_due)} · ${weakPointSummary(latest)}`
       : latest ? weakPointSummary(latest) : "No formal assessment yet";
+    const minimumSummary = minimumRequirementSummary(minimumProgressResult.data || []);
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Your year, evidence, assessment and next actions at a glance.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
       `<div class="dashboard-grid dashboard-grid-6">
@@ -1996,6 +2012,7 @@ async function k() {
         ${dashboardTile("My chapters", String(chaptersResult.data?.length || 0), "Cumulative curriculum access", "chapters")}
         ${evidenceDashboardTile(String(knowledgeResult.count || 0), String(skillLevelsResult.count || 0))}
         ${dashboardTile("Logbook activity", String(logsResult.count || 0), "Supervised performances", "logbook")}
+        ${dashboardTile("Minimum requirements", isStandardResidencyYear(i.residency_year) ? `${minimumSummary.met}/${minimumSummary.required || 0}` : "—", isStandardResidencyYear(i.residency_year) ? (minimumSummary.missing ? `${minimumSummary.missing} verified case${minimumSummary.missing===1?"":"s"} missing` : minimumSummary.required ? "All current minimums met" : "No minimums configured") : "Not applicable to this training status", "logbook-minimum-requirements", minimumSummary.missing ? "warning-tile" : minimumSummary.required ? "success-tile" : "")}
         ${dashboardTile(upcoming && new Date(upcoming.starts_at).getTime() <= Date.now() && Date.now() <= new Date(upcoming.ends_at).getTime() ? "CURRENT ASSESSMENT" : "Next assessment", upcoming ? o(d(upcoming.starts_at)) : "—", upcoming ? upcoming.title : "No upcoming window", "assessments", upcoming ? (new Date(upcoming.starts_at).getTime() <= Date.now() && Date.now() <= new Date(upcoming.ends_at).getTime() ? "current-assessment-tile" : "accent-tile") : "")}
         ${dashboardTile("Latest outcome", latest ? `${o(latest.total_score)}/30` : "—", resultMeta, "assessments", i.progression_status === "reassessment_required" ? "warning-tile" : latest?.overall_pass ? "success-tile" : "")}
       </div>`;
@@ -2123,6 +2140,7 @@ async function ownerLogbookCenterPage() {
     ${dashboardTile("Logbook requests", "Review", "Sequential senior → assessor approval workflow", "logbook-requests")}
     ${dashboardTile("Intervention audit", "Fairness", "Compare exposure, trials, successes and failed trials by residency year", "owner-intervention-audit")}
     ${dashboardTile("Minimum requirements", "Targets", "Edit the minimum verified cases required for every manual intervention in Years 1–5", "owner-logbook-requirements", "accent-tile")}
+    ${dashboardTile("Requirement assessors", "Year + intervention", "Assign up to 5 assessors to each minimum-requirement scope", "owner-logbook-requirement-assessors")}
     ${dashboardTile("Prior experience status", "Audit", "See editing, pending, rejected and finished retrospective logbooks", "owner-prior-experience-status")}
     ${dashboardTile("Prior experience assessors", "2–5 per scope", "Assign up to 5 assessors; any 2 approvals verify the scope", "owner-prior-experience-assignments")}
     ${dashboardTile("Pending requests", "48h", "See every unanswered senior/assessor request and overdue reminder", "owner-pending-requests", "warning-tile")}
@@ -2161,6 +2179,137 @@ async function ownerLogbookRequirementsPage() {
         <button class="btn" type="submit">Save minimum requirements</button>
       </div>
     </form>`;
+}
+
+
+function minimumRequirementBadge(row) {
+  const minimum = Number(row?.minimum_required || 0);
+  const verified = Number(row?.verified_count || 0);
+  if (minimum <= 0) return '<span class="tag neutral">No minimum</span>';
+  if (verified >= minimum) return '<span class="tag success">✓ Met</span>';
+  return `<span class="tag warning">${Math.max(minimum - verified, 0)} missing</span>`;
+}
+
+function renderMinimumRequirementTable(rows = [], options = {}) {
+  const requiredOnly = options.requiredOnly !== false;
+  const myScopes = new Set((options.myScopes || []).map(String));
+  const scopeStatus = new Map((options.scopeReviews || []).map((row) => [String(row.intervention_name), row]));
+  const visible = (rows || []).filter((row) => !requiredOnly || Number(row.minimum_required || 0) > 0);
+  if (!visible.length) return '<div class="panel-empty">No minimum procedural requirements are configured for this residency year.</div>';
+  return `<div class="table-scroll"><table class="table resident-minimum-table"><thead><tr><th>Manual intervention</th><th>Minimum</th><th>Verified</th><th>Pending</th><th>Missing</th><th>Status</th><th>Assigned assessors</th></tr></thead><tbody>${visible.map((row) => {
+    const name = String(row.intervention_name || '—');
+    const assigned = Array.isArray(row.assessor_names) ? row.assessor_names : [];
+    const review = scopeStatus.get(name);
+    const assignedToMe = myScopes.has(name);
+    return `<tr class="${assignedToMe ? 'minimum-scope-mine' : ''}">
+      <td><b>${o(name)}</b>${assignedToMe ? '<small class="mine-label">Assigned to you</small>' : ''}</td>
+      <td><strong>${o(row.minimum_required || 0)}</strong></td>
+      <td><span class="minimum-count verified">${o(row.verified_count || 0)}</span></td>
+      <td><span class="minimum-count pending">${o(row.pending_count || 0)}</span></td>
+      <td><span class="minimum-count ${Number(row.missing_count || 0) ? 'missing' : 'done'}">${o(row.missing_count || 0)}</span></td>
+      <td>${review ? `<span class="tag ${review.status === 'approved' ? 'success' : review.status === 'returned' ? 'danger' : review.status === 'not_required' ? 'neutral' : 'warning'}">${o(String(review.status || '').replaceAll('_',' '))}</span>` : minimumRequirementBadge(row)}</td>
+      <td>${assigned.length ? `<div class="minimum-assessor-names">${assigned.map((name) => `<span>${o(name)}</span>`).join('')}</div>` : '<span class="tag danger">Not assigned</span>'}</td>
+    </tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+function minimumRequirementSummary(rows = []) {
+  const required = rows.filter((row) => Number(row.minimum_required || 0) > 0);
+  const met = required.filter((row) => Number(row.missing_count || 0) === 0).length;
+  const missing = required.reduce((sum,row) => sum + Number(row.missing_count || 0), 0);
+  const pending = required.reduce((sum,row) => sum + Number(row.pending_count || 0), 0);
+  return { required: required.length, met, missing, pending };
+}
+
+async function residentMinimumRequirementsPage() {
+  if (s.p.role !== 'resident') return g('dashboard');
+  t('#title').textContent = 'My minimum requirements';
+  if (!isStandardResidencyYear(s.p.residency_year)) {
+    a.innerHTML = h('My minimum requirements','Year-based procedural minimums apply to residency Years 1–5.','<button class="btn secondary" data-go="logbook">Back to E-logbook</button>') +
+      `<section class="card minimum-resident-info"><h3>${o(residentTrainingLabel(s.p.residency_year))}</h3><p>No Year 1–5 minimum procedural target is attached to this training status.</p></section>`;
+    return;
+  }
+  const [progressResult, submissionResult] = await Promise.all([
+    e.rpc('get_logbook_minimum_progress_v1084',{p_resident_id:null}),
+    e.rpc('get_my_logbook_requirement_submission_v1084'),
+  ]);
+  const progress = u(progressResult) || [];
+  const submission = u(submissionResult) || null;
+  const summary = minimumRequirementSummary(progress);
+  const status = String(submission?.status || 'not_submitted');
+  const statusHtml = status === 'approved' ? '<span class="tag success">✓ Approved</span>' : status === 'pending' ? '<span class="tag warning">Waiting for assessors</span>' : status === 'returned' ? '<span class="tag danger">Returned — update and resubmit</span>' : '<span class="tag neutral">Not submitted</span>';
+  const canSubmit = summary.required > 0 && !['pending','approved'].includes(status);
+  const submitLabel = status === 'returned' ? 'Resubmit updated E-logbook' : 'Submit E-logbook for assessment';
+  a.innerHTML = h(
+    'My minimum procedural requirements',
+    `Year ${o(s.p.residency_year)} · These targets are always available here and are checked before formal logbook approval.`,
+    '<button class="btn secondary" data-go="logbook">Back to E-logbook</button>',
+  ) + `
+    <section class="minimum-resident-hero ${summary.missing ? 'needs-work' : 'ready'}">
+      <div><span class="eyebrow">Year ${o(s.p.residency_year)} E-logbook readiness</span><h2>${summary.met}/${summary.required || 0} requirements met</h2><p>${summary.missing ? `${summary.missing} verified qualifying case${summary.missing===1?'':'s'} still missing.` : summary.required ? 'All configured minimum case numbers are currently met.' : 'No minimums configured yet.'}</p></div>
+      <div class="minimum-hero-status">${statusHtml}${submission?.attempt_no ? `<small>Submission attempt ${o(submission.attempt_no)}</small>` : ''}</div>
+    </section>
+    ${submission?.automatic_message ? `<section class="card minimum-return-message ${status==='returned'?'returned':''}"><span class="eyebrow">Latest assessor response</span><p>${o(submission.automatic_message).replace(/\n/g,'<br>')}</p></section>` : ''}
+    <section class="card minimum-resident-card">
+      <div class="minimum-rules-note"><b>What counts toward the minimum?</b><span>Approved cases performed with assistance, solo under guidance, or solo without guidance. Attended cases and failed trials remain in your E-logbook but do not satisfy the minimum. Pending cases count only after approval.</span></div>
+      ${renderMinimumRequirementTable(progress,{requiredOnly:true})}
+      <div class="minimum-resident-actions">
+        ${summary.missing ? '<button type="button" class="btn secondary" data-go="logbook">Add missing cases / update E-logbook</button>' : ''}
+        ${canSubmit ? `<button type="button" class="btn success-button" data-submit-minimum-logbook>${o(submitLabel)}</button>` : status==='pending' ? '<button class="btn" disabled>Assessment already submitted</button>' : ''}
+      </div>
+    </section>`;
+}
+
+async function ownerLogbookRequirementAssessorsPage(yearOverride = null) {
+  if (s.p.role !== 'owner') return g('dashboard');
+  t('#title').textContent = 'Requirement assessors';
+  const year = Math.max(1,Math.min(5,Number(yearOverride || window.logbookRequirementAssessorYear || 1)));
+  window.logbookRequirementAssessorYear = year;
+  const [rowsResult, accountsResult] = await Promise.all([
+    e.rpc('owner_get_logbook_requirement_assessors_v1084',{p_residency_year:year}),
+    e.rpc('owner_get_accounts_v1082'),
+  ]);
+  const rows = u(rowsResult) || [];
+  const assessors = sortAssessorsAlphabetically((u(accountsResult) || []).filter((person) => person.role==='assessor' && person.is_active));
+  window.logbookRequirementAssessorRows = new Map(rows.map((row) => [String(row.intervention_name),row]));
+  window.logbookRequirementAssessorPeople = assessors;
+  a.innerHTML = h('Minimum-requirement assessors','Assign the assessors responsible for each intervention in each residency year. Up to five may be assigned; one assessor decision completes that intervention scope.','<button class="btn secondary" data-go="owner-logbook-center">Back to Logbooks</button>') + `
+    <section class="card requirement-assignment-card">
+      <div class="requirement-assignment-toolbar"><label>Residency year<select id="requirementAssessorYear">${n.map((item)=>`<option value="${item}" ${item===year?'selected':''}>Year ${item}</option>`).join('')}</select></label><div class="priority-info-strip"><b>Routing:</b><span>When a resident submits the Year ${year} E-logbook for minimum-requirement assessment, only assessors assigned here receive the relevant scope.</span></div></div>
+      <div class="table-scroll"><table class="table requirement-assignment-table"><thead><tr><th>Intervention</th><th>Minimum</th><th>Assigned assessors</th><th></th></tr></thead><tbody>${rows.map((row)=>{
+        const names=Array.isArray(row.assessor_names)?row.assessor_names:[];
+        return `<tr><td><b>${o(row.intervention_name)}</b></td><td>${Number(row.minimum_required)>0?`<span class="tag warning">${o(row.minimum_required)} required</span>`:'<span class="tag neutral">No minimum</span>'}</td><td><div class="multi-assessor-chips">${names.length?names.map((name)=>`<span class="signature-chip assessor">${o(name)}</span>`).join(''):'<span class="tag danger">Not assigned</span>'}</div></td><td><button class="btn small" data-requirement-assessor-manage="${o(row.intervention_name)}" data-requirement-year="${year}">Assign / edit</button></td></tr>`;
+      }).join('')}</tbody></table></div>
+    </section>`;
+}
+
+function openLogbookRequirementAssessorAssignment(intervention, year) {
+  const row = window.logbookRequirementAssessorRows?.get(String(intervention));
+  const selected = new Set((row?.assessor_ids || []).map(String));
+  const people = window.logbookRequirementAssessorPeople || [];
+  const list = people.map((person)=>`<label class="assessor-choice-row" data-requirement-assessor-search="${o(assessorSortKey(person.display_name))}"><input type="checkbox" name="assessor_ids" value="${o(person.id)}" ${selected.has(String(person.id))?'checked':''}><span>${o(person.display_name)}</span></label>`).join('');
+  y(`<form id="logbookRequirementAssessorForm" class="modal prior-pair-modal"><div class="modal-head"><div><span class="eyebrow">Year ${o(year)} · up to five assessors</span><h2>${o(intervention)}</h2><p>Choose the assessors who may review this minimum-requirement scope.</p></div><button type="button" data-close>×</button></div><label>Search assessors<input id="logbookRequirementAssessorSearch" type="search" placeholder="Type assessor name"></label><div class="assessor-choice-list top-gap">${list || '<div class="panel-empty">No active assessors.</div>'}</div><input type="hidden" name="intervention_name" value="${o(intervention)}"><input type="hidden" name="residency_year" value="${o(year)}"><div class="priority-info-strip top-gap"><b>Review rule:</b><span>Up to five assessors may receive the request. The first valid assessor approval completes this intervention scope; if the resident is below the minimum, an assessor can return the whole submission with an automatic missing-items message.</span></div><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save assessors</button></div></form>`);
+}
+
+function renderLogbookRequirementReviewQueue(rows = []) {
+  if (!rows.length) return '';
+  return `<section class="card minimum-review-queue"><div class="section-head"><div><span class="eyebrow">Minimum-requirement assessment</span><h3>Submitted E-logbooks</h3><p>Review the resident's Year minimums. If anything is missing, return the submission with the automatic deficiency message.</p></div><span class="nav-badge inline-badge">${rows.length}</span></div><div class="table-scroll"><table class="table"><thead><tr><th>Resident</th><th>Year</th><th>Your scopes</th><th>Progress</th><th>Submitted</th><th></th></tr></thead><tbody>${rows.map((row)=>`<tr><td><b>${o(row.resident_name)}</b></td><td>${yearChip(row.residency_year)}</td><td><div class="minimum-scope-chips">${(row.my_scopes||[]).map((scope)=>`<span>${o(scope)}</span>`).join('')}</div></td><td>${Number(row.missing_items)>0?`<span class="tag warning">${o(row.met_items)}/${o(row.required_items)} met · ${o(row.missing_items)} missing</span>`:`<span class="tag success">✓ ${o(row.required_items)}/${o(row.required_items)} met</span>`}</td><td>${l(row.submitted_at)}</td><td><button class="btn small" data-minimum-assessment-open="${o(row.submission_id)}">Review requirements</button></td></tr>`).join('')}</tbody></table></div></section>`;
+}
+
+async function openLogbookMinimumAssessment(submissionId) {
+  y('<div class="modal minimum-assessment-modal"><div class="modal-head"><h2>Loading minimum requirements…</h2><button type="button" data-close>×</button></div></div>');
+  try {
+    const detail = u(await e.rpc('get_logbook_requirement_submission_detail_v1084',{p_submission_id:Number(submissionId)})) || {};
+    const submission = detail.submission || {};
+    const requirements = detail.requirements || [];
+    const myScopes = detail.my_scopes || [];
+    const scopeReviews = detail.scope_reviews || [];
+    const summary = minimumRequirementSummary(requirements);
+    const missingRows = requirements.filter((row)=>Number(row.minimum_required)>0 && Number(row.missing_count)>0);
+    r.innerHTML = `<form id="logbookMinimumAssessmentForm" class="modal minimum-assessment-modal"><div class="modal-head"><div><span class="eyebrow">Year ${o(submission.residency_year)} E-logbook assessment</span><h2>${o(submission.resident_name || 'Resident')}</h2><p>Attempt ${o(submission.attempt_no)} · submitted ${l(submission.submitted_at)}</p></div><button type="button" data-close>×</button></div><div class="minimum-assessment-summary"><div><span>Requirements</span><b>${summary.required}</b></div><div><span>Met</span><b>${summary.met}</b></div><div><span>Missing cases</span><b>${summary.missing}</b></div><div><span>Your scopes</span><b>${o(myScopes.length)}</b></div></div>${missingRows.length?`<div class="minimum-auto-message-preview"><b>Automatic resident response if returned</b><p>Minimum requirements not met. Missing: ${missingRows.map((row)=>`${o(row.intervention_name)} (${o(row.missing_count)})`).join(' · ')}. Complete the missing verified cases before re-application.</p></div>`:'<div class="minimum-ready-callout"><b>✓ All configured minimum case numbers are currently met.</b><span>You may approve the intervention scopes assigned to you.</span></div>'}${renderMinimumRequirementTable(requirements,{requiredOnly:true,myScopes,scopeReviews})}<input type="hidden" name="submission_id" value="${o(submissionId)}"><div class="actions minimum-assessment-actions"><button type="button" class="btn secondary" data-close>Close</button>${missingRows.length?'<button type="submit" class="btn danger-button" data-minimum-decision="returned">Return — requirements not met</button>':'<button type="submit" class="btn success-button" data-minimum-decision="approved">Approve my assigned requirements</button>'}</div></form>`;
+  } catch (error) {
+    r.innerHTML = `<div class="modal"><div class="modal-head"><h2>Requirement assessment could not load</h2><button type="button" data-close>×</button></div><p>${o(error?.message || String(error))}</p></div>`;
+  }
 }
 
 async function ownerInterventionAuditPage() {
@@ -3117,7 +3266,7 @@ async function P() {
         ? "Logbook approvals"
         : "Resident logbooks";
   const requests = [
-    e.rpc("get_logbook_entries_v2", {
+    e.rpc("get_logbook_entries_v1073", {
       p_resident_id: null,
       p_status: null,
       p_activity_category: null,
@@ -3136,7 +3285,17 @@ async function P() {
           .order("display_name")
       : Promise.resolve({ data: [] }),
   );
-  const [entriesResult, supervisorsResult, residentsResult] =
+  requests.push(
+    "resident" === s.p.role && isStandardResidencyYear(s.p.residency_year)
+      ? e.rpc("get_logbook_minimum_progress_v1084", { p_resident_id: null })
+      : Promise.resolve({ data: [] }),
+  );
+  requests.push(
+    "resident" === s.p.role && isStandardResidencyYear(s.p.residency_year)
+      ? e.rpc("get_my_logbook_requirement_submission_v1084")
+      : Promise.resolve({ data: null }),
+  );
+  const [entriesResult, supervisorsResult, residentsResult, minimumProgressResult, minimumSubmissionResult] =
     await Promise.all(requests);
   if (entriesResult.error) throw entriesResult.error;
   const entries = entriesResult.data || [];
@@ -3214,6 +3373,17 @@ async function P() {
     ? `<section class="prior-experience-alert priority-alert no-print"><div class="priority-alert-icon">🚨</div><div><span class="eyebrow">Top priority</span><h3>Prior Experience Logbook</h3><p>Before routine use of this e-logbook, record your previous interventions and conferences in one retrospective record. Keep it as an editable draft until you are ready for final verification.</p></div><button class="btn priority-submit" data-go="prior-experience">Open Prior Experience Logbook</button></section>`
     : "";
 
+  const minimumRequirementBanner = s.p.role === "resident" && isStandardResidencyYear(s.p.residency_year)
+    ? (() => {
+        const rows = minimumProgressResult?.data || [];
+        const summary = minimumRequirementSummary(rows);
+        const submission = minimumSubmissionResult?.data || null;
+        const state = String(submission?.status || "not_submitted");
+        const stateTag = state === "approved" ? '<span class="tag success">✓ Approved</span>' : state === "pending" ? '<span class="tag warning">Under assessor review</span>' : state === "returned" ? '<span class="tag danger">Returned · follow-up needed</span>' : '<span class="tag neutral">Not submitted</span>';
+        return `<section class="minimum-access-banner no-print ${summary.missing ? 'needs-work' : 'ready'}"><div><span class="eyebrow">Always available · Year ${o(s.p.residency_year)}</span><h3>My minimum requirements</h3><p>${summary.required ? `${summary.met}/${summary.required} requirements met${summary.missing ? ` · ${summary.missing} verified case${summary.missing===1?'':'s'} missing` : ' · ready for review'}` : 'No minimum requirements configured yet.'}</p></div><div class="minimum-access-actions">${stateTag}<button class="btn secondary" data-go="logbook-minimum-requirements">Check requirements</button></div></section>`;
+      })()
+    : "";
+
   const pending =
     "resident" === s.p.role
       ? assigned.filter((entry) => "pending" === entry.status)
@@ -3244,6 +3414,7 @@ async function P() {
         s.p.role === "owner" ? "" : '<button class="btn secondary no-print" data-logbook-print>Export PDF</button>',
       ) +
       priorExperienceBanner +
+      minimumRequirementBanner +
       ownerLogbookManager +
       submitCard +
       (pending.length
@@ -4011,6 +4182,30 @@ document.addEventListener("click", (event) => {
         const saved = u(await e.rpc("owner_save_logbook_requirements_v1083", { p_requirements: requirements }));
         b(`${saved || requirements.length} minimum requirement${Number(saved || requirements.length) === 1 ? "" : "s"} saved`);
         return void (await ownerLogbookRequirementsPage());
+      }
+      if (a.id === "logbookRequirementAssessorForm") {
+        const selected = [...new Set(r.getAll("assessor_ids").map(String).filter(Boolean))];
+        if (selected.length > 5) throw new Error("Choose up to five assessors");
+        u(await e.rpc("owner_save_logbook_requirement_assessors_v1084", {
+          p_intervention_name: r.get("intervention_name"),
+          p_residency_year: Number(r.get("residency_year")),
+          p_assessor_ids: selected,
+        }));
+        if (i.open) i.close();
+        b(`Requirement assessors saved for ${r.get("intervention_name")} · Year ${r.get("residency_year")}`);
+        return void (await ownerLogbookRequirementAssessorsPage(Number(r.get("residency_year"))));
+      }
+      if (a.id === "logbookMinimumAssessmentForm") {
+        const decision = t.submitter?.dataset.minimumDecision;
+        if (!decision) throw new Error("Choose Approve or Return");
+        const result = u(await e.rpc("assessor_decide_logbook_requirements_v1084", {
+          p_submission_id: Number(r.get("submission_id")),
+          p_decision: decision,
+        })) || {};
+        if (i.open) i.close();
+        await q();
+        b(decision === "returned" ? "Submission returned · automatic missing-items message sent to resident" : result.submission_status === "approved" ? "Minimum requirements approved · resident notified" : "Your assigned requirements approved");
+        return void (await logbookRequestsPage());
       }
       if (a.id === "penaltyIssueForm") {
         u(await e.rpc("create_resident_penalty_v1071", {
@@ -4818,6 +5013,46 @@ document.addEventListener("input", (event) => {
     const q = String(event.target.value || "").trim().toLowerCase();
     document.querySelectorAll("[data-assessor-choice-name]").forEach((row) => {
       row.hidden = q && !String(row.dataset.assessorChoiceName || "").includes(q);
+    });
+  }
+});
+
+// v1.0.84 — minimum-requirement workflow interactions
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-requirement-assessor-manage],[data-submit-minimum-logbook],[data-minimum-assessment-open]");
+  if (!button) return;
+  try {
+    if (button.dataset.requirementAssessorManage) {
+      openLogbookRequirementAssessorAssignment(button.dataset.requirementAssessorManage, Number(button.dataset.requirementYear));
+      return;
+    }
+    if (button.hasAttribute("data-submit-minimum-logbook")) {
+      const submissionId = u(await e.rpc("resident_submit_logbook_requirements_v1084"));
+      await q();
+      b(`E-logbook submitted for minimum-requirement assessment · submission ${submissionId}`);
+      await residentMinimumRequirementsPage();
+      return;
+    }
+    if (button.dataset.minimumAssessmentOpen) {
+      await openLogbookMinimumAssessment(button.dataset.minimumAssessmentOpen);
+      return;
+    }
+  } catch (error) {
+    alert(error?.message || String(error));
+  }
+});
+
+document.addEventListener("change", async (event) => {
+  if (event.target?.id === "requirementAssessorYear") {
+    await ownerLogbookRequirementAssessorsPage(Number(event.target.value));
+  }
+});
+
+document.addEventListener("input", (event) => {
+  if (event.target?.id === "logbookRequirementAssessorSearch") {
+    const query = assessorSortKey(event.target.value);
+    document.querySelectorAll("[data-requirement-assessor-search]").forEach((row) => {
+      row.hidden = Boolean(query && !String(row.dataset.requirementAssessorSearch || "").includes(query));
     });
   }
 });
