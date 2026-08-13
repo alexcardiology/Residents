@@ -127,7 +127,6 @@ const s = {
       ["logbook", "E-logbook"],
       ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
-      ["profile", "My profile"],
     ],
     observer: [
       ["dashboard", "Dashboard"],
@@ -137,7 +136,6 @@ const s = {
       ["logbook", "Logbook approvals"],
       ["logbook-requests", "Requests"],
       ["inbox", "Inbox"],
-      ["profile", "My profile"],
     ],
     assessor: [
       ["dashboard", "Dashboard"],
@@ -148,7 +146,6 @@ const s = {
       ["logbook", "Resident logbooks"],
       ["logbook-requests", "Logbook requests"],
       ["inbox", "Inbox"],
-      ["profile", "My profile"],
     ],
     owner: [
       ["dashboard", "Overview"],
@@ -248,14 +245,21 @@ function f() {
     ? `<img class="nav-avatar" src="${o(e.avatar_url)}" alt="">`
     : `<span class="nav-avatar avatar-fallback">${o((e.display_name || e.username || "?").charAt(0).toUpperCase())}</span>`;
   ((t("#userCard").innerHTML =
-    `${a}<span><strong>${o(e.display_name || e.username)}</strong><br><small>${m(e.role)}</small></span>`),
+    `${a}<span class="user-card-copy"><strong>${o(e.display_name || e.username)}</strong><small class="user-card-role">${m(e.role)}</small><span class="user-card-edit">✎ Edit profile</span></span>`),
     (t("#profileChip").innerHTML =
       `${a}<span>${o(e.display_name || e.username)}</span>`),
     (t("#nav").innerHTML = p[e.role]
-      .map(
-        ([e, s]) =>
-          `<button data-go="${e}"><span>${o(s)}</span>${e === "inbox" ? '<span class="nav-badge" data-inbox-badge hidden>0</span>' : e === "logbook-requests" ? '<span class="nav-badge" data-logbook-badge hidden>0</span>' : ""}</button>`,
-      )
+      .map(([route, label]) => {
+        const navLabel = route === "duty-bot"
+          ? `<span class="nav-main-label">Duty Bot <span class="duty-new-mark"><span aria-hidden="true">★</span> NEW!</span></span>`
+          : `<span>${o(label)}</span>`;
+        const badge = route === "inbox"
+          ? '<span class="nav-badge" data-inbox-badge hidden>0</span>'
+          : route === "logbook-requests"
+            ? '<span class="nav-badge" data-logbook-badge hidden>0</span>'
+            : "";
+        return `<button data-go="${route}">${navLabel}${badge}</button>`;
+      })
       .join("")),
     (t("#loading").hidden = !0),
     (t("#shell").hidden = !1),

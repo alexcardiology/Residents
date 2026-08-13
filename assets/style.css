@@ -5371,3 +5371,15 @@ dialog:has(.review-thread-modal) {
 .review-workspace-tab.complaint-tab em{font-style:normal;font-size:.68rem;font-weight:750;color:#1670d2;opacity:.92}
 .review-workspace-tab.complaint-tab.active em{color:#0d5795}
 @media(max-width:600px){.review-workspace-tab.complaint-tab{min-height:58px}.review-workspace-tab.complaint-tab em{font-size:.63rem}}
+
+
+/* v1.0.88 — compact profile access + Duty Bot NEW marker */
+.user-card-copy{display:grid;gap:2px;min-width:0}
+.user-card-copy strong{line-height:1.15}
+.user-card-role{display:block;margin:0;color:#c0ccda!important;font-size:.72rem!important;font-weight:750;letter-spacing:0;text-transform:none}
+.user-card-edit{display:inline-flex;align-items:center;gap:4px;width:max-content;margin-top:3px;color:#8fd8ff;font-size:.68rem;font-weight:850;line-height:1.15}
+.user-card:hover .user-card-edit{color:#fff;text-decoration:underline}
+aside nav .nav-main-label{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.duty-new-mark{display:inline-flex;align-items:center;gap:3px;color:#ffd54a;font-size:.66rem;font-weight:950;letter-spacing:.035em;white-space:nowrap;text-transform:uppercase;text-shadow:0 0 10px rgba(255,213,74,.22)}
+.duty-new-mark>span{font-size:.8rem;line-height:1}
+@media(max-width:850px){.user-card-edit{font-size:.67rem}.duty-new-mark{font-size:.63rem}}
