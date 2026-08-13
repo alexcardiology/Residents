@@ -119,6 +119,7 @@ const s = {
   p = {
     resident: [
       ["dashboard", "Dashboard"],
+      ["duty-bot", "Duty Bot"],
       ["resident-directory", "Residents"],
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
@@ -130,6 +131,7 @@ const s = {
     ],
     observer: [
       ["dashboard", "Dashboard"],
+      ["duty-bot", "Duty Bot"],
       ["write-review", "Write a review"],
       ["reviews", "My reviews"],
       ["logbook", "Logbook approvals"],
@@ -139,6 +141,7 @@ const s = {
     ],
     assessor: [
       ["dashboard", "Dashboard"],
+      ["duty-bot", "Duty Bot"],
       ["resident-directory", "Residents"],
       ["write-review", "Reviews & penalties"],
       ["assessments", "Assessments"],
@@ -149,6 +152,7 @@ const s = {
     ],
     owner: [
       ["dashboard", "Overview"],
+      ["duty-bot", "Duty Bot"],
       ["resident-directory", "Residents"],
       ["users", "Accounts"],
       ["curriculum", "Curriculum"],
@@ -183,6 +187,8 @@ const s = {
     `<span class="year-chip ${yearClass(year)}">${o(label || residentTrainingLabel(year))}</span>`,
   dashboardTile = (title, valueHtml, meta, go, extraClass = "") =>
     `<button type="button" class="dashboard-tile ${extraClass}" ${go ? `data-go="${o(go)}"` : ""}><span>${o(title)}</span><strong>${valueHtml}</strong><small>${o(meta || "")}</small></button>`,
+  dutyBotLaunch = () =>
+    `<button type="button" class="duty-bot-launch" data-go="duty-bot"><span class="duty-bot-launch-icon" aria-hidden="true">✦</span><span><small>LIVE FACULTY SCHEDULE</small><strong>Ask Duty Bot</strong><em>Find duties and daytime assignments for any previous, current or coming date in Arabic or English.</em></span><b>Open bot →</b></button>`,
   evidenceDashboardTile = (knowledgeCount, skillCount) =>
     `<button type="button" class="dashboard-tile evidence-dashboard-tile" data-go="chapters"><span>Knowledge & skills</span><div class="evidence-split"><div><b>${o(knowledgeCount)}</b><small>Knowledge complete</small></div><div><b>${o(skillCount)}</b><small>Skills tracked</small></div></div><small>Open curriculum and update your progress</small></button>`,
   weakPointSummary = (assessment) => {
@@ -306,8 +312,97 @@ async function $() {
     (console.error(e), (a.innerHTML = v(e.message || "Unable to load")));
   }
 }
+function dutyAssignmentCards(assignments = []) {
+  if (!assignments.length) return "";
+  return `<div class="duty-assignment-list">${assignments.map((assignment) => `
+    <article class="duty-assignment-card">
+      <div><strong>${o(assignment.resident || "—")}</strong><span>${assignment.scheduleType === "daytime" ? "Day assignment" : "24-hour duty"}</span></div>
+      <dl>
+        <div><dt>Hospital</dt><dd>${o(assignment.hospital || "—")}</dd></div>
+        <div><dt>Service</dt><dd>${o(assignment.service || assignment.role || assignment.unit || "—")}</dd></div>
+        <div><dt>Date</dt><dd>${o(d(assignment.date))}</dd></div>
+        <div><dt>Time</dt><dd>${o(assignment.shift || "Not specified")}</dd></div>
+        <div><dt>Source</dt><dd>${o(assignment.source || "Approved schedule")}</dd></div>
+      </dl>
+    </article>`).join("")}</div>`;
+}
+
+function addDutyBotMessage(kind, message, assignments = []) {
+  const transcript = t("#dutyBotTranscript");
+  if (!transcript) return null;
+  const bubble = document.createElement("article");
+  bubble.className = `duty-message duty-message-${kind}`;
+  bubble.innerHTML = `<span>${kind === "user" ? "You" : "Duty Bot"}</span><p>${o(message).replace(/\n/g, "<br>")}</p>${kind === "bot" ? dutyAssignmentCards(assignments) : ""}`;
+  transcript.appendChild(bubble);
+  transcript.scrollTop = transcript.scrollHeight;
+  return bubble;
+}
+
+async function askDutyBot(question) {
+  const cleanQuestion = String(question || "").trim();
+  if (!cleanQuestion) return;
+  addDutyBotMessage("user", cleanQuestion);
+  const loading = addDutyBotMessage("bot", "Checking the approved faculty schedule…");
+  loading?.classList.add("is-loading");
+  const submit = t('#dutyBotForm button[type="submit"]');
+  if (submit) submit.disabled = true;
+  try {
+    const { data, error } = await e.functions.invoke("duty-bot", { body: { question: cleanQuestion } });
+    if (error) throw error;
+    loading?.remove();
+    const sourceWarning = data?.warnings?.length ? `\n⚠ ${data.warnings.join(" ")}` : "";
+    addDutyBotMessage("bot", `${data?.answer || "No matching approved assignment was found."}${sourceWarning}`, data?.assignments || []);
+  } catch (error) {
+    console.error(error);
+    loading?.remove();
+    addDutyBotMessage("bot", "Duty Bot could not read the approved schedules. Please try again or contact the program owner.");
+  } finally {
+    if (submit) submit.disabled = false;
+    t("#dutyBotQuestion")?.focus();
+  }
+}
+
 const w = {
   dashboard: k,
+  "duty-bot": async function () {
+    t("#title").textContent = "Duty Bot";
+    t("#crumb").textContent = m(s.p.role);
+    const canModifyDutySchedule = String(s.p.email || s.session?.user?.email || "").trim().toLowerCase() === "drmohamedalaa90@gmail.com";
+    const ownerNote = canModifyDutySchedule
+      ? '<div class="duty-owner-note"><b>Schedule administrator</b><span>Google Sheet changes appear in the bot within one minute.</span><a class="duty-modify-link" href="https://docs.google.com/spreadsheets/d/185wfhkbv3s7M5gj7J04-zb_6UhCgK1pA1qjN7O9dLBY/edit?gid=569773954#gid=569773954" target="_blank" rel="noopener">Modify schedule ↗</a></div>'
+      : "";
+    const prompts = [
+      "Who is in Miri CCU today?",
+      "Where is Hassan on 23 August 2026?",
+      "Who is in Miri Cath 1 on 15 August 2026?",
+      "مين حسن يوم 23 أغسطس 2026؟",
+      "مين طوارئ الميري الجمعة الجاية؟",
+    ];
+    a.innerHTML =
+      h("Faculty Duty & Rotation Bot", "Ask about 24-hour duties and daytime ward, cath, echo and clinic assignments for today or any previous or coming date.") +
+      `<section class="duty-bot-shell">
+        <aside class="duty-bot-sidebar">
+          <span class="eyebrow">Quick questions</span>
+          <h3>What do you need?</h3>
+          <div class="duty-quick-prompts">${prompts.map((prompt) => `<button type="button" data-duty-question="${o(prompt)}">${o(prompt)}</button>`).join("")}</div>
+          <div class="duty-date-lookup"><label for="dutyBotDate">Choose any date</label><div><input id="dutyBotDate" type="date"><button type="button" data-duty-date-query>Show</button></div></div>
+          <div class="duty-shift-rule"><b>Two live schedules</b><span>24-hour duty: 08:00 → 08:00 next day<br>Day assignments: time not specified</span></div>
+          ${ownerNote}
+        </aside>
+        <div class="duty-chat-panel">
+          <header><div class="duty-bot-avatar">✦</div><div><b>Faculty Duty Bot</b><span><i></i> Approved schedule</span></div></header>
+          <div id="dutyBotTranscript" class="duty-transcript" aria-live="polite">
+            <article class="duty-message duty-message-bot"><span>Duty Bot</span><p>Hello — ask where a resident is, who is covering a service, or choose any date. I check both the 24-hour duty schedule and the daytime Google schedule.</p></article>
+          </div>
+          <form id="dutyBotForm" class="duty-chat-form">
+            <label class="sr-only" for="dutyBotQuestion">Ask Duty Bot</label>
+            <input id="dutyBotQuestion" name="question" maxlength="300" autocomplete="off" placeholder="Example: Who is in Miri ER today?" required>
+            <button type="submit">Ask <span aria-hidden="true">→</span></button>
+          </form>
+          <small class="duty-data-note">Answers combine approved Airtable duties with the live Google daytime schedule. Confirm urgent clinical coverage through your usual hospital channel.</small>
+        </div>
+      </section>`;
+  },
   chapters: async function () {
     if ("resident" !== s.p.role) return g("dashboard");
     t("#title").textContent = "My chapters";
@@ -2007,6 +2102,7 @@ async function k() {
     const minimumSummary = minimumRequirementSummary(minimumProgressResult.data || []);
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Your year, evidence, assessment and next actions at a glance.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
+      dutyBotLaunch() +
       `<div class="dashboard-grid dashboard-grid-6">
         ${dashboardTile(isStandardResidencyYear(i.residency_year) ? "Current residency" : "Training status", yearChip(i.residency_year), isStandardResidencyYear(i.residency_year) ? (i.progression_status === "reassessment_required" ? `Reassessment due ${d(i.reassessment_due)}` : "") : "", "chapters", `year-tile ${yearClass(i.residency_year)}`)}
         ${dashboardTile("My chapters", String(chaptersResult.data?.length || 0), "Cumulative curriculum access", "chapters")}
@@ -2032,6 +2128,7 @@ async function k() {
     const unread = inbox.filter((message) => !message.is_read).length;
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Four quick areas for observations, approvals and communication.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
+      dutyBotLaunch() +
       `<div class="dashboard-grid dashboard-grid-4">
         ${dashboardTile("Write a review", "＋", "Positive/negative · named or anonymous", "write-review", "accent-tile")}
         ${dashboardTile("My reviews", String(reviews.length), "Your previous clinical and behavioural reviews", "reviews")}
@@ -2054,6 +2151,7 @@ async function k() {
     const pendingApprovals = (logbookResult.data || []).filter((message) => !message.logbook_action_taken).length;
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Your assessment workspace is divided into six quick areas.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
+      dutyBotLaunch() +
       `<div class="dashboard-grid dashboard-grid-6">
         ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "resident-directory")}
         ${dashboardTile(nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "CURRENT ASSESSMENT" : "Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? `assessment-session:${nextAssessment.id}` : "assessments", nextAssessment ? (new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "current-assessment-tile" : "accent-tile") : "")}
@@ -2078,6 +2176,7 @@ async function k() {
   const unread = (inboxResult.data || []).filter((message) => !message.is_read).length;
   a.innerHTML =
     h("Training program at a glance", "Six compact control areas; detailed tools stay one tap away.", '<div class="lead-actions"><button class="btn secondary" data-export-curriculum>Export curriculum PDF</button><button class="btn" data-create>Create account</button></div>') +
+      dutyBotLaunch() +
     `<div class="dashboard-grid dashboard-grid-6 owner-dashboard-grid">
       ${dashboardTile("Accounts", String(profiles.length), `${profiles.filter((person) => person.is_active).length} active accounts`, "users")}
       ${dashboardTile("Residents", String(residents.length), reassessmentCount ? `${reassessmentCount} awaiting reassessment` : "Cohorts on track", "progress", reassessmentCount ? "warning-tile" : "")}
@@ -3586,6 +3685,21 @@ document.addEventListener("click", (event) => {
 (document.addEventListener("click", async (t) => {
   const a = t.target.closest("button,[data-chapter]");
   if (a) {
+    if (a.dataset.dutyQuestion) {
+      const input = document.querySelector("#dutyBotQuestion");
+      if (input) input.value = a.dataset.dutyQuestion;
+      await askDutyBot(a.dataset.dutyQuestion);
+      return;
+    }
+    if (a.hasAttribute("data-duty-date-query")) {
+      const date = String(document.querySelector("#dutyBotDate")?.value || "");
+      if (!date) {
+        b("Choose a date first");
+        return;
+      }
+      await askDutyBot(`Show the full schedule on ${date}`);
+      return;
+    }
     if (
       (a.dataset.go && g(a.dataset.go),
       a.dataset.chapter && g(`chapter:${a.dataset.chapter}`),
@@ -4173,6 +4287,14 @@ document.addEventListener("click", (event) => {
     const a = t.target,
       r = new FormData(a);
     try {
+      if (a.id === "dutyBotForm") {
+        const question = String(r.get("question") || "").trim();
+        if (!question) return;
+        const input = a.querySelector("#dutyBotQuestion");
+        if (input) input.value = "";
+        await askDutyBot(question);
+        return;
+      }
       if (a.id === "ownerLogbookRequirementsForm") {
         const requirements = [...a.querySelectorAll("[data-logbook-minimum]")].map((input) => ({
           intervention_name: String(input.dataset.intervention || ""),
