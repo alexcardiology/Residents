@@ -17,6 +17,7 @@
    npx supabase functions deploy duty-bot --project-ref dwkkhqmifmmxubtuaqbd
    ```
    The token needs `data.records:read` access to the `Bot_Assignments` and `Residents` tables. Only records whose Status is `Approved` are shown in the portal.
+   The function also reads the public-view CSV for Google Sheet `185wfhkbv3s7M5gj7J04-zb_6UhCgK1pA1qjN7O9dLBY`, tab `569773954`. Keep that tab available to anyone with the link as Viewer. Google itself enforces editing access; the portal shows the **Modify schedule** button only to `drmohamedalaa90@gmail.com`.
 7. Upload/commit all files to `drmohamedalaa90/Residents` on `main`. In **Repository Settings → Pages**, choose **GitHub Actions**.
 8. Visit `https://drmohamedalaa90.github.io/Residents/`, sign in, open **Duty Bot**, and test “Who is in Miri ER today?”. Then create one test resident, observer and assessor and verify their normal portal permissions.
 

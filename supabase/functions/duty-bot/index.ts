@@ -2,10 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization,x-client-info,apikey,content-type",
+  "Access-Control-Allow-Headers": "authorization,x-client-info,apikey,content-type",
 };
-
 const json = (payload: unknown, status = 200) =>
   new Response(JSON.stringify(payload), {
     status,
@@ -13,17 +11,15 @@ const json = (payload: unknown, status = 200) =>
   });
 
 const TIME_ZONE = "Africa/Cairo";
-const AIRTABLE_BASE_ID =
-  Deno.env.get("AIRTABLE_BASE_ID") || "appSmzqYTynjlWK9B";
+const AIRTABLE_BASE_ID = Deno.env.get("AIRTABLE_BASE_ID") || "appSmzqYTynjlWK9B";
 const ASSIGNMENTS_TABLE = "Bot_Assignments";
 const RESIDENTS_TABLE = "Residents";
+const GOOGLE_SHEET_ID = Deno.env.get("GOOGLE_DUTY_SHEET_ID") || "185wfhkbv3s7M5gj7J04-zb_6UhCgK1pA1qjN7O9dLBY";
+const GOOGLE_SHEET_GID = Deno.env.get("GOOGLE_DUTY_SHEET_GID") || "569773954";
+const GOOGLE_SHEET_FALLBACK_YEAR = Number(Deno.env.get("GOOGLE_DUTY_SHEET_YEAR") || "2026");
 const CACHE_TTL_MS = 60_000;
 
-type AirtableRecord = {
-  id: string;
-  fields: Record<string, unknown>;
-};
-
+type AirtableRecord = { id: string; fields: Record<string, unknown> };
 type Assignment = {
   id: string;
   date: string;
@@ -31,38 +27,38 @@ type Assignment = {
   hospital: string;
   unit: string;
   role: string;
+  service: string;
   resident: string;
   status: string;
+  source: string;
+  scheduleType: "on_call" | "daytime";
+  shift: string;
 };
+type ResidentAlias = { scheduleName: string; fullName: string; aliases: string[] };
 
-type ResidentAlias = {
-  scheduleName: string;
-  fullName: string;
-  aliases: string[];
-};
+let cache: {
+  expiresAt: number;
+  assignments: Assignment[];
+  residents: ResidentAlias[];
+  warnings: string[];
+} | null = null;
 
-let cache:
-  | {
-      expiresAt: number;
-      assignments: Assignment[];
-      residents: ResidentAlias[];
-    }
-  | null = null;
-
+const westernDigits = (value: string) =>
+  value.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 const normalize = (value: unknown) =>
-  String(value || "")
+  westernDigits(String(value || ""))
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u0300-\u036f\u064b-\u065f\u0670]/g, "")
     .replace(/[أإآ]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
     .replace(/ؤ/g, "و")
     .replace(/ئ/g, "ي")
+    .replace(/[؟،؛]/g, " ")
     .replace(/[^a-z0-9\u0600-\u06ff/\-\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-
 const selectName = (value: unknown) => {
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "name" in value) {
@@ -70,33 +66,20 @@ const selectName = (value: unknown) => {
   }
   return "";
 };
-
 const splitAliases = (value: unknown) =>
-  String(value || "")
-    .split(/[,;|\n]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  String(value || "").split(/[,;|\n]+/).map((item) => item.trim()).filter(Boolean);
 
 async function airtableRecords(table: string) {
   const token = Deno.env.get("AIRTABLE_TOKEN");
   if (!token) throw new Error("AIRTABLE_TOKEN is not configured");
-
   const records: AirtableRecord[] = [];
   let offset = "";
   do {
-    const url = new URL(
-      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`,
-    );
+    const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`);
     url.searchParams.set("pageSize", "100");
     if (offset) url.searchParams.set("offset", offset);
-
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Airtable request failed (${response.status}): ${detail}`);
-    }
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error(`Airtable request failed (${response.status}): ${await response.text()}`);
     const page = await response.json();
     records.push(...(page.records || []));
     offset = String(page.offset || "");
@@ -104,44 +87,186 @@ async function airtableRecords(table: string) {
   return records;
 }
 
-async function scheduleData() {
-  if (cache && cache.expiresAt > Date.now()) return cache;
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (character === '"') quoted = false;
+      else cell += character;
+      continue;
+    }
+    if (character === '"') quoted = true;
+    else if (character === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (character === "\n") {
+      row.push(cell.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else cell += character;
+  }
+  if (cell || row.length) {
+    row.push(cell.replace(/\r$/, ""));
+    rows.push(row);
+  }
+  return rows;
+}
 
-  const [assignmentRecords, residentRecords] = await Promise.all([
-    airtableRecords(ASSIGNMENTS_TABLE),
-    airtableRecords(RESIDENTS_TABLE),
-  ]);
+const MONTHS: Record<string, number> = {
+  jan: 1, january: 1, يناير: 1,
+  feb: 2, february: 2, فبراير: 2,
+  mar: 3, march: 3, مارس: 3,
+  apr: 4, april: 4, ابريل: 4,
+  may: 5, مايو: 5,
+  jun: 6, june: 6, يونيو: 6,
+  jul: 7, july: 7, يوليو: 7,
+  aug: 8, august: 8, اغسطس: 8,
+  sep: 9, sept: 9, september: 9, سبتمبر: 9,
+  oct: 10, october: 10, اكتوبر: 10,
+  nov: 11, november: 11, نوفمبر: 11,
+  dec: 12, december: 12, ديسمبر: 12,
+};
+function isoDate(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+function parseSheetDate(value: string, year: number) {
+  const match = normalize(value).match(/^(\d{1,2})\s+([a-z\u0600-\u06ff]+)(?:\s+(20\d{2}))?$/);
+  if (!match) return "";
+  const month = MONTHS[match[2]];
+  return month ? isoDate(Number(match[3] || year), month, Number(match[1])) : "";
+}
+function cleanServiceName(primary: string, secondary: string) {
+  return String(primary || secondary || "").trim()
+    .replace(/^Mery\b/i, "Miri")
+    .replace(/^Dep\.\s*/i, "Department ")
+    .replace(/\bholter\b/i, "Holter")
+    .replace(/\s+/g, " ");
+}
+function inferSheetHospital(service: string) {
+  const value = normalize(service);
+  if (value.includes("miri") || value.includes("mery")) return "Miri";
+  if (value.includes("smouha")) return "Smouha";
+  if (value.includes("nariman")) return "Nariman";
+  if (value.includes("borg")) return "Borg El Arab";
+  return "Cardiology Department";
+}
+function inferSheetUnit(service: string) {
+  const value = normalize(service);
+  if (value.includes("ward")) return "Ward";
+  if (value.includes("cath")) return "Cath Lab";
+  if (value.includes("echo") && value.includes("clinic")) return "Echo / Clinic";
+  if (value.includes("echo")) return "Echo";
+  if (value.includes("clinic")) return "Clinic";
+  if (/\bep\b/.test(value)) return "EP";
+  if (value.includes("stress") || value.includes("holter")) return "Diagnostics";
+  return "Day service";
+}
+async function googleSheetAssignments() {
+  const url = new URL(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/export`);
+  url.searchParams.set("format", "csv");
+  url.searchParams.set("gid", GOOGLE_SHEET_GID);
+  const response = await fetch(url, { headers: { Accept: "text/csv" } });
+  if (!response.ok) throw new Error(`Google Sheet request failed (${response.status})`);
+  const disposition = response.headers.get("content-disposition") || "";
+  const year = Number(disposition.match(/20\d{2}/)?.[0]) || GOOGLE_SHEET_FALLBACK_YEAR;
+  const rows = parseCsv(await response.text());
+  if (rows.length < 3) throw new Error("Google Sheet does not contain schedule rows");
+  const primaryHeaders = rows[0] || [];
+  const secondaryHeaders = rows[1] || [];
+  const assignments: Assignment[] = [];
+  rows.slice(2).forEach((row, rowIndex) => {
+    const date = parseSheetDate(row[0] || "", year);
+    if (!date) return;
+    const day = String(row[1] || "").trim();
+    for (let column = 2; column < row.length; column += 1) {
+      const residentCell = String(row[column] || "").trim();
+      const service = cleanServiceName(primaryHeaders[column] || "", secondaryHeaders[column] || "");
+      if (!residentCell || !service || /^Column\s+\d+$/i.test(service)) continue;
+      residentCell.split(/[\n,;&]+/).map((name) => name.trim()).filter(Boolean).forEach((resident, residentIndex) => {
+        assignments.push({
+          id: `google:${date}:${rowIndex}:${column}:${residentIndex}`,
+          date,
+          day,
+          hospital: inferSheetHospital(service),
+          unit: inferSheetUnit(service),
+          role: service,
+          service,
+          resident,
+          status: "Approved",
+          source: "Google Sheet · daytime schedule",
+          scheduleType: "daytime",
+          shift: "Day assignment · time not specified",
+        });
+      });
+    }
+  });
+  return assignments;
+}
 
-  const assignments = assignmentRecords
-    .map((record): Assignment => ({
+function airtableAssignments(records: AirtableRecord[]) {
+  return records.map((record): Assignment => {
+    const hospital = selectName(record.fields.Hospital);
+    const unit = selectName(record.fields.Unit);
+    const role = selectName(record.fields["Role / Group"]);
+    return {
       id: record.id,
       date: String(record.fields.Date || ""),
       day: selectName(record.fields.Day),
-      hospital: selectName(record.fields.Hospital),
-      unit: selectName(record.fields.Unit),
-      role: selectName(record.fields["Role / Group"]),
+      hospital,
+      unit,
+      role,
+      service: [hospital, unit, role].filter(Boolean).join(" · "),
       resident: selectName(record.fields["Resident schedule name"]),
       status: selectName(record.fields.Status),
-    }))
-    .filter((item) => item.date && item.resident && item.status === "Approved");
-
-  const residents = residentRecords
-    .map((record): ResidentAlias => {
-      const scheduleName = String(record.fields["Schedule name"] || "").trim();
-      const fullName = String(record.fields["Full resident name"] || "").trim();
-      return {
-        scheduleName,
-        fullName,
-        aliases: [
-          scheduleName,
-          fullName,
-          ...splitAliases(record.fields["Other aliases / nicknames"]),
-        ].filter(Boolean),
-      };
-    })
-    .filter((item) => item.scheduleName);
-
-  cache = { expiresAt: Date.now() + CACHE_TTL_MS, assignments, residents };
+      source: String(record.fields.Source || "Airtable · 24-hour duty"),
+      scheduleType: "on_call",
+      shift: "08:00 → 08:00 next day",
+    };
+  }).filter((item) => item.date && item.resident && item.status === "Approved");
+}
+function airtableResidents(records: AirtableRecord[]) {
+  return records.map((record): ResidentAlias => {
+    const scheduleName = String(record.fields["Schedule name"] || "").trim();
+    const fullName = String(record.fields["Full resident name"] || "").trim();
+    return {
+      scheduleName,
+      fullName,
+      aliases: [scheduleName, fullName, ...splitAliases(record.fields["Other aliases / nicknames"])].filter(Boolean),
+    };
+  }).filter((item) => item.scheduleName);
+}
+async function scheduleData() {
+  if (cache && cache.expiresAt > Date.now()) return cache;
+  const [assignmentResult, residentResult, googleResult] = await Promise.allSettled([
+    airtableRecords(ASSIGNMENTS_TABLE),
+    airtableRecords(RESIDENTS_TABLE),
+    googleSheetAssignments(),
+  ]);
+  const warnings: string[] = [];
+  const assignments = [
+    ...(assignmentResult.status === "fulfilled" ? airtableAssignments(assignmentResult.value) : (warnings.push("The 24-hour duty schedule could not be loaded."), [])),
+    ...(googleResult.status === "fulfilled" ? googleResult.value : (warnings.push("The daytime Google schedule could not be loaded."), [])),
+  ];
+  if (!assignments.length) throw new Error("No schedule source is currently available");
+  const residents = residentResult.status === "fulfilled" ? airtableResidents(residentResult.value) : [];
+  const knownNames = new Set(residents.map((item) => normalize(item.scheduleName)));
+  assignments.forEach((assignment) => {
+    const name = assignment.resident.trim();
+    if (!name || knownNames.has(normalize(name))) return;
+    knownNames.add(normalize(name));
+    residents.push({ scheduleName: name, fullName: "", aliases: [name] });
+  });
+  cache = { expiresAt: Date.now() + CACHE_TTL_MS, assignments, residents, warnings };
   return cache;
 }
 
@@ -155,202 +280,202 @@ function cairoParts(date = new Date()) {
     hourCycle: "h23",
   }).formatToParts(date);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return {
-    date: `${values.year}-${values.month}-${values.day}`,
-    hour: Number(values.hour),
-  };
+  return { date: `${values.year}-${values.month}-${values.day}`, hour: Number(values.hour) };
 }
-
-function addDays(isoDate: string, amount: number) {
-  const date = new Date(`${isoDate}T12:00:00Z`);
+function addDays(dateValue: string, amount: number) {
+  const date = new Date(`${dateValue}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + amount);
   return date.toISOString().slice(0, 10);
 }
-
+const MONTH_PATTERN = Object.keys(MONTHS).sort((a, b) => b.length - a.length).join("|");
 function explicitDate(question: string) {
   const iso = question.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
-  if (iso) {
-    return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  }
+  if (iso) return isoDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
   const dayFirst = question.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](20\d{2}))?\b/);
-  if (dayFirst) {
-    const year = dayFirst[3] || cairoParts().date.slice(0, 4);
-    return `${year}-${dayFirst[2].padStart(2, "0")}-${dayFirst[1].padStart(2, "0")}`;
-  }
+  if (dayFirst) return isoDate(Number(dayFirst[3] || cairoParts().date.slice(0, 4)), Number(dayFirst[2]), Number(dayFirst[1]));
+  const dayMonth = question.match(new RegExp(`(?:^|\\s)(\\d{1,2})\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?(?:$|\\s)`));
+  if (dayMonth) return isoDate(Number(dayMonth[3] || cairoParts().date.slice(0, 4)), MONTHS[dayMonth[2]], Number(dayMonth[1]));
+  const monthDay = question.match(new RegExp(`(?:^|\\s)(${MONTH_PATTERN})\\s+(\\d{1,2})(?:\\s+(20\\d{2}))?(?:$|\\s)`));
+  if (monthDay) return isoDate(Number(monthDay[3] || cairoParts().date.slice(0, 4)), MONTHS[monthDay[1]], Number(monthDay[2]));
   return "";
 }
-
-function targetDate(normalizedQuestion: string) {
+const WEEKDAYS: Array<{ day: number; aliases: string[] }> = [
+  { day: 0, aliases: ["sunday", "sun", "الاحد"] },
+  { day: 1, aliases: ["monday", "mon", "الاثنين"] },
+  { day: 2, aliases: ["tuesday", "tue", "الثلاثاء"] },
+  { day: 3, aliases: ["wednesday", "wed", "الاربعاء"] },
+  { day: 4, aliases: ["thursday", "thu", "الخميس"] },
+  { day: 5, aliases: ["friday", "fri", "الجمعه"] },
+  { day: 6, aliases: ["saturday", "sat", "السبت"] },
+];
+function weekdayDate(question: string, currentDate: string) {
+  const weekday = WEEKDAYS.find((item) => item.aliases.some((alias) => (` ${question} `).includes(` ${alias} `)));
+  if (!weekday) return "";
+  const currentDay = new Date(`${currentDate}T12:00:00Z`).getUTCDay();
+  const previous = /\b(last|previous)\b|اللي فات|الماضي|السابق/.test(question);
+  const coming = /\b(next|coming)\b|الجاي|القادم/.test(question);
+  if (previous) return addDays(currentDate, -(((currentDay - weekday.day + 7) % 7) || 7));
+  let distance = (weekday.day - currentDay + 7) % 7;
+  if (coming && distance === 0) distance = 7;
+  return addDays(currentDate, distance);
+}
+function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
   const current = cairoParts();
   const stated = explicitDate(normalizedQuestion);
   if (stated) return stated;
-  if (/\b(tomorrow|tmr)\b|بكره|غدا/.test(normalizedQuestion)) {
-    return addDays(current.date, 1);
-  }
-  if (/\byesterday\b|امس/.test(normalizedQuestion)) {
-    return addDays(current.date, -1);
-  }
-  // A duty labelled with a date runs 08:00 that date until 08:00 next day.
-  return current.hour < 8 ? addDays(current.date, -1) : current.date;
+  if (/\b(tomorrow|tmr)\b|بكره|غدا/.test(normalizedQuestion)) return addDays(current.date, 1);
+  if (/\byesterday\b|امس/.test(normalizedQuestion)) return addDays(current.date, -1);
+  const weekday = weekdayDate(normalizedQuestion, current.date);
+  if (weekday) return weekday;
+  return preferActiveDuty && current.hour < 8 ? addDays(current.date, -1) : current.date;
 }
 
-const includesAny = (question: string, values: string[]) =>
-  values.some((value) => question.includes(normalize(value)));
-
+const includesAny = (question: string, values: string[]) => values.some((value) => question.includes(normalize(value)));
 function findResident(question: string, residents: ResidentAlias[]) {
-  const candidates = residents.flatMap((resident) =>
-    resident.aliases.map((alias) => ({
-      resident,
-      alias: normalize(alias),
-    })),
-  ).filter((item) => item.alias.length >= 2)
+  const candidates = residents.flatMap((resident) => resident.aliases.map((alias) => ({ resident, alias: normalize(alias) })))
+    .filter((item) => item.alias.length >= 2)
     .sort((a, b) => b.alias.length - a.alias.length);
-
-  return candidates.find(({ alias }) => {
-    if (alias.length > 3) return question.includes(alias);
-    return (` ${question} `).includes(` ${alias} `);
-  })?.resident || null;
+  return candidates.find(({ alias }) => alias.length > 3 ? question.includes(alias) : (` ${question} `).includes(` ${alias} `))?.resident || null;
 }
-
 function requestedHospital(question: string) {
-  if (includesAny(question, ["miri", "el miri", "الميري", "ميري", "ميرى"])) {
-    return "Miri";
-  }
+  if (includesAny(question, ["miri", "mery", "el miri", "الميري", "ميري", "ميرى"])) return "Miri";
   if (includesAny(question, ["smouha", "سموحة", "سموحه"])) return "Smouha";
+  if (includesAny(question, ["nariman", "ناريمان"])) return "Nariman";
+  if (includesAny(question, ["borg el arab", "borg elarab", "برج العرب"])) return "Borg El Arab";
   return "";
 }
-
 function requestedUnit(question: string) {
   if (/\ber\b/.test(question) || includesAny(question, ["emergency", "طوارئ", "الطوارئ"])) return "ER";
   if (includesAny(question, ["angina", "ذبحة", "الذبحة"])) return "Angina Unit";
   if (includesAny(question, ["senior", "سينيور", "الكبير"])) return "Senior";
   if (includesAny(question, ["ccu", "عناية", "العناية"])) return "CCU";
+  if (includesAny(question, ["cath", "catheter", "قسطرة", "القسطرة"])) return "Cath Lab";
+  if (includesAny(question, ["ward", "round", "عنبر", "مرور"])) return "Ward";
+  if (includesAny(question, ["echo", "ايكو", "الإيكو"])) return "Echo";
+  if (includesAny(question, ["clinic", "عيادة", "عياده"])) return "Clinic";
+  if (/\bep\b/.test(question) || includesAny(question, ["electrophysiology", "كهرباء القلب"])) return "EP";
+  if (includesAny(question, ["stress", "holter", "هولتر", "مجهود"])) return "Diagnostics";
   return "";
 }
-
-function requestedRole(question: string) {
+function requestedRole(question: string, unit: string) {
   const parts: string[] = [];
   if (includesAny(question, ["4th", "fourth", "رابعه", "الرابعه"])) parts.push("4th");
   if (includesAny(question, ["5th", "fifth", "خامسه", "الخامسه"])) parts.push("5th");
-  for (const year of ["2021", "2022", "2023"]) {
-    if (question.includes(year)) parts.push(year);
-  }
+  for (const year of ["2021", "2022", "2023"]) if (question.includes(year)) parts.push(year);
+  const serviceNumber = question.match(/(?:cath|echo|clinic|ward|قسطرة|ايكو|عياده|عنبر)\s*(?:lab\s*)?([1-5])\b/);
+  if (serviceNumber && ["Cath Lab", "Echo", "Clinic", "Ward"].includes(unit)) parts.push(serviceNumber[1]);
+  if (includesAny(question, ["male", "men", "رجال", "ذكور"])) parts.push("male");
+  if (includesAny(question, ["female", "women", "حريم", "سيدات", "اناث"])) parts.push("female");
+  if (includesAny(question, ["pregnancy", "حمل", "الحوامل"])) parts.push("pregnancy");
   return parts;
+}
+function matchesUnit(item: Assignment, unit: string) {
+  if (!unit || item.unit === unit) return true;
+  const service = normalize(`${item.unit} ${item.service}`);
+  const tokens: Record<string, string[]> = {
+    "Cath Lab": ["cath"], Ward: ["ward"], Echo: ["echo"], Clinic: ["clinic"], EP: ["ep"], Diagnostics: ["stress", "holter"],
+  };
+  return (tokens[unit] || [unit]).some((token) => service.includes(normalize(token)));
+}
+function matchesRole(item: Assignment, parts: string[]) {
+  if (!parts.length) return true;
+  const service = normalize(`${item.role} ${item.service}`);
+  const translated: Record<string, string[]> = {
+    male: ["male", "رجال"], female: ["female", "سيدات", "حريم", "اناث"], pregnancy: ["pregnancy", "حمل"],
+  };
+  return parts.every((part) => (translated[part] || [part]).some((candidate) => service.includes(normalize(candidate))));
 }
 
 function arabicPlace(item: Assignment) {
+  if (item.scheduleType === "daytime") return item.service;
   const hospital = item.hospital === "Miri" ? "الميري" : item.hospital === "Smouha" ? "سموحة" : item.hospital;
   const unit = item.unit === "CCU" ? "العناية" : item.unit === "ER" ? "الطوارئ" : item.unit === "Angina Unit" ? "وحدة الذبحة" : item.unit === "Senior" ? "السينيور" : item.unit;
-  const subgroup = item.role && !["CCU duty", "ER duty", "Angina Unit duty", "Senior coverage"].includes(item.role)
-    ? ` · ${item.role}`
-    : "";
+  const subgroup = item.role && !["CCU duty", "ER duty", "Angina Unit duty", "Senior coverage"].includes(item.role) ? ` · ${item.role}` : "";
   return `${unit} – ${hospital}${subgroup}`;
 }
-
 function englishPlace(item: Assignment) {
-  const subgroup = item.role && !["CCU duty", "ER duty", "Angina Unit duty", "Senior coverage"].includes(item.role)
-    ? ` · ${item.role}`
-    : "";
+  if (item.scheduleType === "daytime") return item.service;
+  const subgroup = item.role && !["CCU duty", "ER duty", "Angina Unit duty", "Senior coverage"].includes(item.role) ? ` · ${item.role}` : "";
   return `${item.hospital} ${item.unit}${subgroup}`;
 }
-
-function buildAnswer(
-  question: string,
-  rows: Assignment[],
-  resident: ResidentAlias | null,
-  date: string,
-) {
+function answerNotes(rows: Assignment[], isArabic: boolean) {
+  const notes: string[] = [];
+  if (rows.some((item) => item.scheduleType === "on_call")) notes.push(isArabic ? "النوبتجية 24 ساعة: من 8 صباحًا حتى 8 صباحًا في اليوم التالي." : "24-hour duty: 8:00 AM until 8:00 AM the following day.");
+  if (rows.some((item) => item.scheduleType === "daytime")) notes.push(isArabic ? "التوزيع اليومي: التوقيت غير مذكور في Google Sheet." : "Day assignment: its time is not specified in the Google Sheet.");
+  return notes.length ? `\n${notes.join("\n")}` : "";
+}
+function buildAnswer(question: string, rows: Assignment[], resident: ResidentAlias | null, dateLabel: string) {
   const isArabic = /[\u0600-\u06ff]/.test(question);
-  if (!rows.length) {
-    return isArabic
-      ? `لا توجد نوبتجية معتمدة مطابقة للسؤال بتاريخ ${date}.`
-      : `No approved duty assignment matched your question for ${date}.`;
-  }
-
+  if (!rows.length) return isArabic ? `لا يوجد توزيع أو نوبتجية معتمدة مطابقة للسؤال بتاريخ ${dateLabel}.` : `No approved daytime assignment or duty matched your question for ${dateLabel}.`;
+  const typeLabel = (item: Assignment) => item.scheduleType === "on_call" ? (isArabic ? "نوبتجية 24 ساعة" : "24-hour duty") : (isArabic ? "توزيع يومي" : "day assignment");
+  const multipleDates = rows.some((item) => item.date !== rows[0].date);
   if (resident) {
     const displayName = resident.fullName || resident.scheduleName;
-    if (isArabic) {
-      return `نوبتجية د. ${displayName} بتاريخ ${date}:\n${rows.map((row) => `• ${arabicPlace(row)}`).join("\n")}\nمن 8 صباحًا حتى 8 صباحًا في اليوم التالي.`;
-    }
-    return `Dr ${displayName} on ${date}:\n${rows.map((row) => `• ${englishPlace(row)}`).join("\n")}\nDuty runs from 8:00 AM until 8:00 AM the following day.`;
+    const lines = rows.map((row) => `• ${isArabic ? arabicPlace(row) : englishPlace(row)} — ${typeLabel(row)}${multipleDates ? ` · ${row.date}` : ""}`).join("\n");
+    return isArabic ? `جدول د. ${displayName} بتاريخ ${dateLabel}:\n${lines}${answerNotes(rows, true)}` : `Dr ${displayName} on ${dateLabel}:\n${lines}${answerNotes(rows, false)}`;
   }
-
-  if (isArabic) {
-    return `نوبتجية ${date}:\n${rows.map((row) => `• د. ${row.resident} — ${arabicPlace(row)}`).join("\n")}\nمن 8 صباحًا حتى 8 صباحًا في اليوم التالي.`;
-  }
-  return `Duty schedule for ${date}:\n${rows.map((row) => `• Dr ${row.resident} — ${englishPlace(row)}`).join("\n")}\nDuty runs from 8:00 AM until 8:00 AM the following day.`;
+  const lines = rows.map((row) => `• ${isArabic ? "د. " : "Dr "}${row.resident} — ${isArabic ? arabicPlace(row) : englishPlace(row)} — ${typeLabel(row)}${multipleDates ? ` · ${row.date}` : ""}`).join("\n");
+  return isArabic ? `الجدول بتاريخ ${dateLabel}:\n${lines}${answerNotes(rows, true)}` : `Schedule for ${dateLabel}:\n${lines}${answerNotes(rows, false)}`;
 }
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "POST requests only" }, 405);
-
   try {
     const authorization = request.headers.get("Authorization");
     if (!authorization) return json({ error: "Authentication required" }, 401);
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authorization } } },
-    );
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authorization } } });
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return json({ error: "Authentication required" }, 401);
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role,is_active")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data: profile } = await supabase.from("profiles").select("role,is_active").eq("id", user.id).maybeSingle();
     if (!profile?.is_active) return json({ error: "Active portal account required" }, 403);
-
     const body = await request.json();
     const question = String(body.question || "").trim();
-    if (question.length < 2 || question.length > 300) {
-      return json({ error: "Enter a question between 2 and 300 characters" }, 400);
-    }
+    if (question.length < 2 || question.length > 300) return json({ error: "Enter a question between 2 and 300 characters" }, 400);
 
     const normalizedQuestion = normalize(question);
     const data = await scheduleData();
     const resident = findResident(normalizedQuestion, data.residents);
-    const date = targetDate(normalizedQuestion);
+    const asksOnCall = includesAny(normalizedQuestion, ["on call", "duty", "night duty", "نوبتجيه", "نوبتجية", "نبطشي", "النوبتشي"]);
+    const asksDaytime = includesAny(normalizedQuestion, ["day assignment", "daytime", "rotation", "morning assignment", "توزيع", "العمل الصباحي"]);
+    const date = targetDate(normalizedQuestion, asksOnCall);
     const hospital = requestedHospital(normalizedQuestion);
     const unit = requestedUnit(` ${normalizedQuestion} `);
-    const roleParts = requestedRole(normalizedQuestion);
-    const asksNext = includesAny(normalizedQuestion, ["next duty", "next shift", "النوبتجيه الجايه", "النوبتجية الجاية", "اقرب نوبتجيه", "أقرب نوبتجية"]);
+    const roleParts = requestedRole(normalizedQuestion, unit);
+    const asksNext = includesAny(normalizedQuestion, ["next duty", "next shift", "next assignment", "النوبتجيه الجايه", "النوبتجية الجاية", "اقرب نوبتجيه", "أقرب نوبتجية", "التوزيع الجاي"]);
+    const asksPrevious = includesAny(normalizedQuestion, ["previous duty", "last duty", "previous assignment", "النوبتجيه اللي فاتت", "النوبتجية السابقة", "التوزيع السابق"]);
     const asksWeek = includesAny(normalizedQuestion, ["this week", "next 7 days", "الاسبوع", "أسبوع"]);
 
     let rows = data.assignments.filter((item) => {
       if (resident && normalize(item.resident) !== normalize(resident.scheduleName)) return false;
       if (hospital && item.hospital !== hospital) return false;
-      if (unit && item.unit !== unit) return false;
-      if (roleParts.length && !roleParts.every((part) => normalize(item.role).includes(normalize(part)))) return false;
+      if (!matchesUnit(item, unit) || !matchesRole(item, roleParts)) return false;
+      if (asksOnCall && item.scheduleType !== "on_call") return false;
+      if (asksDaytime && item.scheduleType !== "daytime") return false;
       return true;
     });
-
     if (resident && asksNext) {
       rows = rows.filter((item) => item.date >= date).sort((a, b) => a.date.localeCompare(b.date));
       const nextDate = rows[0]?.date || date;
       rows = rows.filter((item) => item.date === nextDate);
-      return json({ answer: buildAnswer(question, rows, resident, nextDate), assignments: rows, date: nextDate });
+      return json({ answer: buildAnswer(question, rows, resident, nextDate), assignments: rows, date: nextDate, warnings: data.warnings });
     }
-
+    if (resident && asksPrevious) {
+      rows = rows.filter((item) => item.date < date).sort((a, b) => b.date.localeCompare(a.date));
+      const previousDate = rows[0]?.date || date;
+      rows = rows.filter((item) => item.date === previousDate);
+      return json({ answer: buildAnswer(question, rows, resident, previousDate), assignments: rows, date: previousDate, warnings: data.warnings });
+    }
     if (resident && asksWeek) {
       const endDate = addDays(date, 6);
-      rows = rows.filter((item) => item.date >= date && item.date <= endDate)
-        .sort((a, b) => a.date.localeCompare(b.date));
-      return json({ answer: buildAnswer(question, rows, resident, `${date} → ${endDate}`), assignments: rows, date });
+      rows = rows.filter((item) => item.date >= date && item.date <= endDate).sort((a, b) => a.date.localeCompare(b.date));
+      return json({ answer: buildAnswer(question, rows, resident, `${date} → ${endDate}`), assignments: rows, date, warnings: data.warnings });
     }
-
     rows = rows.filter((item) => item.date === date)
-      .sort((a, b) => `${a.hospital}-${a.unit}-${a.role}`.localeCompare(`${b.hospital}-${b.unit}-${b.role}`));
-
-    return json({ answer: buildAnswer(question, rows, resident, date), assignments: rows, date });
+      .sort((a, b) => `${a.scheduleType}-${a.hospital}-${a.unit}-${a.role}`.localeCompare(`${b.scheduleType}-${b.hospital}-${b.unit}-${b.role}`));
+    return json({ answer: buildAnswer(question, rows, resident, date), assignments: rows, date, warnings: data.warnings });
   } catch (error) {
     console.error(error);
-    return json(
-      { error: error instanceof Error ? error.message : "Unable to read duty schedule" },
-      500,
-    );
+    return json({ error: error instanceof Error ? error.message : "Unable to read duty schedule" }, 500);
   }
 });

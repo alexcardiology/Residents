@@ -1,13 +1,15 @@
-# Resident Training & Assessment v1.0.81
+# Resident Training & Assessment v1.0.82
 
 ## What changed
 
 ### Faculty Duty & Rotation Bot
 - Added a protected **Duty Bot** page for every signed-in portal role.
 - Added a prominent dashboard shortcut without increasing the compact dashboard card count.
-- Supports Arabic and English questions about approved Miri and Smouha duties, including CCU, ER, Senior and Angina Unit coverage.
+- Combines approved Airtable 24-hour duties with the live Google Sheet for daytime ward, cath, echo, EP and clinic assignments.
+- Supports Arabic and English questions about today, explicit past/future dates, tomorrow/yesterday and previous/coming weekdays.
 - Understands the 24-hour shift rule: duty starts at **08:00** and ends at **08:00 the next day**.
-- Can find a resident's next duty or duties in the next seven days when aliases are configured in Airtable.
+- Can find a resident's next/previous assignment or the next seven days when aliases are configured in Airtable.
+- Adds a date picker and an owner-only **Modify schedule** button for `drmohamedalaa90@gmail.com`.
 - Reads approved assignments through a Supabase Edge Function; the Airtable token is never exposed in browser code.
 
 ### Prior Experience Logbook assessor scopes
