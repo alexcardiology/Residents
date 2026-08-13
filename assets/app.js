@@ -569,20 +569,11 @@ const w = {
   },
   users: async function () {
     if ("owner" !== s.p.role) return g("dashboard");
-    const [profilesResult, yearsResult] = await Promise.all([
-        e.from("profiles").select("*").order("display_name"),
-        e
-          .from("assessor_year_assignments")
-          .select("assessor_id,residency_year")
-          .eq("is_active", !0)
-          .order("residency_year"),
-      ]),
-      profiles = profilesResult.data || [],
-      assignedYears = M(yearsResult.data || []);
+    const profiles = u(await e.rpc("owner_get_accounts_v1082")) || [];
     s.accountUsers = new Map(profiles.map((person) => [String(person.id), person]));
     const cards = profiles.map((person) => {
       const roleLabel = m(person.role);
-      const years = assignedYears.get(person.id) || [];
+      const years = Array.isArray(person.assigned_years) ? person.assigned_years : [];
       const access = person.role === "resident"
         ? yearChip(person.residency_year)
         : person.role === "assessor"
@@ -619,45 +610,23 @@ const w = {
   curriculum: async function (i) {
     if ("owner" !== s.p.role) return g("dashboard");
     if (((t("#title").textContent = "Curriculum"), !i)) {
-      const [s, t, i] = await Promise.all([
-        e.from("chapters").select("*").order("year_from").order("sort_order"),
-        e.from("knowledge_items").select("chapter_id,is_active"),
-        e.from("skills").select("chapter_id,is_active"),
-      ]).then((e) => e.map(u));
+      const chapters = u(await e.rpc("owner_get_curriculum_overview_v1082")) || [];
       return void (a.innerHTML =
         h(
           "Curriculum editor",
           "Choose a chapter to manage every knowledge point and practical skill.",
           '<div class="lead-actions"><button class="btn secondary" data-export-curriculum>Export curriculum PDF</button><button class="btn bulk-paste-btn" data-bulk-curriculum>Bulk add by copy/paste</button></div>',
         ) +
-        `<div class="chapters">${s
-          .map((e) => {
-            const s = t.filter(
-                (s) => s.chapter_id === e.id && s.is_active,
-              ).length,
-              a = i.filter((s) => s.chapter_id === e.id && s.is_active).length;
-            return ` <article class="card chapter"> ${yearChip(e.year_from, "Year " + e.year_from + (e.year_to > e.year_from ? "–" + e.year_to : ""))} <h3>${o(e.title)}</h3> <p>${o(e.description || "")}</p> <p><b>${s}</b> knowledge points · <b>${a}</b> skills</p> <button class="btn" data-curriculum-chapter="${e.id}">Manage chapter</button> </article>`;
-          })
+        `<div class="chapters">${chapters
+          .map((chapter) => ` <article class="card chapter"> ${yearChip(chapter.year_from, "Year " + chapter.year_from + (chapter.year_to > chapter.year_from ? "–" + chapter.year_to : ""))} <h3>${o(chapter.title)}</h3> <p>${o(chapter.description || "")}</p> <p><b>${Number(chapter.knowledge_count || 0)}</b> knowledge points · <b>${Number(chapter.skill_count || 0)}</b> skills</p> <button class="btn" data-curriculum-chapter="${chapter.id}">Manage chapter</button> </article>`)
           .join("")}</div>`);
     }
     s.curriculumItems.clear();
-    const [r, n, d] = await Promise.all([
-      e.from("chapters").select("*").eq("id", i).single(),
-      e
-        .from("knowledge_items")
-        .select("*")
-        .eq("chapter_id", i)
-        .eq("is_active", true)
-        .order("sort_order")
-        .order("id"),
-      e
-        .from("skills")
-        .select("*")
-        .eq("chapter_id", i)
-        .eq("is_active", true)
-        .order("sort_order")
-        .order("id"),
-    ]).then((e) => e.map(u));
+    const detail = u(await e.rpc("owner_get_curriculum_chapter_v1082", { p_chapter_id: Number(i) })) || {};
+    const r = detail.chapter;
+    const n = Array.isArray(detail.knowledge) ? detail.knowledge : [];
+    const d = Array.isArray(detail.skills) ? detail.skills : [];
+    if (!r) throw new Error("Curriculum chapter not found");
     s.curriculumChapter = r;
     a.innerHTML =
       h(
