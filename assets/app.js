@@ -58,7 +58,7 @@ const s = {
     );
   },
   messageBody = (message) => {
-    let body = String(message?.body || "");
+    let body = String(message?.body || "").replace(/program owner/gi, "Admin");
     if (message?.senior_resident_name) {
       body = body.replace(/Senior resident:\s*(approved|pending|rejected)/i, `Senior resident: ${message.senior_resident_name} ($1)`);
     }
@@ -168,7 +168,7 @@ const s = {
       resident: "Resident",
       observer: "Observer",
       assessor: "Assessor",
-      owner: "Program Owner",
+      owner: "Admin",
     })[e],
   h = (e, s, t = "") =>
     ` <div class="lead"> <div> <h2>${o(e)}</h2> <p>${o(s)}</p> </div> ${t} </div>`,
@@ -355,7 +355,7 @@ async function askDutyBot(question) {
   } catch (error) {
     console.error(error);
     loading?.remove();
-    addDutyBotMessage("bot", "Duty Bot could not read the approved schedules. Please try again or contact the program owner.");
+    addDutyBotMessage("bot", "Duty Bot could not read the approved schedules. Please try again or contact the admin.");
   } finally {
     if (submit) submit.disabled = false;
     t("#dutyBotQuestion")?.focus();
@@ -570,7 +570,7 @@ const w = {
     window.observerReviewRows = new Map(rows.map((row) => [String(row.id), row]));
     a.innerHTML = s.p.role === "resident"
       ? h("Reviews about me", "Filter your clinical and behavioural reviews in one table, including good/bad feedback and reconsideration status.") + renderResidentReviewGroups(rows)
-      : h("Comments written by you", "Your review history. Anonymous reviews remain anonymous to the resident and other assigned assessors, but the Program Owner can identify the author.") + renderCommentsTable(rows, "author");
+      : h("Comments written by you", "Your review history. Anonymous reviews remain anonymous to the resident and other assigned assessors, but the Admin can identify the author.") + renderCommentsTable(rows, "author");
   },
   residents: async function () {
     // Backward-compatible route: Assigned Residents now lives inside Residents.
@@ -946,7 +946,7 @@ function filterPenaltyTables(root=document) {
 // v1.0.86 — General resident complaints
 function complaintStatusLabel(status) {
   return ({
-    submitted: "Waiting for Program Owner",
+    submitted: "Waiting for Admin",
     assigned: "Assigned for immediate action",
     actioned: "Action responses received",
     resolved: "Resolved",
@@ -1005,7 +1005,7 @@ function complaintActionsSummary(actions = []) {
 }
 function renderSubmittedComplaints(rows = []) {
   const data = rows.filter((row)=>row.viewer_kind === "submitted");
-  return `<div class="table-scroll"><table class="table general-complaints-table"><thead><tr><th>Against</th><th>Complaint</th><th>Status</th><th>Program Owner direction</th><th>Action updates</th></tr></thead><tbody>${data.map((row)=>`<tr><td><b>${o(row.target_name || "—")}</b><small>${o(row.target_role === "assessor" ? "Assessor" : row.target_year ? residentTrainingLabel(row.target_year) : "Resident")}</small></td><td><b>${o(row.subject)}</b><small>${o(row.details)}</small><small>${d(row.created_at)}</small></td><td><span class="tag ${complaintStatusClass(row.status)}">${o(complaintStatusLabel(row.status))}</span>${row.resolution_note ? `<small>${o(row.resolution_note)}</small>` : ""}</td><td>${o(row.owner_note || "—")}</td><td>${complaintActionsSummary(row.actions)}</td></tr>`).join("") || '<tr><td colspan="5">You have not submitted any complaints.</td></tr>'}</tbody></table></div>`;
+  return `<div class="table-scroll"><table class="table general-complaints-table"><thead><tr><th>Against</th><th>Complaint</th><th>Status</th><th>Admin direction</th><th>Action updates</th></tr></thead><tbody>${data.map((row)=>`<tr><td><b>${o(row.target_name || "—")}</b><small>${o(row.target_role === "assessor" ? "Assessor" : row.target_year ? residentTrainingLabel(row.target_year) : "Resident")}</small></td><td><b>${o(row.subject)}</b><small>${o(row.details)}</small><small>${d(row.created_at)}</small></td><td><span class="tag ${complaintStatusClass(row.status)}">${o(complaintStatusLabel(row.status))}</span>${row.resolution_note ? `<small>${o(row.resolution_note)}</small>` : ""}</td><td>${o(row.owner_note || "—")}</td><td>${complaintActionsSummary(row.actions)}</td></tr>`).join("") || '<tr><td colspan="5">You have not submitted any complaints.</td></tr>'}</tbody></table></div>`;
 }
 function renderAssignedComplaints(rows = []) {
   const data = rows.filter((row)=>row.viewer_kind === "assigned");
@@ -1016,21 +1016,21 @@ function renderResidentComplaintsWorkspace(data) {
   const assigned = (data.rows || []).filter((row)=>row.viewer_kind === "assigned");
   return `<div class="complaints-workspace">
     <section class="complaint-submit-card">
-      <div class="review-section-heading"><div><span class="eyebrow">Resident complaint</span><h2>Submit a complaint</h2><p>You may submit a complaint about any other resident or assessor. It goes first to the Program Owner, who decides who should take immediate action.</p></div></div>
+      <div class="review-section-heading"><div><span class="eyebrow">Resident complaint</span><h2>Submit a complaint</h2><p>You may submit a complaint about any other resident or assessor. It goes first to the Admin, who decides who should take immediate action.</p></div></div>
       <form id="generalComplaintForm" class="general-complaint-form">
         ${complaintTargetPicker(data.targets || [])}
         <label>Subject<input name="subject" maxlength="140" required placeholder="Short description of the issue"></label>
         <label>Complaint details<textarea name="details" required minlength="10" placeholder="Describe clearly what happened, when relevant, and what needs attention."></textarea></label>
-        <div class="actions"><button>Send complaint to Program Owner</button></div>
+        <div class="actions"><button>Send complaint to Admin</button></div>
       </form>
     </section>
-    <section class="top-gap"><div class="review-section-heading"><div><span class="eyebrow">Tracking</span><h2>My submitted complaints</h2><p>Follow the Program Owner direction and the action taken after your complaint.</p></div><span class="tag">${mine.length}</span></div>${renderSubmittedComplaints(mine)}</section>
-    ${assigned.length ? `<section class="top-gap complaint-assigned-section"><div class="review-section-heading"><div><span class="eyebrow">Immediate action</span><h2>Complaints assigned to you</h2><p>The Program Owner has redirected these complaints to you for action.</p></div><span class="tag warning">${assigned.filter(x=>x.assignment_status!=="responded").length} pending</span></div>${renderAssignedComplaints(assigned)}</section>` : ""}
+    <section class="top-gap"><div class="review-section-heading"><div><span class="eyebrow">Tracking</span><h2>My submitted complaints</h2><p>Follow the Admin direction and the action taken after your complaint.</p></div><span class="tag">${mine.length}</span></div>${renderSubmittedComplaints(mine)}</section>
+    ${assigned.length ? `<section class="top-gap complaint-assigned-section"><div class="review-section-heading"><div><span class="eyebrow">Immediate action</span><h2>Complaints assigned to you</h2><p>The Admin has redirected these complaints to you for action.</p></div><span class="tag warning">${assigned.filter(x=>x.assignment_status!=="responded").length} pending</span></div>${renderAssignedComplaints(assigned)}</section>` : ""}
   </div>`;
 }
 function renderComplaintActionPanel(rows = []) {
   const assigned = rows.filter((row)=>row.viewer_kind === "assigned");
-  return `<div class="review-section-heading"><div><span class="eyebrow">Program Owner assignment</span><h2>Complaint actions</h2><p>These complaints were redirected to you for immediate action. Record the action you took directly here.</p></div><span class="tag warning">${assigned.filter(x=>x.assignment_status!=="responded").length} pending</span></div>${renderAssignedComplaints(assigned)}`;
+  return `<div class="review-section-heading"><div><span class="eyebrow">Admin assignment</span><h2>Complaint actions</h2><p>These complaints were redirected to you for immediate action. Record the action you took directly here.</p></div><span class="tag warning">${assigned.filter(x=>x.assignment_status!=="responded").length} pending</span></div>${renderAssignedComplaints(assigned)}`;
 }
 function renderOwnerGeneralComplaints(rows = []) {
   if (!rows.length) return '<div class="panel-empty">No resident complaints have been submitted.</div>';
@@ -1040,7 +1040,7 @@ function renderOwnerGeneralComplaints(rows = []) {
     return `<article class="owner-complaint-card ${row.status === "submitted" ? "needs-routing" : ""}">
       <header><div><span class="eyebrow">Complaint #${o(row.id)}</span><h3>${o(row.subject)}</h3><p><b>${o(row.complainant_name)}</b> → complaint against <b>${o(row.target_name)}</b> <span>${o(row.target_role === "assessor" ? "Assessor" : row.target_year ? residentTrainingLabel(row.target_year) : "Resident")}</span></p></div><span class="tag ${complaintStatusClass(row.status)}">${o(complaintStatusLabel(row.status))}</span></header>
       <div class="owner-complaint-details">${o(row.details)}</div>
-      ${row.owner_note ? `<div class="owner-complaint-direction"><span>Program Owner direction</span><p>${o(row.owner_note)}</p></div>` : ""}
+      ${row.owner_note ? `<div class="owner-complaint-direction"><span>Admin direction</span><p>${o(row.owner_note)}</p></div>` : ""}
       <div class="owner-complaint-assignments"><span>Action team</span>${assignments.length ? assignments.map((item)=>`<div><b>${o(item.assignee_name)}</b><small>${o(item.assignee_role === "assessor" ? "Assessor" : item.assignee_year ? residentTrainingLabel(item.assignee_year) : "Resident")}</small><span class="tag ${item.status === "responded" ? "success" : "warning"}">${item.status === "responded" ? "Action recorded" : "Pending"}</span>${item.response_text ? `<p>${o(item.response_text)}</p>` : ""}</div>`).join("") : '<p class="complaint-no-action">Not redirected yet.</p>'}</div>
       ${row.resolution_note ? `<div class="owner-complaint-resolution"><span>Final note</span><p>${o(row.resolution_note)}</p></div>` : ""}
       <footer><small>${d(row.created_at)}${assignments.length ? ` · ${pending} action${pending === 1 ? "" : "s"} pending` : ""}</small><div class="table-row-actions">${!['resolved','dismissed'].includes(row.status) ? `<button class="btn small" data-owner-complaint-assign="${row.id}">${assignments.length ? "Edit action team" : "Redirect for immediate action"}</button><button class="btn small success" data-owner-complaint-resolve="${row.id}" data-outcome="resolved">Mark resolved</button><button class="btn small secondary" data-owner-complaint-resolve="${row.id}" data-outcome="dismissed">Dismiss</button>` : ""}</div></footer>
@@ -1048,12 +1048,12 @@ function renderOwnerGeneralComplaints(rows = []) {
   }).join("")}</div>`;
 }
 function openGeneralComplaintActionModal(row) {
-  y(`<form id="generalComplaintActionForm" class="modal complaint-action-modal"><div class="modal-head"><div><span class="eyebrow">Immediate action</span><h2>${o(row.subject)}</h2></div><button type="button" data-close>×</button></div><div class="complaint-modal-context"><div><span>From</span><b>${o(row.complainant_name)}</b></div><div><span>Against</span><b>${o(row.target_name)}</b></div></div><div class="message-body">${o(row.details)}</div>${row.owner_note ? `<div class="owner-complaint-direction"><span>Program Owner direction</span><p>${o(row.owner_note)}</p></div>` : ""}<label>Action taken<textarea name="response" minlength="5" required placeholder="Record the immediate action you took, communication made, correction requested, or other response."></textarea></label><input type="hidden" name="complaint_id" value="${o(row.id)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit action</button></div></form>`);
+  y(`<form id="generalComplaintActionForm" class="modal complaint-action-modal"><div class="modal-head"><div><span class="eyebrow">Immediate action</span><h2>${o(row.subject)}</h2></div><button type="button" data-close>×</button></div><div class="complaint-modal-context"><div><span>From</span><b>${o(row.complainant_name)}</b></div><div><span>Against</span><b>${o(row.target_name)}</b></div></div><div class="message-body">${o(row.details)}</div>${row.owner_note ? `<div class="owner-complaint-direction"><span>Admin direction</span><p>${o(row.owner_note)}</p></div>` : ""}<label>Action taken<textarea name="response" minlength="5" required placeholder="Record the immediate action you took, communication made, correction requested, or other response."></textarea></label><input type="hidden" name="complaint_id" value="${o(row.id)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Submit action</button></div></form>`);
 }
 function openOwnerComplaintAssignmentModal(row, candidates = []) {
   const assigned = new Set((Array.isArray(row.assignments) ? row.assignments : []).map((item)=>String(item.assignee_id)));
   const filtered = candidates.filter((person)=>String(person.id)!==String(row.complainant_id));
-  y(`<form id="ownerComplaintAssignForm" class="modal owner-complaint-assign-modal"><div class="modal-head"><div><span class="eyebrow">Program Owner routing</span><h2>Redirect complaint for immediate action</h2></div><button type="button" data-close>×</button></div><div class="complaint-modal-context"><div><span>From</span><b>${o(row.complainant_name)}</b></div><div><span>Against</span><b>${o(row.target_name)}</b></div></div><div class="message-body"><b>${o(row.subject)}</b><br>${o(row.details)}</div><label>Direction / instruction to action team<textarea name="owner_note" placeholder="Optional: what should the assigned residents/assessors do immediately?">${o(row.owner_note || "")}</textarea></label><div class="complaint-assignee-picker"><div class="section-head"><div><b>Choose 1–5 residents or assessors</b><small>You may include the person complained against if you want a direct response.</small></div><span data-complaint-assignee-count>0 selected</span></div><input id="complaintAssigneeSearch" type="search" placeholder="Search name"><div class="complaint-assignee-list">${filtered.map((person)=>`<label data-complaint-assignee-row data-search="${o(`${person.display_name || ""} ${person.role || ""} ${person.residency_year || ""}`.toLowerCase())}" class="${String(person.id)===String(row.target_id) ? "complaint-target-assignee" : ""}"><input type="checkbox" name="assignee_ids" value="${o(person.id)}" ${assigned.has(String(person.id)) ? "checked" : ""}><span><b>${o(person.display_name)}</b><small>${o(person.role === "assessor" ? "Assessor" : person.residency_year ? residentTrainingLabel(person.residency_year) : "Resident")}${String(person.id)===String(row.target_id) ? " · Complaint target" : ""}</small></span></label>`).join("")}</div></div><input type="hidden" name="complaint_id" value="${o(row.id)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Assign for immediate action</button></div></form>`);
+  y(`<form id="ownerComplaintAssignForm" class="modal owner-complaint-assign-modal"><div class="modal-head"><div><span class="eyebrow">Admin routing</span><h2>Redirect complaint for immediate action</h2></div><button type="button" data-close>×</button></div><div class="complaint-modal-context"><div><span>From</span><b>${o(row.complainant_name)}</b></div><div><span>Against</span><b>${o(row.target_name)}</b></div></div><div class="message-body"><b>${o(row.subject)}</b><br>${o(row.details)}</div><label>Direction / instruction to action team<textarea name="owner_note" placeholder="Optional: what should the assigned residents/assessors do immediately?">${o(row.owner_note || "")}</textarea></label><div class="complaint-assignee-picker"><div class="section-head"><div><b>Choose 1–5 residents or assessors</b><small>You may include the person complained against if you want a direct response.</small></div><span data-complaint-assignee-count>0 selected</span></div><input id="complaintAssigneeSearch" type="search" placeholder="Search name"><div class="complaint-assignee-list">${filtered.map((person)=>`<label data-complaint-assignee-row data-search="${o(`${person.display_name || ""} ${person.role || ""} ${person.residency_year || ""}`.toLowerCase())}" class="${String(person.id)===String(row.target_id) ? "complaint-target-assignee" : ""}"><input type="checkbox" name="assignee_ids" value="${o(person.id)}" ${assigned.has(String(person.id)) ? "checked" : ""}><span><b>${o(person.display_name)}</b><small>${o(person.role === "assessor" ? "Assessor" : person.residency_year ? residentTrainingLabel(person.residency_year) : "Resident")}${String(person.id)===String(row.target_id) ? " · Complaint target" : ""}</small></span></label>`).join("")}</div></div><input type="hidden" name="complaint_id" value="${o(row.id)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Assign for immediate action</button></div></form>`);
   updateComplaintAssigneeCount();
 }
 function updateComplaintAssigneeCount() {
@@ -1083,16 +1083,16 @@ async function residentReviewsPenaltiesPage() {
   const submittedComplaints=(complaintData.rows||[]).filter((row)=>row.viewer_kind==="submitted");
   const assignedComplaints=(complaintData.rows||[]).filter((row)=>row.viewer_kind==="assigned" && row.assignment_status!=="responded");
   a.innerHTML = h("Reviews & penalties","Your feedback, complaints and disciplinary records are kept in one transparent workspace.") + `<section class="card review-workspace">
-    <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="resident-reviews">Reviews about me <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="resident-penalties">Penalties <small>${against.length}</small></button><button class="review-workspace-tab" data-review-section="resident-complaints">Complaints <small>${submittedComplaints.length}${assignedComplaints.length ? ` · ${assignedComplaints.length} action` : ""}</small></button>${Number(s.p.residency_year)>=2 && Number(s.p.residency_year)<=5 ? '<button class="review-workspace-tab" data-review-section="resident-sign-penalty">Sign a penalty</button>' : ''}</div>
+    <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="resident-reviews">Reviews about me <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="resident-penalties">Penalties <small>${against.length}</small></button><button class="review-workspace-tab complaint-tab" data-review-section="resident-complaints"><span class="complaint-tab-main">Complaints <small>${submittedComplaints.length}${assignedComplaints.length ? ` · ${assignedComplaints.length} action` : ""}</small></span><em>You can submit a complaint here!</em></button>${Number(s.p.residency_year)>=2 && Number(s.p.residency_year)<=5 ? '<button class="review-workspace-tab" data-review-section="resident-sign-penalty">Sign a penalty</button>' : ''}</div>
     <div class="review-workspace-panel" data-review-panel="resident-reviews">${renderResidentReviewGroups(reviews)}</div>
     <div class="review-workspace-panel" data-review-panel="resident-penalties" hidden><div class="review-section-heading"><div><span class="eyebrow">Disciplinary record</span><h2>Penalties involving you</h2><p>Approved penalties can be challenged through the penalty complaint process.</p></div></div>${renderPenaltyTable(against,"resident")}</div>
     <div class="review-workspace-panel" data-review-panel="resident-complaints" hidden>${renderResidentComplaintsWorkspace(complaintData)}</div>
-    ${Number(s.p.residency_year)>=2 && Number(s.p.residency_year)<=5 ? `<div class="review-workspace-panel" data-review-panel="resident-sign-penalty" hidden><div class="review-section-heading"><div><span class="eyebrow">Senior resident responsibility</span><h2>Sign a penalty</h2><p>You may sign a penalty only against a resident in a lower residency year. Every penalty requires Program Owner approval.</p></div></div>${penaltyIssuePanel(penaltyData)}<div class="top-gap"><h3>Penalties signed by me</h3>${renderPenaltyTable(issued,"self")}</div></div>` : ""}
+    ${Number(s.p.residency_year)>=2 && Number(s.p.residency_year)<=5 ? `<div class="review-workspace-panel" data-review-panel="resident-sign-penalty" hidden><div class="review-section-heading"><div><span class="eyebrow">Senior resident responsibility</span><h2>Sign a penalty</h2><p>You may sign a penalty only against a resident in a lower residency year. Every penalty requires Admin approval.</p></div></div>${penaltyIssuePanel(penaltyData)}<div class="top-gap"><h3>Penalties signed by me</h3>${renderPenaltyTable(issued,"self")}</div></div>` : ""}
   </section>`;
 }
 
 function renderPenaltyAppeals(rows) {
-  return `<div class="review-section-heading"><div><span class="eyebrow">Neutral review</span><h2>Penalty complaints assigned to you</h2><p>Your decision is one of three votes: the Program Owner plus two neutral assessors. The final result follows the majority.</p></div><span class="tag">${rows.length}</span></div>${renderPenaltyTable(rows,"assessor-appeal")}`;
+  return `<div class="review-section-heading"><div><span class="eyebrow">Neutral review</span><h2>Penalty complaints assigned to you</h2><p>Your decision is one of three votes: the Admin plus two neutral assessors. The final result follows the majority.</p></div><span class="tag">${rows.length}</span></div>${renderPenaltyTable(rows,"assessor-appeal")}`;
 }
 async function ownerReviewsPenaltiesPage() {
   if (s.p.role !== "owner") return g("dashboard");
@@ -1112,14 +1112,14 @@ async function ownerReviewsPenaltiesPage() {
   const problemRows=(config.problems||[]).map((row)=>{const cat=(config.categories||[]).find(c=>String(c.id)===String(row.category_id));return `<tr><td>${o(cat?.name||"—")}</td><td>${o(row.name)}</td><td>${o(row.sort_order||0)}</td><td><span class="tag ${row.is_active===false ? "neutral" : "success"}">${row.is_active===false ? "Hidden" : "Active"}</span></td><td><div class="table-row-actions"><button class="btn small secondary" data-penalty-option-edit="problem" data-option-id="${row.id}">Edit</button><button class="btn small ${row.is_active===false ? "success" : "danger"}" data-penalty-option-active="problem" data-option-id="${row.id}" data-active="${row.is_active===false ? "true" : "false"}">${row.is_active===false ? "Restore" : "Delete"}</button></div></td></tr>`}).join("");
   const appealRows=appeals.map((row)=>{
     const assigned=row.appeal_reviewers||[]; const a1=assigned.find(x=>Number(x.slot)===1)?.assessor_id||""; const a2=assigned.find(x=>Number(x.slot)===2)?.assessor_id||"";
-    return `<article class="penalty-appeal-admin-card"><div><span class="eyebrow">Complaint</span><h3>${o(row.resident_name)} · ${o(row.problem)}</h3><p><b>Penalty:</b> ${o(row.punishment)}</p><p><b>Resident complaint:</b> ${o(row.complaint_text||"—")}</p></div><div class="penalty-neutral-selects"><label>Neutral assessor 1<select data-appeal-assessor-1="${row.id}"><option value="">Choose assessor</option>${assessors.filter(x=>String(x.id)!==String(row.issued_by)).map(x=>`<option value="${x.id}" ${String(x.id)===String(a1)?"selected":""}>${o(x.display_name)}</option>`).join("")}</select></label><label>Neutral assessor 2<select data-appeal-assessor-2="${row.id}"><option value="">Choose assessor</option>${assessors.filter(x=>String(x.id)!==String(row.issued_by)).map(x=>`<option value="${x.id}" ${String(x.id)===String(a2)?"selected":""}>${o(x.display_name)}</option>`).join("")}</select></label><button class="btn secondary" data-assign-penalty-panel="${row.id}">Save neutral panel</button></div><div class="penalty-owner-vote"><b>Program Owner vote</b>${row.appeal_owner_decision ? `<span class="tag">${o(row.appeal_owner_decision)}</span>` : `<button class="btn small danger" data-owner-penalty-appeal="${row.id}" data-decision="uphold">Uphold</button><button class="btn small success" data-owner-penalty-appeal="${row.id}" data-decision="overturn">Overturn</button>`}</div></article>`;
+    return `<article class="penalty-appeal-admin-card"><div><span class="eyebrow">Complaint</span><h3>${o(row.resident_name)} · ${o(row.problem)}</h3><p><b>Penalty:</b> ${o(row.punishment)}</p><p><b>Resident complaint:</b> ${o(row.complaint_text||"—")}</p></div><div class="penalty-neutral-selects"><label>Neutral assessor 1<select data-appeal-assessor-1="${row.id}"><option value="">Choose assessor</option>${assessors.filter(x=>String(x.id)!==String(row.issued_by)).map(x=>`<option value="${x.id}" ${String(x.id)===String(a1)?"selected":""}>${o(x.display_name)}</option>`).join("")}</select></label><label>Neutral assessor 2<select data-appeal-assessor-2="${row.id}"><option value="">Choose assessor</option>${assessors.filter(x=>String(x.id)!==String(row.issued_by)).map(x=>`<option value="${x.id}" ${String(x.id)===String(a2)?"selected":""}>${o(x.display_name)}</option>`).join("")}</select></label><button class="btn secondary" data-assign-penalty-panel="${row.id}">Save neutral panel</button></div><div class="penalty-owner-vote"><b>Admin vote</b>${row.appeal_owner_decision ? `<span class="tag">${o(row.appeal_owner_decision)}</span>` : `<button class="btn small danger" data-owner-penalty-appeal="${row.id}" data-decision="uphold">Uphold</button><button class="btn small success" data-owner-penalty-appeal="${row.id}" data-decision="overturn">Overturn</button>`}</div></article>`;
   }).join("");
   a.innerHTML = h("Reviews & penalties","Manage reviews, disciplinary penalties, resident complaints and immediate-action routing from one workspace.") + `<section class="card review-workspace">
     <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="owner-reviews">Reviews <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="owner-pending-penalties">Penalty approval <small>${pending.length}</small></button><button class="review-workspace-tab" data-review-section="owner-appeals">Penalty appeals <small>${appeals.length}</small></button><button class="review-workspace-tab" data-review-section="owner-general-complaints">Resident complaints <small>${generalComplaints.filter(x=>!["resolved","dismissed"].includes(x.status)).length}</small></button><button class="review-workspace-tab" data-review-section="owner-all-penalties">All penalties <small>${penalties.length}</small></button><button class="review-workspace-tab" data-review-section="owner-penalty-config">Dropdown settings</button></div>
     <div class="review-workspace-panel" data-review-panel="owner-reviews">${renderCommentsTable(reviews,"owner")}</div>
-    <div class="review-workspace-panel" data-review-panel="owner-pending-penalties" hidden><div class="review-section-heading"><div><span class="eyebrow">Owner approval</span><h2>Penalties awaiting your decision</h2><p>No penalty becomes active until the Program Owner approves it.</p></div></div>${renderPenaltyTable(pending,"owner")}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-pending-penalties" hidden><div class="review-section-heading"><div><span class="eyebrow">Owner approval</span><h2>Penalties awaiting your decision</h2><p>No penalty becomes active until the Admin approves it.</p></div></div>${renderPenaltyTable(pending,"owner")}</div>
     <div class="review-workspace-panel" data-review-panel="owner-appeals" hidden>${appealRows || '<div class="panel-empty">No penalty appeals are awaiting review.</div>'}</div>
-    <div class="review-workspace-panel" data-review-panel="owner-general-complaints" hidden><div class="review-section-heading"><div><span class="eyebrow">Program Owner routing</span><h2>Resident complaints</h2><p>Every resident complaint comes to you first. Redirect it to 1–5 residents/assessors for immediate action, review their responses, then resolve or dismiss the complaint.</p></div><span class="tag warning">${generalComplaints.filter(x=>x.status==="submitted").length} unassigned</span></div>${renderOwnerGeneralComplaints(generalComplaints)}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-general-complaints" hidden><div class="review-section-heading"><div><span class="eyebrow">Admin routing</span><h2>Resident complaints</h2><p>Every resident complaint comes to you first. Redirect it to 1–5 residents/assessors for immediate action, review their responses, then resolve or dismiss the complaint.</p></div><span class="tag warning">${generalComplaints.filter(x=>x.status==="submitted").length} unassigned</span></div>${renderOwnerGeneralComplaints(generalComplaints)}</div>
     <div class="review-workspace-panel" data-review-panel="owner-all-penalties" hidden>${renderPenaltyTable(penalties,"self")}</div>
     <div class="review-workspace-panel" data-review-panel="owner-penalty-config" hidden><div class="penalty-config-head"><div><span class="eyebrow">Owner editable</span><h2>Penalty dropdown lists</h2><p>Deleting an option hides it from future penalties; old penalty records keep their original wording.</p></div></div>
       <div class="penalty-config-grid"><section><div class="section-head"><h3>Penalty types</h3><button class="btn small" data-penalty-option-add="category">Add</button></div><div class="table-scroll"><table class="table"><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${optionRows("category",config.categories||[])}</tbody></table></div></section>
@@ -1194,7 +1194,7 @@ async function reviewPage() {
       </div>
 
       <div class="review-workspace-panel" data-review-panel="penalty" hidden>
-        <div class="review-section-heading"><div><span class="eyebrow">Disciplinary action</span><h2>Sign a penalty</h2><p>Assessors may sign a penalty for any resident. Every penalty remains pending until the Program Owner approves it.</p></div></div>
+        <div class="review-section-heading"><div><span class="eyebrow">Disciplinary action</span><h2>Sign a penalty</h2><p>Assessors may sign a penalty for any resident. Every penalty remains pending until the Admin approves it.</p></div></div>
         ${penaltyIssuePanel(penaltyData)}
         <div class="top-gap"><h3>Penalties signed by me</h3>${renderPenaltyTable(issuedPenalties,"self")}</div>
       </div>
@@ -1474,7 +1474,7 @@ function assessmentEvidenceHtml(data, options = {}) {
     ${isStandardResidencyYear(profile.residency_year) ? `<details class="assessment-evidence-section" open><summary>Minimum procedural requirements <span>${minimumRequirementSummary(minimumRequirements).met}/${minimumRequirementSummary(minimumRequirements).required || 0} met</span></summary><div class="minimum-rules-note compact"><b>Verified qualifying cases only</b><span>Attended and failed-trial cases do not satisfy the minimum.</span></div>${renderMinimumRequirementTable(minimumRequirements,{requiredOnly:true})}</details>` : ""}
     <details class="assessment-evidence-section"><summary>Approved e-logbook <span>${logbook.length} entries</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Activity</th><th>Participation</th><th>Date</th><th>Hospital</th></tr></thead><tbody>${logbookRows}</tbody></table></div></details>
     <details class="assessment-evidence-section"><summary>Clinical & behavioural reviews <span>${reviews.length}</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Date</th><th>Domain</th><th>Type</th><th>Review</th></tr></thead><tbody>${reviewRows}</tbody></table></div></details>
-    <details class="assessment-evidence-section" ${penalties.length ? "open" : ""}><summary>Approved penalties / disciplinary record <span>${penalties.length}</span></summary><div class="assessment-penalty-note">Only active penalties approved by the Program Owner are shown. A complaint under review is labelled clearly.</div><div class="table-scroll"><table class="table compact-evidence-table assessment-penalty-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penaltyRows}</tbody></table></div></details>
+    <details class="assessment-evidence-section" ${penalties.length ? "open" : ""}><summary>Approved penalties / disciplinary record <span>${penalties.length}</span></summary><div class="assessment-penalty-note">Only active penalties approved by the Admin are shown. A complaint under review is labelled clearly.</div><div class="table-scroll"><table class="table compact-evidence-table assessment-penalty-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penaltyRows}</tbody></table></div></details>
     <details class="assessment-evidence-section"><summary>Previous formal assessments <span>${assessments.length}</span></summary><div class="table-scroll"><table class="table compact-evidence-table"><thead><tr><th>Date</th><th>Knowledge</th><th>Skills</th><th>Behaviour</th><th>Outcome</th></tr></thead><tbody>${assessmentRows}</tbody></table></div></details>
   </section>`;
 }
@@ -2166,7 +2166,7 @@ async function logbookRequestsPage() {
 }
 
 function openLogbookReclaim(entryId, title, reviewer, reviewerId = "") {
-  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Request to reconsider ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox and copied to the Program Owner.</p><label>Justification<textarea name="justification" maxlength="3000" required placeholder="Write your reason for reconsideration"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="reviewer_id" value="${o(reviewerId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request to reconsider</button></div></form>`);
+  y(`<form id="logbookReclaimForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Rejected request</span><h2>Request to reconsider ${o(title)}</h2></div><button type="button" data-close>×</button></div><p>Your justification will be sent to ${o(reviewer)} in the normal Inbox and copied to the Admin.</p><label>Justification<textarea name="justification" maxlength="3000" required placeholder="Write your reason for reconsideration"></textarea></label><input type="hidden" name="entry_id" value="${o(entryId)}"><input type="hidden" name="reviewer_id" value="${o(reviewerId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send request to reconsider</button></div></form>`);
 }
 function filterLogbookRequestRows() {
   const query = (t("#messageSearch")?.value || "").trim().toLowerCase();
@@ -2352,7 +2352,7 @@ function openAccountManagement(person) {
     <div class="modal-head"><div><span class="eyebrow">Owner account control</span><h2>${o(person.display_name || person.username)}</h2><p>@${o(person.username || "")} · ${o(person.email || "")}</p></div><button type="button" data-close>×</button></div>
     <div class="form-grid compact-form-grid">
       <label class="span-2">Display name<input name="display_name" type="text" maxlength="120" value="${o(person.display_name || "")}" placeholder="Name shown throughout the portal" required></label>
-      ${isOwnerAccount ? `<label>Account role<input type="text" value="Program Owner" disabled></label>` : `<label>Account role<select name="role" id="editAccountRole" required><option value="resident" ${person.role === "resident" ? "selected" : ""}>Resident</option><option value="observer" ${person.role === "observer" ? "selected" : ""}>Observer</option><option value="assessor" ${person.role === "assessor" ? "selected" : ""}>Assessor</option></select></label>
+      ${isOwnerAccount ? `<label>Account role<input type="text" value="Admin" disabled></label>` : `<label>Account role<select name="role" id="editAccountRole" required><option value="resident" ${person.role === "resident" ? "selected" : ""}>Resident</option><option value="observer" ${person.role === "observer" ? "selected" : ""}>Observer</option><option value="assessor" ${person.role === "assessor" ? "selected" : ""}>Assessor</option></select></label>
       <label id="editAccountYearField">Resident training status<select name="residency_year">${n.map((year) => `<option value="${year}" ${Number(person.residency_year || 1) === year ? "selected" : ""}>Year ${year}</option>`).join("")}<option value="6" ${Number(person.residency_year) === 6 ? "selected" : ""}>Visitor Resident</option><option value="7" ${Number(person.residency_year) === 7 ? "selected" : ""}>Fellow</option></select></label>`}
     </div>
     <div class="role-change-note"><b>Display name only affects the visible profile name.</b><span>Username and email remain unchanged. Historical records are preserved. Role/year changes also keep previous assessments, reviews and resident logbook records.</span></div>
@@ -2415,7 +2415,7 @@ async function ownerLogbookRequirementsPage() {
         </table>
       </div>
       <div class="minimum-requirements-footer">
-        <p>These targets do not alter or delete resident logbook records. They can be changed later by the Program Owner.</p>
+        <p>These targets do not alter or delete resident logbook records. They can be changed later by the Admin.</p>
         <button class="btn" type="submit">Save minimum requirements</button>
       </div>
     </form>`;
@@ -3954,7 +3954,7 @@ document.addEventListener("click", (event) => {
       await openPriorExperienceReviewer(row);
     }
     if (a.dataset.priorReconsider) {
-      y(`<form id="priorExperienceReconsiderForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Prior Experience reconsideration</span><h2>Request to reconsider</h2><p>${o(a.dataset.priorScope || "Verification decision")}</p></div><button type="button" data-close>×</button></div><p>Your reason will be sent to <b>${o(a.dataset.priorReviewer || "the rejecting reviewer")}</b> and copied to the Program Owner.</p><label>Reason<textarea name="reason" maxlength="3000" required placeholder="Explain why this prior-experience decision should be reconsidered"></textarea></label><input type="hidden" name="review_kind" value="${o(a.dataset.priorReconsider)}"><input type="hidden" name="review_id" value="${o(a.dataset.priorReviewId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send reconsideration request</button></div></form>`);
+      y(`<form id="priorExperienceReconsiderForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Prior Experience reconsideration</span><h2>Request to reconsider</h2><p>${o(a.dataset.priorScope || "Verification decision")}</p></div><button type="button" data-close>×</button></div><p>Your reason will be sent to <b>${o(a.dataset.priorReviewer || "the rejecting reviewer")}</b> and copied to the Admin.</p><label>Reason<textarea name="reason" maxlength="3000" required placeholder="Explain why this prior-experience decision should be reconsidered"></textarea></label><input type="hidden" name="review_kind" value="${o(a.dataset.priorReconsider)}"><input type="hidden" name="review_id" value="${o(a.dataset.priorReviewId)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Send reconsideration request</button></div></form>`);
     }
     if (a.dataset.priorPairManage) openPriorExperienceAssessorPair(a.dataset.priorPairManage);
     if (a.dataset.priorOwnerView) await openOwnerPriorExperienceRecord(a.dataset.priorOwnerView);
@@ -4478,7 +4478,7 @@ document.addEventListener("click", (event) => {
           p_subject: String(r.get("subject") || "").trim(),
           p_details: String(r.get("details") || "").trim(),
         }));
-        b("Complaint sent to the Program Owner");
+        b("Complaint sent to the Admin");
         return void (await residentReviewsPenaltiesPage());
       }
       if (a.id === "generalComplaintActionForm") {
@@ -4521,13 +4521,13 @@ document.addEventListener("click", (event) => {
           p_punishment_id: Number(r.get("punishment_id")),
           p_details: String(r.get("details") || "").trim(),
         }));
-        b("Penalty sent to the Program Owner for approval");
+        b("Penalty sent to the Admin for approval");
         return void (await $());
       }
       if (a.id === "penaltyComplaintForm") {
         u(await e.rpc("resident_complain_penalty_v1071", { p_penalty_id: Number(r.get("penalty_id")), p_complaint: String(r.get("complaint") || "").trim() }));
         if (i.open) i.close();
-        b("Complaint sent to the Program Owner");
+        b("Complaint sent to the Admin");
         return void (await $());
       }
       if (a.id === "penaltyOptionForm") {
@@ -4596,7 +4596,7 @@ document.addEventListener("click", (event) => {
           p_is_anonymous: r.get("identity_mode") === "anonymous",
         }));
         i.close();
-        b("Review submitted and the resident and Program Owner were notified");
+        b("Review submitted and the resident and Admin were notified");
         return void g(s.p.role === "assessor" ? "write-review" : "reviews");
       }
       if ("reviewReconsiderForm" === a.id) {
@@ -4605,7 +4605,7 @@ document.addEventListener("click", (event) => {
           p_justification: r.get("justification"),
         }));
         i.close();
-        b("Request to reconsider sent to the reviewer and Program Owner");
+        b("Request to reconsider sent to the reviewer and Admin");
         return void (await w.reviews());
       }
       if ("reviewResolveForm" === a.id) {
@@ -5196,7 +5196,7 @@ document.addEventListener("click", async (event) => {
       const row = window.generalComplaintAdminRows?.get(String(button.dataset.ownerComplaintResolve));
       if (!row) throw new Error("Complaint could not be loaded");
       const outcome = button.dataset.outcome === "dismissed" ? "dismissed" : "resolved";
-      y(`<form id="ownerComplaintResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Program Owner decision</span><h2>${outcome === "resolved" ? "Mark complaint resolved" : "Dismiss complaint"}</h2></div><button type="button" data-close>×</button></div><div class="complaint-modal-context"><div><span>From</span><b>${o(row.complainant_name)}</b></div><div><span>Against</span><b>${o(row.target_name)}</b></div></div><div class="message-body"><b>${o(row.subject)}</b><br>${o(row.details)}</div><label>Final note<textarea name="note" placeholder="Optional note shown to the complainant"></textarea></label><input type="hidden" name="complaint_id" value="${o(row.id)}"><input type="hidden" name="outcome" value="${o(outcome)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="${outcome === "dismissed" ? "btn secondary" : "btn"}">${outcome === "resolved" ? "Mark resolved" : "Dismiss complaint"}</button></div></form>`);
+      y(`<form id="ownerComplaintResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Admin decision</span><h2>${outcome === "resolved" ? "Mark complaint resolved" : "Dismiss complaint"}</h2></div><button type="button" data-close>×</button></div><div class="complaint-modal-context"><div><span>From</span><b>${o(row.complainant_name)}</b></div><div><span>Against</span><b>${o(row.target_name)}</b></div></div><div class="message-body"><b>${o(row.subject)}</b><br>${o(row.details)}</div><label>Final note<textarea name="note" placeholder="Optional note shown to the complainant"></textarea></label><input type="hidden" name="complaint_id" value="${o(row.id)}"><input type="hidden" name="outcome" value="${o(outcome)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="${outcome === "dismissed" ? "btn secondary" : "btn"}">${outcome === "resolved" ? "Mark resolved" : "Dismiss complaint"}</button></div></form>`);
       return;
     }
     if (button.dataset.penaltyComplain) {
@@ -5222,7 +5222,7 @@ document.addEventListener("click", async (event) => {
     }
     if (button.dataset.ownerPenaltyAppeal) {
       u(await e.rpc("owner_vote_penalty_appeal_v1071", { p_penalty_id: Number(button.dataset.ownerPenaltyAppeal), p_decision: button.dataset.decision, p_note: null }));
-      b("Program Owner appeal vote recorded");
+      b("Admin appeal vote recorded");
       await ownerReviewsPenaltiesPage();
       return;
     }
