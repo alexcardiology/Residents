@@ -119,7 +119,6 @@ const s = {
   p = {
     resident: [
       ["dashboard", "Dashboard"],
-      ["duty-bot", "Duty Bot"],
       ["resident-directory", "Residents"],
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
@@ -131,7 +130,6 @@ const s = {
     ],
     observer: [
       ["dashboard", "Dashboard"],
-      ["duty-bot", "Duty Bot"],
       ["write-review", "Write a review"],
       ["reviews", "My reviews"],
       ["logbook", "Logbook approvals"],
@@ -141,7 +139,6 @@ const s = {
     ],
     assessor: [
       ["dashboard", "Dashboard"],
-      ["duty-bot", "Duty Bot"],
       ["resident-directory", "Residents"],
       ["write-review", "Reviews & penalties"],
       ["assessments", "Assessments"],
@@ -152,7 +149,6 @@ const s = {
     ],
     owner: [
       ["dashboard", "Overview"],
-      ["duty-bot", "Duty Bot"],
       ["resident-directory", "Residents"],
       ["users", "Accounts"],
       ["curriculum", "Curriculum"],
@@ -175,13 +171,18 @@ const s = {
   v = (e) => ` <div class="card empty-state"> <p>${o(e)}</p> </div>`,
   _ = (e, s, t) =>
     ` <article class="card metric"> <span>${o(e)}</span> <b>${o(s)}</b> <small>${o(t)}</small> </article>`,
-  yearClass = (year) => `year-${Math.max(1, Math.min(5, Number(year) || 1))}`,
+  residentTrainingLabel = (year) => {
+    const value = Number(year);
+    if (value === 6) return "Visitor Resident";
+    if (value === 7) return "Fellow";
+    return value >= 1 && value <= 5 ? `Year ${value}` : "Resident";
+  },
+  isStandardResidencyYear = (year) => Number(year) >= 1 && Number(year) <= 5,
+  yearClass = (year) => Number(year) === 6 ? "year-visitor" : Number(year) === 7 ? "year-fellow" : `year-${Math.max(1, Math.min(5, Number(year) || 1))}`,
   yearChip = (year, label = "") =>
-    `<span class="year-chip ${yearClass(year)}">${o(label || `Year ${year}`)}</span>`,
+    `<span class="year-chip ${yearClass(year)}">${o(label || residentTrainingLabel(year))}</span>`,
   dashboardTile = (title, valueHtml, meta, go, extraClass = "") =>
     `<button type="button" class="dashboard-tile ${extraClass}" ${go ? `data-go="${o(go)}"` : ""}><span>${o(title)}</span><strong>${valueHtml}</strong><small>${o(meta || "")}</small></button>`,
-  dutyBotLaunch = () =>
-    `<button type="button" class="duty-bot-launch" data-go="duty-bot"><span class="duty-bot-launch-icon" aria-hidden="true">✦</span><span><small>LIVE FACULTY SCHEDULE</small><strong>Ask Duty Bot</strong><em>Find today’s Miri or Smouha coverage in Arabic or English.</em></span><b>Open bot →</b></button>`,
   evidenceDashboardTile = (knowledgeCount, skillCount) =>
     `<button type="button" class="dashboard-tile evidence-dashboard-tile" data-go="chapters"><span>Knowledge & skills</span><div class="evidence-split"><div><b>${o(knowledgeCount)}</b><small>Knowledge complete</small></div><div><b>${o(skillCount)}</b><small>Skills tracked</small></div></div><small>Open curriculum and update your progress</small></button>`,
   weakPointSummary = (assessment) => {
@@ -303,94 +304,8 @@ async function $() {
     (console.error(e), (a.innerHTML = v(e.message || "Unable to load")));
   }
 }
-
-function dutyAssignmentCards(assignments = []) {
-  if (!assignments.length) return "";
-  return `<div class="duty-assignment-list">${assignments.map((assignment) => `
-    <article class="duty-assignment-card">
-      <div><strong>${o(assignment.resident || "—")}</strong><span>${o(assignment.role || assignment.unit || "Duty")}</span></div>
-      <dl>
-        <div><dt>Hospital</dt><dd>${o(assignment.hospital || "—")}</dd></div>
-        <div><dt>Unit</dt><dd>${o(assignment.unit || "—")}</dd></div>
-        <div><dt>Date</dt><dd>${o(d(assignment.date))}</dd></div>
-        <div><dt>Shift</dt><dd>08:00 → 08:00 next day</dd></div>
-      </dl>
-    </article>`).join("")}</div>`;
-}
-
-function addDutyBotMessage(kind, message, assignments = []) {
-  const transcript = t("#dutyBotTranscript");
-  if (!transcript) return null;
-  const bubble = document.createElement("article");
-  bubble.className = `duty-message duty-message-${kind}`;
-  bubble.innerHTML = `<span>${kind === "user" ? "You" : "Duty Bot"}</span><p>${o(message).replace(/\n/g, "<br>")}</p>${kind === "bot" ? dutyAssignmentCards(assignments) : ""}`;
-  transcript.appendChild(bubble);
-  transcript.scrollTop = transcript.scrollHeight;
-  return bubble;
-}
-
-async function askDutyBot(question) {
-  const cleanQuestion = String(question || "").trim();
-  if (!cleanQuestion) return;
-  addDutyBotMessage("user", cleanQuestion);
-  const loading = addDutyBotMessage("bot", "Checking the approved faculty schedule…");
-  loading?.classList.add("is-loading");
-  const submit = t('#dutyBotForm button[type="submit"]');
-  if (submit) submit.disabled = true;
-  try {
-    const { data, error } = await e.functions.invoke("duty-bot", { body: { question: cleanQuestion } });
-    if (error) throw error;
-    loading?.remove();
-    addDutyBotMessage("bot", data?.answer || "No matching approved duty was found.", data?.assignments || []);
-  } catch (error) {
-    console.error(error);
-    loading?.remove();
-    addDutyBotMessage("bot", "Duty Bot is not available yet. Ask the program owner to finish the secure Airtable connection.");
-  } finally {
-    if (submit) submit.disabled = false;
-    t("#dutyBotQuestion")?.focus();
-  }
-}
-
 const w = {
   dashboard: k,
-  "duty-bot": async function () {
-    t("#title").textContent = "Duty Bot";
-    t("#crumb").textContent = m(s.p.role);
-    const ownerNote = s.p.role === "owner"
-      ? '<div class="duty-owner-note"><b>Schedule owner</b><span>Edit duties in Airtable. Approved changes appear here within one minute.</span></div>'
-      : "";
-    const prompts = [
-      "Who is in Miri CCU today?",
-      "Who is in Miri ER today?",
-      "Who is covering Smouha today?",
-      "مين عناية ميري النهاردة؟",
-      "مين طوارئ الميري النهاردة؟",
-    ];
-    a.innerHTML =
-      h("Faculty Duty & Rotation Bot", "Ask about the approved Miri and Smouha schedule in Arabic or English. Duty runs from 8 AM to 8 AM the next day.") +
-      `<section class="duty-bot-shell">
-        <aside class="duty-bot-sidebar">
-          <span class="eyebrow">Quick questions</span>
-          <h3>What do you need?</h3>
-          <div class="duty-quick-prompts">${prompts.map((prompt) => `<button type="button" data-duty-question="${o(prompt)}">${o(prompt)}</button>`).join("")}</div>
-          <div class="duty-shift-rule"><b>24-hour duty</b><span>Starts 08:00 · Ends 08:00 next day</span></div>
-          ${ownerNote}
-        </aside>
-        <div class="duty-chat-panel">
-          <header><div class="duty-bot-avatar">✦</div><div><b>Faculty Duty Bot</b><span><i></i> Approved schedule</span></div></header>
-          <div id="dutyBotTranscript" class="duty-transcript" aria-live="polite">
-            <article class="duty-message duty-message-bot"><span>Duty Bot</span><p>Hello — ask me who is covering a hospital, unit or group today. You can also ask for a resident’s next duty.</p></article>
-          </div>
-          <form id="dutyBotForm" class="duty-chat-form">
-            <label class="sr-only" for="dutyBotQuestion">Ask Duty Bot</label>
-            <input id="dutyBotQuestion" name="question" maxlength="300" autocomplete="off" placeholder="Example: Who is in Miri ER today?" required>
-            <button type="submit">Ask <span aria-hidden="true">→</span></button>
-          </form>
-          <small class="duty-data-note">Answers use approved Airtable assignments. Confirm urgent clinical coverage through your usual hospital channel.</small>
-        </div>
-      </section>`;
-  },
   chapters: async function () {
     if ("resident" !== s.p.role) return g("dashboard");
     t("#title").textContent = "My chapters";
@@ -406,6 +321,14 @@ const w = {
     const current = accessible.filter((chapter) => Number(chapter.year_from) <= currentYear && Number(chapter.year_to || chapter.year_from) >= currentYear);
     const past = accessible.filter((chapter) => Number(chapter.year_to || chapter.year_from) < currentYear);
     const chapterCards = (rows) => rows.map((chapter) => ` <article class="card chapter" data-chapter="${chapter.id}"> ${yearChip(chapter.year_from, "Year " + chapter.year_from + (chapter.year_to > chapter.year_from ? "–" + chapter.year_to : ""))} <h3>${o(chapter.title)}</h3> <p>${o(chapter.description)}</p> </article>`).join("");
+    if (!isStandardResidencyYear(currentYear)) {
+      a.innerHTML = h(
+        "Your cardiology curriculum",
+        `${residentTrainingLabel(currentYear)} access · all active curriculum chapters are available for reference.`,
+        '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>',
+      ) + `<section class="chapter-group current-chapter-group"><div class="chapter-group-head"><div><span class="eyebrow">Available curriculum</span><h2>${o(residentTrainingLabel(currentYear))}</h2></div>${yearChip(currentYear)}</div><div class="chapters">${chapterCards(accessible) || v("No active curriculum chapters are available.")}</div></section>`;
+      return;
+    }
     a.innerHTML =
       h(
         "Your cardiology curriculum",
@@ -627,7 +550,7 @@ const w = {
     t("#title").textContent = "Resident E-logbook";
     a.innerHTML = h(
       `${profile.display_name || profile.username} · E-logbook`,
-      `Personal intervention and conference history · Year ${profile.residency_year || "—"}`,
+      `Personal intervention and conference history · ${residentTrainingLabel(profile.residency_year)}`,
       `<div class="candidate-record-actions"><button class="btn secondary" data-candidate="${o(residentId)}~">← Back to resident record</button><button class="btn secondary" data-go="resident-directory">Back to Residents</button></div>`,
     ) + renderLogbookHistoryTable(rows, "resident");
   },
@@ -869,7 +792,7 @@ async function residentDirectoryPage() {
   a.innerHTML = h("Residents", s.p.role === "assessor" ? "Your assigned residents are highlighted first. The full resident directory remains available below." : "Meet the residents in the training program. Select a resident to open their profile card.") + assignedPanel + `
     <section class="card resident-directory-panel">
       <div class="section-head resident-directory-section-head"><div><h2>${s.p.role === "assessor" ? "All residents" : "Resident directory"}</h2><p>${s.p.role === "assessor" ? "Browse any resident profile in the program." : "Search by name or residency year."}</p></div></div>
-      <div class="resident-directory-toolbar"><input id="residentDirectorySearch" type="search" placeholder="Search resident name"><select id="residentDirectoryYear"><option value="">All residency years</option>${n.map((year)=>`<option value="${year}">Year ${year}</option>`).join("")}</select></div>
+      <div class="resident-directory-toolbar"><input id="residentDirectorySearch" type="search" placeholder="Search resident name"><select id="residentDirectoryYear"><option value="">All resident groups</option>${n.map((year)=>`<option value="${year}">Year ${year}</option>`).join("")}<option value="6">Visitor Resident</option><option value="7">Fellow</option></select></div>
       <div id="residentDirectoryGrid" class="resident-directory-grid">${cards || '<div class="panel-empty">No active residents.</div>'}</div>
       <div id="residentDirectoryEmpty" class="panel-empty" hidden>No residents match these filters.</div>
     </section>`;
@@ -879,7 +802,7 @@ function openResidentDirectoryProfile(row) {
   const privileged = ["assessor","owner"].includes(s.p.role);
   y(`<article class="modal resident-profile-modal"><div class="modal-head"><div><span class="eyebrow">Resident profile</span><h2>${o(row.display_name || row.username || "Resident")}</h2></div><button type="button" data-close>×</button></div>
     <div class="resident-profile-hero">${penaltyAvatar(row,"resident-profile-photo")}<div><h3>${o(row.display_name || row.username || "Resident")}</h3>${yearChip(row.residency_year)}<small>@${o(row.username || "")}</small></div></div>
-    <div class="resident-profile-details"><div><span>Residency year</span><b>Year ${o(row.residency_year)}</b></div>${privileged && row.email ? `<div><span>Email</span><b>${o(row.email)}</b></div>` : ""}${privileged && row.whatsapp ? `<div><span>WhatsApp</span><b>${o(row.whatsapp)}</b></div>` : ""}</div>
+    <div class="resident-profile-details"><div><span>Training status</span><b>${o(residentTrainingLabel(row.residency_year))}</b></div>${privileged && row.email ? `<div><span>Email</span><b>${o(row.email)}</b></div>` : ""}${privileged && row.whatsapp ? `<div><span>WhatsApp</span><b>${o(row.whatsapp)}</b></div>` : ""}</div>
     <div class="resident-profile-placeholder"><b>Additional resident details</b><p>This profile is ready for the additional fields you want to define later.</p></div>
     <div class="actions"><button type="button" class="btn secondary" data-close>Close</button></div></article>`);
 }
@@ -959,10 +882,10 @@ async function residentReviewsPenaltiesPage() {
   const against=penaltyData.penalties.filter((row)=>String(row.resident_id)===String(s.p.id));
   const issued=penaltyData.penalties.filter((row)=>String(row.issued_by)===String(s.p.id));
   a.innerHTML = h("Reviews & penalties","Your feedback and disciplinary records are kept in one transparent workspace.") + `<section class="card review-workspace">
-    <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="resident-reviews">Reviews about me <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="resident-penalties">Penalties <small>${against.length}</small></button>${Number(s.p.residency_year)>1 ? '<button class="review-workspace-tab" data-review-section="resident-sign-penalty">Sign a penalty</button>' : ''}</div>
+    <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="resident-reviews">Reviews about me <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="resident-penalties">Penalties <small>${against.length}</small></button>${Number(s.p.residency_year)>=2 && Number(s.p.residency_year)<=5 ? '<button class="review-workspace-tab" data-review-section="resident-sign-penalty">Sign a penalty</button>' : ''}</div>
     <div class="review-workspace-panel" data-review-panel="resident-reviews">${renderResidentReviewGroups(reviews)}</div>
     <div class="review-workspace-panel" data-review-panel="resident-penalties" hidden><div class="review-section-heading"><div><span class="eyebrow">Disciplinary record</span><h2>Penalties involving you</h2><p>Approved penalties can be challenged through the complaint process.</p></div></div>${renderPenaltyTable(against,"resident")}</div>
-    ${Number(s.p.residency_year)>1 ? `<div class="review-workspace-panel" data-review-panel="resident-sign-penalty" hidden><div class="review-section-heading"><div><span class="eyebrow">Senior resident responsibility</span><h2>Sign a penalty</h2><p>You may sign a penalty only against a resident in a lower residency year. Every penalty requires Program Owner approval.</p></div></div>${penaltyIssuePanel(penaltyData)}<div class="top-gap"><h3>Penalties signed by me</h3>${renderPenaltyTable(issued,"self")}</div></div>` : ""}
+    ${Number(s.p.residency_year)>=2 && Number(s.p.residency_year)<=5 ? `<div class="review-workspace-panel" data-review-panel="resident-sign-penalty" hidden><div class="review-section-heading"><div><span class="eyebrow">Senior resident responsibility</span><h2>Sign a penalty</h2><p>You may sign a penalty only against a resident in a lower residency year. Every penalty requires Program Owner approval.</p></div></div>${penaltyIssuePanel(penaltyData)}<div class="top-gap"><h3>Penalties signed by me</h3>${renderPenaltyTable(issued,"self")}</div></div>` : ""}
   </section>`;
 }
 function renderPenaltyAppeals(rows) {
@@ -1217,11 +1140,11 @@ async function printResidentAssessmentPortfolio(residentId) {
     const previousAssessments = assessments.data || [];
     const penalties = penaltiesResult.data || [];
     const penaltyHtml = penalties.length ? `<table class="portfolio-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penalties.map((row)=>`<tr><td>${d(row.created_at)}</td><td><b>${o(row.category||"—")}</b><br>${o(row.problem||"—")}</td><td>${o(row.punishment||"—")}</td><td>${o(row.details||"—")}</td><td>${o(penaltyStatusLabel(row.status))}</td></tr>`).join("")}</tbody></table>` : '<div class="portfolio-empty">No active approved penalties.</div>';
-    const summary = `<section class="portfolio-summary"><div><span>Residency</span><b>Year ${o(profile.residency_year || "—")}</b></div><div><span>Knowledge</span><b>${completed.length}/${kRows.length} checked</b></div><div><span>Skills</span><b>${[...levelMap.values()].length}/${skillRows.length} levels recorded</b></div><div><span>Approved logbook</span><b>${approvedLogbook.length} records</b></div><div><span>Reviews</span><b>${reviews.length}</b></div><div><span>Penalties</span><b>${penalties.length}</b></div><div><span>Assessments</span><b>${previousAssessments.length}</b></div></section>`;
+    const summary = `<section class="portfolio-summary"><div><span>Residency</span><b>${o(residentTrainingLabel(profile.residency_year))}</b></div><div><span>Knowledge</span><b>${completed.length}/${kRows.length} checked</b></div><div><span>Skills</span><b>${[...levelMap.values()].length}/${skillRows.length} levels recorded</b></div><div><span>Approved logbook</span><b>${approvedLogbook.length} records</b></div><div><span>Reviews</span><b>${reviews.length}</b></div><div><span>Penalties</span><b>${penalties.length}</b></div><div><span>Assessments</span><b>${previousAssessments.length}</b></div></section>`;
     popup.document.open();
     popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${o(profile.display_name || profile.username)} - Assessment Portfolio</title><style>
       @page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{margin:0;color:#142033;font-family:Arial,sans-serif;font-size:9px}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #0d4963;padding-bottom:7px;margin-bottom:8px}header h1{margin:0;font-size:19px;color:#081c35}header p{margin:2px 0 0;color:#5b6877}.portfolio-summary{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:8px 0 12px}.portfolio-summary div{border:1px solid #c4d0dc;border-radius:6px;padding:6px;background:#f7fafc}.portfolio-summary span{display:block;text-transform:uppercase;font-size:7px;color:#64748b;font-weight:700}.portfolio-summary b{display:block;margin-top:2px;font-size:11px;color:#0d2d50}.portfolio-section{margin:14px 0;break-inside:auto}.portfolio-section>h2{margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #aebbc8;font-size:14px;color:#0d2d50}.portfolio-section>h3{margin:9px 0 5px;font-size:11px;color:#0d4963}.portfolio-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:7px}.portfolio-table th,.portfolio-table td{border:1px solid #b8c5d2;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}.portfolio-table th{background:#0d4963;color:#fff;font-size:7.5px;text-transform:uppercase}.portfolio-table tbody tr:nth-child(even){background:#f7f9fb}.status-cell{width:11%;font-weight:800;text-align:center}.status-cell.done{color:#08783e;background:#edf9f2}.status-cell.todo{color:#7b4c00;background:#fff8e7}.skills-table th:nth-child(3),.skills-table td:nth-child(3){width:22%}.skills-table th:nth-child(4),.skills-table td:nth-child(4),.skills-table th:nth-child(5),.skills-table td:nth-child(5){width:11%;text-align:center}.skills-table small{display:block;margin-top:2px;color:#64748b}.level-cell{font-weight:800}.level-cell.recorded{color:#0b4f82}.level-cell.not-recorded{color:#9a3412}.dependence-guide{padding:6px 8px;margin-bottom:6px;border:1px solid #c9d8e5;background:#f1f7fb;border-radius:5px}.portfolio-empty{padding:10px;border:1px dashed #b8c5d2;color:#64748b}.reviews-table th:nth-child(4){width:30%}.assessments-table th:last-child{width:28%}.logbook-wrap{margin-top:6px}.logbook-wrap ${logbookExportCss().replace(/@page\{[^}]*\}/,'').replace(/body\{[^}]*\}/,'')}footer{margin-top:12px;padding-top:6px;border-top:1px solid #cbd5e1;text-align:right;color:#64748b;font-size:7px}@media print{.page-break{break-before:page;page-break-before:always}}
-    </style></head><body><header><div><h1>Resident Assessment Portfolio</h1><p>${o(profile.display_name || profile.username)} · Year ${o(profile.residency_year || "—")} · Evidence available to assessor before formal scoring</p></div><p>Generated ${d(new Date().toISOString())}</p></header>${summary}
+    </style></head><body><header><div><h1>Resident Assessment Portfolio</h1><p>${o(profile.display_name || profile.username)} · ${o(residentTrainingLabel(profile.residency_year))} · Evidence available to assessor before formal scoring</p></div><p>Generated ${d(new Date().toISOString())}</p></header>${summary}
       <section class="portfolio-section"><h2>Knowledge evidence</h2><h3>✓ Checked knowledge</h3>${knowledgeTable(completed, true)}<h3>☐ Not checked knowledge</h3>${knowledgeTable(unchecked, false)}</section>
       <section class="portfolio-section page-break"><h2>Skills and level of dependence</h2>${skillsHtml}</section>
       <section class="portfolio-section page-break logbook-wrap"><h2>Approved e-logbook</h2>${logbookExportSections(approvedLogbook, false)}</section>
@@ -2098,9 +2021,8 @@ async function k() {
       : latest ? weakPointSummary(latest) : "No formal assessment yet";
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Your year, evidence, assessment and next actions at a glance.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
-      dutyBotLaunch() +
       `<div class="dashboard-grid dashboard-grid-6">
-        ${dashboardTile("Current residency", yearChip(i.residency_year), i.progression_status === "reassessment_required" ? `Reassessment due ${d(i.reassessment_due)}` : "Current training cohort", "chapters", `year-tile ${yearClass(i.residency_year)}`)}
+        ${dashboardTile(isStandardResidencyYear(i.residency_year) ? "Current residency" : "Training status", yearChip(i.residency_year), isStandardResidencyYear(i.residency_year) ? (i.progression_status === "reassessment_required" ? `Reassessment due ${d(i.reassessment_due)}` : "") : "", "chapters", `year-tile ${yearClass(i.residency_year)}`)}
         ${dashboardTile("My chapters", String(chaptersResult.data?.length || 0), "Cumulative curriculum access", "chapters")}
         ${evidenceDashboardTile(String(knowledgeResult.count || 0), String(skillLevelsResult.count || 0))}
         ${dashboardTile("Logbook activity", String(logsResult.count || 0), "Supervised performances", "logbook")}
@@ -2123,7 +2045,6 @@ async function k() {
     const unread = inbox.filter((message) => !message.is_read).length;
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Four quick areas for observations, approvals and communication.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
-      dutyBotLaunch() +
       `<div class="dashboard-grid dashboard-grid-4">
         ${dashboardTile("Write a review", "＋", "Positive/negative · named or anonymous", "write-review", "accent-tile")}
         ${dashboardTile("My reviews", String(reviews.length), "Your previous clinical and behavioural reviews", "reviews")}
@@ -2146,7 +2067,6 @@ async function k() {
     const pendingApprovals = (logbookResult.data || []).filter((message) => !message.logbook_action_taken).length;
     a.innerHTML =
       h(`Welcome, ${i.display_name || i.username}`, "Your assessment workspace is divided into six quick areas.", '<button class="btn secondary" data-export-curriculum>Export curriculum PDF</button>') +
-      dutyBotLaunch() +
       `<div class="dashboard-grid dashboard-grid-6">
         ${dashboardTile("Assigned residents", String(assigned.length), "Open resident records", "resident-directory")}
         ${dashboardTile(nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "CURRENT ASSESSMENT" : "Next assessment", nextAssessment ? o(d(nextAssessment.starts_at)) : "—", nextAssessment ? `${nextAssessment.title} · Year ${nextAssessment.residency_year}` : "No upcoming assessment", nextAssessment && new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? `assessment-session:${nextAssessment.id}` : "assessments", nextAssessment ? (new Date(nextAssessment.starts_at).getTime() <= Date.now() && Date.now() <= new Date(nextAssessment.ends_at).getTime() ? "current-assessment-tile" : "accent-tile") : "")}
@@ -2171,7 +2091,6 @@ async function k() {
   const unread = (inboxResult.data || []).filter((message) => !message.is_read).length;
   a.innerHTML =
     h("Training program at a glance", "Six compact control areas; detailed tools stay one tap away.", '<div class="lead-actions"><button class="btn secondary" data-export-curriculum>Export curriculum PDF</button><button class="btn" data-create>Create account</button></div>') +
-    dutyBotLaunch() +
     `<div class="dashboard-grid dashboard-grid-6 owner-dashboard-grid">
       ${dashboardTile("Accounts", String(profiles.length), `${profiles.filter((person) => person.is_active).length} active accounts`, "users")}
       ${dashboardTile("Residents", String(residents.length), reassessmentCount ? `${reassessmentCount} awaiting reassessment` : "Cohorts on track", "progress", reassessmentCount ? "warning-tile" : "")}
@@ -2207,7 +2126,7 @@ function openAccountManagement(person) {
     <div class="form-grid compact-form-grid">
       <label class="span-2">Display name<input name="display_name" type="text" maxlength="120" value="${o(person.display_name || "")}" placeholder="Name shown throughout the portal" required></label>
       ${isOwnerAccount ? `<label>Account role<input type="text" value="Program Owner" disabled></label>` : `<label>Account role<select name="role" id="editAccountRole" required><option value="resident" ${person.role === "resident" ? "selected" : ""}>Resident</option><option value="observer" ${person.role === "observer" ? "selected" : ""}>Observer</option><option value="assessor" ${person.role === "assessor" ? "selected" : ""}>Assessor</option></select></label>
-      <label id="editAccountYearField">Residency year<select name="residency_year">${n.map((year) => `<option value="${year}" ${Number(person.residency_year || 1) === year ? "selected" : ""}>Year ${year}</option>`).join("")}</select></label>`}
+      <label id="editAccountYearField">Resident training status<select name="residency_year">${n.map((year) => `<option value="${year}" ${Number(person.residency_year || 1) === year ? "selected" : ""}>Year ${year}</option>`).join("")}<option value="6" ${Number(person.residency_year) === 6 ? "selected" : ""}>Visitor Resident</option><option value="7" ${Number(person.residency_year) === 7 ? "selected" : ""}>Fellow</option></select></label>`}
     </div>
     <div class="role-change-note"><b>Display name only affects the visible profile name.</b><span>Username and email remain unchanged. Historical records are preserved. Role/year changes also keep previous assessments, reviews and resident logbook records.</span></div>
     <input type="hidden" name="user_id" value="${o(person.id)}">
@@ -3491,12 +3410,6 @@ document.addEventListener("click", (event) => {
 (document.addEventListener("click", async (t) => {
   const a = t.target.closest("button,[data-chapter]");
   if (a) {
-    if (a.dataset.dutyQuestion) {
-      const input = document.querySelector("#dutyBotQuestion");
-      if (input) input.value = a.dataset.dutyQuestion;
-      await askDutyBot(a.dataset.dutyQuestion);
-      return;
-    }
     if (
       (a.dataset.go && g(a.dataset.go),
       a.dataset.chapter && g(`chapter:${a.dataset.chapter}`),
@@ -3684,7 +3597,7 @@ document.addEventListener("click", (event) => {
         )),
       a.hasAttribute("data-create") &&
         (y(
-          ` <form id="accountForm" class="modal"> <div class="modal-head"><h2>Create account</h2><button type="button" data-close>×</button></div> <div class="form-grid"> <label>Full professional name<input name="display_name" required></label> <label>Username<input name="username" pattern="[A-Za-z0-9._\-]{3,40}" required></label> <label class="full">Email<input type="email" name="email" required></label> <label>Role <select name="role" id="accountRole"> <option value="resident">Resident</option> <option value="observer">Observer</option> <option value="assessor">Assessor</option> </select> </label> <label id="accountYearField">Residency year <select name="residency_year" required>${n.map((e) => `<option value="${e}">Year ${e}</option>`).join("")}</select> </label> <label class="full">Initial password<input type="password" name="password" minlength="8" required></label> </div> <p class="form-note">Assessor years are assigned later from the Assessor Assignments page.</p> <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Create account</button></div> </form>`,
+          ` <form id="accountForm" class="modal"> <div class="modal-head"><h2>Create account</h2><button type="button" data-close>×</button></div> <div class="form-grid"> <label>Full professional name<input name="display_name" required></label> <label>Username<input name="username" pattern="[A-Za-z0-9._\-]{3,40}" required></label> <label class="full">Email<input type="email" name="email" required></label> <label>Role <select name="role" id="accountRole"> <option value="resident">Resident</option> <option value="observer">Observer</option> <option value="assessor">Assessor</option> </select> </label> <label id="accountYearField">Resident training status <select name="residency_year" required>${n.map((e) => `<option value="${e}">Year ${e}</option>`).join("")}<option value="6">Visitor Resident</option><option value="7">Fellow</option></select> </label> <label class="full">Initial password<input type="password" name="password" minlength="8" required></label> </div> <p class="form-note">Assessor years are assigned later from the Assessor Assignments page.</p> <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Create account</button></div> </form>`,
         ),
         E()),
       a.hasAttribute("data-compose-message") && openComposer(),
@@ -4084,14 +3997,6 @@ document.addEventListener("click", (event) => {
     const a = t.target,
       r = new FormData(a);
     try {
-      if (a.id === "dutyBotForm") {
-        const question = String(r.get("question") || "").trim();
-        if (question) {
-          a.reset();
-          await askDutyBot(question);
-        }
-        return;
-      }
       if (a.id === "penaltyIssueForm") {
         u(await e.rpc("create_resident_penalty_v1071", {
           p_resident_id: r.get("resident_id"),
@@ -4135,14 +4040,27 @@ document.addEventListener("click", (event) => {
         "accountForm" === a.id)
       ) {
         const s = Object.fromEntries(r);
-        ((s.role = r.get("role")),
-          (s.residency_year =
-            "resident" === s.role ? Number(r.get("residency_year")) : null));
+        const desiredResidentLevel = r.get("role") === "resident" ? Number(r.get("residency_year")) : null;
+        s.role = r.get("role");
+        // The existing admin-users Edge Function was originally built for Years 1–5.
+        // Create Visitor/Fellow safely as Year 1, then immediately switch the profile atomically as Owner.
+        s.residency_year = s.role === "resident" ? (desiredResidentLevel > 5 ? 1 : desiredResidentLevel) : null;
         const { data: t, error: a } = await e.functions.invoke("admin-users", {
           body: { action: "create_user", ...s },
         });
         if (a) throw a;
         if (t?.error) throw new Error(t.error);
+        if (s.role === "resident" && desiredResidentLevel > 5) {
+          const created = await e.from("profiles").select("id,display_name").eq("username", s.username).maybeSingle();
+          if (created.error) throw created.error;
+          if (!created.data?.id) throw new Error("Account was created, but the resident training status could not be applied. Open Accounts → Manage and select it manually.");
+          u(await e.rpc("owner_manage_account_v1067", {
+            p_user_id: created.data.id,
+            p_display_name: created.data.display_name || s.display_name,
+            p_role: "resident",
+            p_residency_year: desiredResidentLevel,
+          }));
+        }
       }
       if ("curriculumExportForm" === a.id) {
         const ids = r.getAll("chapter_ids").map(Number);
@@ -4283,7 +4201,7 @@ document.addEventListener("click", (event) => {
           p_residency_year: year,
         }));
         i.close();
-        b(currentRole === "owner" ? `Display name updated to ${displayName}` : `Account updated · ${displayName} · ${m(role)}${role === "resident" ? ` · Year ${year}` : ""}`);
+        b(currentRole === "owner" ? `Display name updated to ${displayName}` : `Account updated · ${displayName} · ${m(role)}${role === "resident" ? ` · ${residentTrainingLabel(year)}` : ""}`);
         return void (await w.users());
       }
       if (a.classList.contains("assessor-year-form")) {
