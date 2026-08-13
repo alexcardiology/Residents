@@ -4080,6 +4080,14 @@ document.addEventListener("click", (event) => {
     const a = t.target,
       r = new FormData(a);
     try {
+      if (a.id === "dutyBotForm") {
+        const question = String(r.get("question") || "").trim();
+        if (!question) return;
+        const input = a.querySelector("#dutyBotQuestion");
+        if (input) input.value = "";
+        await askDutyBot(question);
+        return;
+      }
       if (a.id === "penaltyIssueForm") {
         u(await e.rpc("create_resident_penalty_v1071", {
           p_resident_id: r.get("resident_id"),
