@@ -10,8 +10,15 @@
    npx supabase link --project-ref dwkkhqmifmmxubtuaqbd
    npx supabase functions deploy admin-users
    ```
-6. Upload/commit all files to `drmohamedalaa90/Residents` on `main`. In **Repository Settings → Pages**, choose **GitHub Actions**.
-7. Visit `https://drmohamedalaa90.github.io/Residents/`, sign in as owner, create one test resident, one observer and one assessor, then assign the assessor.
+6. Create an Airtable Personal Access Token with read access to the Faculty Duty Bot base. Save it directly as a Supabase secret—never put it in this repository or paste it into the website:
+   ```bash
+   npx supabase secrets set AIRTABLE_TOKEN=YOUR_AIRTABLE_PERSONAL_ACCESS_TOKEN --project-ref dwkkhqmifmmxubtuaqbd
+   npx supabase secrets set AIRTABLE_BASE_ID=appSmzqYTynjlWK9B --project-ref dwkkhqmifmmxubtuaqbd
+   npx supabase functions deploy duty-bot --project-ref dwkkhqmifmmxubtuaqbd
+   ```
+   The token needs `data.records:read` access to the `Bot_Assignments` and `Residents` tables. Only records whose Status is `Approved` are shown in the portal.
+7. Upload/commit all files to `drmohamedalaa90/Residents` on `main`. In **Repository Settings → Pages**, choose **GitHub Actions**.
+8. Visit `https://drmohamedalaa90.github.io/Residents/`, sign in, open **Duty Bot**, and test “Who is in Miri ER today?”. Then create one test resident, observer and assessor and verify their normal portal permissions.
 
 Never place a database password, secret key, service-role key, GitHub password, or user password in this repository. The included browser key is intentionally public and protected by Row Level Security.
 

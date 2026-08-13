@@ -1,6 +1,14 @@
-# Resident Training & Assessment v1.0.80
+# Resident Training & Assessment v1.0.81
 
 ## What changed
+
+### Faculty Duty & Rotation Bot
+- Added a protected **Duty Bot** page for every signed-in portal role.
+- Added a prominent dashboard shortcut without increasing the compact dashboard card count.
+- Supports Arabic and English questions about approved Miri and Smouha duties, including CCU, ER, Senior and Angina Unit coverage.
+- Understands the 24-hour shift rule: duty starts at **08:00** and ends at **08:00 the next day**.
+- Can find a resident's next duty or duties in the next seven days when aliases are configured in Airtable.
+- Reads approved assignments through a Supabase Edge Function; the Airtable token is never exposed in browser code.
 
 ### Prior Experience Logbook assessor scopes
 - Each intervention/scope can now have **2 to 5 assigned assessors**.
@@ -18,10 +26,11 @@
 - Added TTE to assessor supervision scope display and Prior Experience assessor assignment matrix.
 
 ## Installation
-1. Run `sql/resident_training_v1.0.80.sql` in Supabase SQL Editor.
-2. Replace `app.html`, `index.html`, `assets/app.js`, and `assets/style.css` with this package.
-3. Keep your existing `assets/supabase.js` and `assets/login.js`.
-4. Hard refresh the website (Ctrl+Shift+R).
+1. No database migration is required when upgrading from v1.0.80.
+2. Configure and deploy the `duty-bot` Supabase Edge Function as described in `SETUP_GUIDE.md`.
+3. Replace `app.html`, `assets/app.js`, and `assets/style.css` with this package.
+4. Keep your existing `assets/supabase.js` and `assets/login.js`.
+5. Hard refresh the website (Ctrl+Shift+R).
 
 ## Data safety
 - Existing Prior Experience submissions and completed assessor signatures are preserved.
