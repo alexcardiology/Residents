@@ -41,6 +41,8 @@ let cache: {
   assignments: Assignment[];
   residents: ResidentAlias[];
   warnings: string[];
+  onCallAvailable: boolean;
+  daytimeAvailable: boolean;
 } | null = null;
 
 const westernDigits = (value: string) =>
@@ -113,6 +115,31 @@ const selectName = (value: unknown) => {
 const splitAliases = (value: unknown) =>
   String(value || "").split(/[,;|\n]+/).map((item) => item.trim()).filter(Boolean);
 
+const pause = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+async function airtablePage(url: URL, token: string) {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (response.ok) return response.json();
+      const message = `Airtable request failed (${response.status}): ${await response.text()}`;
+      if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
+        lastError = new Error(message);
+        await pause(200);
+        continue;
+      }
+      throw new Error(message);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt === 0) {
+        await pause(200);
+        continue;
+      }
+    }
+  }
+  throw lastError || new Error("Airtable request failed");
+}
+
 async function airtableRecords(table: string) {
   const token = Deno.env.get("AIRTABLE_TOKEN");
   if (!token) throw new Error("AIRTABLE_TOKEN is not configured");
@@ -122,9 +149,7 @@ async function airtableRecords(table: string) {
     const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`);
     url.searchParams.set("pageSize", "100");
     if (offset) url.searchParams.set("offset", offset);
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) throw new Error(`Airtable request failed (${response.status}): ${await response.text()}`);
-    const page = await response.json();
+    const page = await airtablePage(url, token);
     records.push(...(page.records || []));
     offset = String(page.offset || "");
   } while (offset);
@@ -297,6 +322,8 @@ async function scheduleData() {
     googleSheetAssignments(),
   ]);
   const warnings: string[] = [];
+  const onCallAvailable = assignmentResult.status === "fulfilled";
+  const daytimeAvailable = googleResult.status === "fulfilled";
   const assignments = [
     ...(assignmentResult.status === "fulfilled" ? airtableAssignments(assignmentResult.value) : (warnings.push("The 24-hour duty schedule could not be loaded."), [])),
     ...(googleResult.status === "fulfilled" ? googleResult.value : (warnings.push("The daytime Google schedule could not be loaded."), [])),
@@ -310,7 +337,7 @@ async function scheduleData() {
     knownNames.add(normalize(name));
     residents.push({ scheduleName: name, fullName: "", aliases: [name] });
   });
-  cache = { expiresAt: Date.now() + CACHE_TTL_MS, assignments, residents, warnings };
+  cache = { expiresAt: Date.now() + CACHE_TTL_MS, assignments, residents, warnings, onCallAvailable, daytimeAvailable };
   return cache;
 }
 
@@ -550,6 +577,17 @@ function unavailableMonthAnswer(question: string) {
     ? "لا تتوفر لدي جداول هذا الشهر حاليًا. تواصل مع د. محمد علاء لمزيد من المعلومات."
     : "I don't have these schedules right now. Contact Dr. Mohamed Alaa for more information.";
 }
+function unavailableSourceAnswer(question: string, scheduleType: "on_call" | "daytime") {
+  const isArabic = /[\u0600-\u06ff]/.test(question);
+  if (scheduleType === "on_call") {
+    return isArabic
+      ? "تعذر تحميل جدول النوبتجيات 24 ساعة مؤقتًا. حاول مرة أخرى بعد لحظات، أو تواصل مع د. محمد علاء إذا استمرت المشكلة."
+      : "The 24-hour duty schedule is temporarily unavailable. Try again shortly, or contact Dr. Mohamed Alaa if the problem continues.";
+  }
+  return isArabic
+    ? "تعذر تحميل جدول التوزيع اليومي مؤقتًا. حاول مرة أخرى بعد لحظات، أو تواصل مع د. محمد علاء إذا استمرت المشكلة."
+    : "The daytime schedule is temporarily unavailable. Try again shortly, or contact Dr. Mohamed Alaa if the problem continues.";
+}
 function requestedHospital(question: string) {
   if (includesAny(question, ["miri", "mery", "el miri", "الميري", "ميري", "ميرى"])) return "Miri";
   if (includesAny(question, ["smouha", "سموحة", "سموحه"])) return "Smouha";
@@ -649,12 +687,12 @@ Deno.serve(async (request) => {
     const normalizedQuestion = normalize(question);
     const data = await scheduleData();
     const resident = findResident(normalizedQuestion, data.residents);
-    const asksOnCall = includesAny(normalizedQuestion, ON_CALL_TERMS);
+    const hospital = requestedHospital(normalizedQuestion);
+    const unit = requestedUnit(` ${normalizedQuestion} `);
+    const asksOnCall = includesAny(normalizedQuestion, ON_CALL_TERMS) || ["CCU", "ER", "Angina Unit", "Senior"].includes(unit);
     const asksDaytime = includesAny(normalizedQuestion, ["day assignment", "daytime", "rotation", "morning assignment", "توزيع", "العمل الصباحي"]);
     const monthRange = requestedMonthRange(normalizedQuestion);
     const date = monthRange?.start || targetDate(normalizedQuestion, asksOnCall);
-    const hospital = requestedHospital(normalizedQuestion);
-    const unit = requestedUnit(` ${normalizedQuestion} `);
     const roleParts = requestedRole(normalizedQuestion, unit);
     const asksNext = includesAny(normalizedQuestion, ["next duty", "next shift", "next assignment", "النوبتجيه الجايه", "النوبتجية الجاية", "اقرب نوبتجيه", "أقرب نوبتجية", "التوزيع الجاي"]);
     const asksPrevious = includesAny(normalizedQuestion, ["previous duty", "last duty", "previous assignment", "النوبتجيه اللي فاتت", "النوبتجية السابقة", "التوزيع السابق"]);
@@ -667,6 +705,25 @@ Deno.serve(async (request) => {
         assignments: [],
         date,
         unknownResident: true,
+        warnings: data.warnings,
+      });
+    }
+
+    if (asksOnCall && !data.onCallAvailable) {
+      return json({
+        answer: unavailableSourceAnswer(question, "on_call"),
+        assignments: [],
+        date,
+        sourceUnavailable: true,
+        warnings: data.warnings,
+      });
+    }
+    if (asksDaytime && !data.daytimeAvailable) {
+      return json({
+        answer: unavailableSourceAnswer(question, "daytime"),
+        assignments: [],
+        date,
+        sourceUnavailable: true,
         warnings: data.warnings,
       });
     }
