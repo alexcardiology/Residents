@@ -61,6 +61,18 @@ const dutyRecords = [
       Status: "Approved",
     },
   },
+  {
+    id: "duty-5",
+    fields: {
+      Date: "2026-08-05",
+      Day: "Wednesday",
+      Hospital: "Smouha",
+      Unit: "CCU",
+      "Role / Group": "CCU duty",
+      "Resident schedule name": "رمزي",
+      Status: "Approved",
+    },
+  },
 ];
 const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل", "رمزي"].map((name, index) => ({
   id: `resident-${index}`,
@@ -176,6 +188,28 @@ for (const yesterdayWord of ["امبارح", "امس", "أمس"]) {
   assert.deepEqual(result.assignments.map((item) => item.resident), ["جمعة"], yesterdayWord);
 }
 
+for (const currentMonthQuestion of [
+  "مين كان نباطشية سموحه يوم 5؟",
+  "مين نباطشي سموحه 5 الشهر ده؟",
+  "مين نباطشي سموحه يوم 5 في الشهر؟",
+  "مين نباطشي سموحه يوم 5 فى الشهر؟",
+]) {
+  const result = await ask(currentMonthQuestion);
+  assert.equal(result.date, "2026-08-05", currentMonthQuestion);
+  assert.equal(result.unknownResident, undefined, currentMonthQuestion);
+  assert.deepEqual(result.assignments.map((item) => item.resident), ["رمزي"], currentMonthQuestion);
+}
+
+const previousMonth = await ask("مين نباطشي ميري الشهر اللي فات؟");
+assert.equal(previousMonth.scheduleUnavailable, true);
+assert.deepEqual(previousMonth.period, { start: "2026-07-01", end: "2026-07-31" });
+assert.match(previousMonth.answer, /د\. محمد علاء/);
+
+const nextMonth = await ask("مين نباطشي ميري الشهر اللي جاي؟");
+assert.equal(nextMonth.scheduleUnavailable, true);
+assert.deepEqual(nextMonth.period, { start: "2026-09-01", end: "2026-09-30" });
+assert.match(nextMonth.answer, /لا تتوفر لدي جداول هذا الشهر حاليًا/);
+
 const afterFourDays = await ask("جدول حسن بعد ٤ أيام");
 assert.equal(afterFourDays.date, "2026-08-18");
 
@@ -186,9 +220,11 @@ const unknownArabicResident = await ask("فين عبد الرحمن بكرة؟")
 assert.equal(unknownArabicResident.unknownResident, true);
 assert.equal(unknownArabicResident.assignments.length, 0);
 assert.match(unknownArabicResident.answer, /متأكد من اسم الطبيب المقيم/);
+assert.match(unknownArabicResident.answer, /د\. محمد علاء/);
 
 const unknownEnglishResident = await ask("Where is John Doe tomorrow?");
 assert.equal(unknownEnglishResident.unknownResident, true);
 assert.match(unknownEnglishResident.answer, /Are you sure of this resident's name/);
+assert.match(unknownEnglishResident.answer, /Dr\. Mohamed Alaa/);
 
 console.log("Duty Bot smoke tests passed");

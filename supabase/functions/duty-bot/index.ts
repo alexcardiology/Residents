@@ -299,6 +299,21 @@ function explicitDate(question: string) {
   if (monthDay) return isoDate(Number(monthDay[3] || cairoParts().date.slice(0, 4)), MONTHS[monthDay[1]], Number(monthDay[2]));
   return "";
 }
+function currentMonthDate(question: string, currentDate: string) {
+  const patterns = [
+    /(?:^|\s)يوم\s+(\d{1,2})(?=$|\s)/,
+    /(?:^|\s)(\d{1,2})\s+الشهر\s+(?:ده|دا|الحالي)(?=$|\s)/,
+    /\bday\s+(\d{1,2})\s+(?:of\s+)?this\s+month\b/,
+    /\b(\d{1,2})\s+this\s+month\b/,
+  ];
+  for (const pattern of patterns) {
+    const match = question.match(pattern);
+    if (!match) continue;
+    const [year, month] = currentDate.split("-").map(Number);
+    return isoDate(year, month, Number(match[1]));
+  }
+  return "";
+}
 const WEEKDAYS: Array<{ day: number; aliases: string[] }> = [
   { day: 0, aliases: ["sunday", "sun", "الاحد"] },
   { day: 1, aliases: ["monday", "mon", "الاثنين"] },
@@ -350,6 +365,8 @@ function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
   const current = cairoParts();
   const stated = explicitDate(normalizedQuestion);
   if (stated) return stated;
+  const currentMonthDay = currentMonthDate(normalizedQuestion, current.date);
+  if (currentMonthDay) return currentMonthDay;
   const relativeOffset = relativeDayOffset(normalizedQuestion);
   if (relativeOffset !== null) return addDays(current.date, relativeOffset);
   if (/\b(tomorrow|tmr)\b|بكره|غدا/.test(normalizedQuestion)) return addDays(current.date, 1);
@@ -357,6 +374,18 @@ function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
   const weekday = weekdayDate(normalizedQuestion, current.date);
   if (weekday) return weekday;
   return preferActiveDuty && current.hour < 8 ? addDays(current.date, -1) : current.date;
+}
+function requestedMonthRange(question: string) {
+  const previous = includesAny(question, ["last month", "previous month", "الشهر اللي فات", "الشهر الي فات", "الشهر الماضي", "الشهر السابق"]);
+  const next = includesAny(question, ["next month", "coming month", "الشهر اللي جاي", "الشهر الي جاي", "الشهر القادم"]);
+  if (!previous && !next) return null;
+  const [year, month] = cairoParts().date.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1 + (previous ? -1 : 1), 1, 12));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0, 12));
+  return {
+    start: first.toISOString().slice(0, 10),
+    end: last.toISOString().slice(0, 10),
+  };
 }
 
 const includesAny = (question: string, values: string[]) => values.some((value) => question.includes(normalize(value)));
@@ -378,10 +407,10 @@ const RESIDENT_LOOKUP_CUES = [
 ];
 const NON_NAME_WORDS = new Set([
   ...ON_CALL_TERMS,
-  "where", "is", "s", "who", "doctor", "dr", "resident", "schedule", "duty", "duties", "assignment", "assignments", "for", "of", "on", "at", "in", "from", "now", "later", "after", "before", "ago", "day", "days", "today", "tomorrow", "tmr", "yesterday", "this", "next", "last", "previous", "coming", "show", "me",
+  "where", "is", "s", "who", "doctor", "dr", "resident", "schedule", "duty", "duties", "assignment", "assignments", "for", "of", "on", "at", "in", "from", "now", "later", "after", "before", "ago", "day", "days", "today", "tomorrow", "tmr", "yesterday", "this", "next", "last", "previous", "coming", "show", "me", "was", "were", "will", "be", "month", "current",
   "january", "jan", "february", "feb", "march", "mar", "april", "apr", "may", "june", "jun", "july", "jul", "august", "aug", "september", "sep", "sept", "october", "oct", "november", "nov", "december", "dec", "sunday", "sun", "monday", "mon", "tuesday", "tue", "wednesday", "wed", "thursday", "thu", "friday", "fri", "saturday", "sat",
   "miri", "mery", "el", "smouha", "nariman", "borg", "arab", "er", "emergency", "ccu", "angina", "unit", "senior", "cath", "catheter", "lab", "ward", "round", "echo", "clinic", "ep", "electrophysiology", "stress", "holter", "male", "female", "women", "men", "pregnancy", "rotation", "daytime", "night", "coverage",
-  "فين", "اين", "مين", "مكان", "جدول", "توزيع", "دكتور", "الدكتور", "د", "في", "من", "الي", "علي", "عن", "يوم", "يومين", "ايام", "النهارده", "اليوم", "بكره", "غدا", "امبارح", "امس", "بعد", "قبل", "كمان", "اول", "الجاي", "القادم", "الماضي", "السابق", "الحالي", "اللي",
+  "فين", "اين", "مين", "مكان", "جدول", "توزيع", "دكتور", "الدكتور", "د", "في", "من", "الي", "علي", "عن", "يوم", "يومين", "ايام", "النهارده", "اليوم", "بكره", "غدا", "امبارح", "امس", "بعد", "قبل", "كمان", "اول", "الجاي", "القادم", "الماضي", "السابق", "الحالي", "اللي", "كان", "كانت", "يكون", "هيكون", "يبقي", "هيبقي", "شهر", "الشهر", "ده", "دا", "فات", "جاي",
   "يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر", "الاحد", "الاثنين", "الثلاثاء", "الاربعاء", "الخميس", "الجمعه", "السبت",
   "الميري", "ميري", "ميري", "سموحه", "ناريمان", "برج", "العرب", "طواري", "الطواري", "عنايه", "العنايه", "ذبحه", "الذبحه", "سينيور", "قسطرة", "القسطره", "عنبر", "مرور", "ايكو", "الايكو", "عياده", "العياده", "كهرباء", "القلب", "هولتر", "مجهود", "رجال", "ذكور", "حريم", "سيدات", "اناث", "حمل", "الحوامل", "العمل", "الصباحي",
 ].map((word) => normalize(word)));
@@ -404,8 +433,13 @@ function unknownResidentCandidate(question: string) {
 }
 function unknownResidentAnswer(question: string) {
   return /[\u0600-\u06ff]/.test(question)
-    ? "هل أنت متأكد من اسم الطبيب المقيم؟ تأكد من أن الاسم موجود في جدول المقيمين المعتمد ثم حاول مرة أخرى."
-    : "Are you sure of this resident's name? Make sure the resident is present in the approved residents schedule, then try again.";
+    ? "هل أنت متأكد من اسم الطبيب المقيم؟ تأكد من أن الاسم موجود في جدول المقيمين المعتمد ثم حاول مرة أخرى. يمكنك التواصل مع د. محمد علاء لمزيد من المعلومات."
+    : "Are you sure of this resident's name? Make sure the resident is present in the approved residents schedule, then try again. You can contact Dr. Mohamed Alaa for more information.";
+}
+function unavailableMonthAnswer(question: string) {
+  return /[\u0600-\u06ff]/.test(question)
+    ? "لا تتوفر لدي جداول هذا الشهر حاليًا. تواصل مع د. محمد علاء لمزيد من المعلومات."
+    : "I don't have these schedules right now. Contact Dr. Mohamed Alaa for more information.";
 }
 function requestedHospital(question: string) {
   if (includesAny(question, ["miri", "mery", "el miri", "الميري", "ميري", "ميرى"])) return "Miri";
@@ -508,7 +542,8 @@ Deno.serve(async (request) => {
     const resident = findResident(normalizedQuestion, data.residents);
     const asksOnCall = includesAny(normalizedQuestion, ON_CALL_TERMS);
     const asksDaytime = includesAny(normalizedQuestion, ["day assignment", "daytime", "rotation", "morning assignment", "توزيع", "العمل الصباحي"]);
-    const date = targetDate(normalizedQuestion, asksOnCall);
+    const monthRange = requestedMonthRange(normalizedQuestion);
+    const date = monthRange?.start || targetDate(normalizedQuestion, asksOnCall);
     const hospital = requestedHospital(normalizedQuestion);
     const unit = requestedUnit(` ${normalizedQuestion} `);
     const roleParts = requestedRole(normalizedQuestion, unit);
@@ -535,6 +570,27 @@ Deno.serve(async (request) => {
       if (asksDaytime && item.scheduleType !== "daytime") return false;
       return true;
     });
+    if (monthRange) {
+      rows = rows.filter((item) => item.date >= monthRange.start && item.date <= monthRange.end)
+        .sort((a, b) => `${a.date}-${a.scheduleType}-${a.hospital}-${a.unit}-${a.role}`.localeCompare(`${b.date}-${b.scheduleType}-${b.hospital}-${b.unit}-${b.role}`));
+      if (!rows.length) {
+        return json({
+          answer: unavailableMonthAnswer(question),
+          assignments: [],
+          date: monthRange.start,
+          period: monthRange,
+          scheduleUnavailable: true,
+          warnings: data.warnings,
+        });
+      }
+      return json({
+        answer: buildAnswer(question, rows, resident, `${monthRange.start} → ${monthRange.end}`),
+        assignments: rows,
+        date: monthRange.start,
+        period: monthRange,
+        warnings: data.warnings,
+      });
+    }
     if (resident && asksNext) {
       rows = rows.filter((item) => item.date >= date).sort((a, b) => a.date.localeCompare(b.date));
       const nextDate = rows[0]?.date || date;
