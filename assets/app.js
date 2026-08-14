@@ -118,8 +118,8 @@ const s = {
   },
   p = {
     resident: [
-      ["dashboard", "Dashboard"],
       ["duty-bot", "Ask El Médico"],
+      ["dashboard", "Dashboard"],
       ["resident-directory", "Residents"],
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
@@ -129,8 +129,8 @@ const s = {
       ["inbox", "Inbox"],
     ],
     observer: [
-      ["dashboard", "Dashboard"],
       ["duty-bot", "Ask El Médico"],
+      ["dashboard", "Dashboard"],
       ["write-review", "Write a review"],
       ["reviews", "My reviews"],
       ["logbook", "Logbook approvals"],
@@ -138,8 +138,8 @@ const s = {
       ["inbox", "Inbox"],
     ],
     assessor: [
-      ["dashboard", "Dashboard"],
       ["duty-bot", "Ask El Médico"],
+      ["dashboard", "Dashboard"],
       ["resident-directory", "Residents"],
       ["write-review", "Reviews & penalties"],
       ["assessments", "Assessments"],
@@ -148,8 +148,8 @@ const s = {
       ["inbox", "Inbox"],
     ],
     owner: [
-      ["dashboard", "Overview"],
       ["duty-bot", "Ask El Médico"],
+      ["dashboard", "Overview"],
       ["resident-directory", "Residents"],
       ["users", "Accounts"],
       ["curriculum", "Curriculum"],
