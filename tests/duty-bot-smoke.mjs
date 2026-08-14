@@ -40,8 +40,20 @@ const dutyRecords = [
 ];
 const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل", "رمزي"].map((name, index) => ({
   id: `resident-${index}`,
-  fields: { "Schedule name": name },
+  fields: {
+    "Schedule name": name,
+    "Other aliases / nicknames": name === "حسن" ? "Hassan" : "",
+  },
 }));
+
+const NativeDate = globalThis.Date;
+const fixedNow = "2026-08-14T12:00:00Z";
+globalThis.Date = class extends NativeDate {
+  constructor(...args) {
+    super(...(args.length ? args : [fixedNow]));
+  }
+  static now() { return new NativeDate(fixedNow).getTime(); }
+};
 
 globalThis.Deno = {
   env: { get: (name) => name === "AIRTABLE_TOKEN" ? "test-token" : undefined },
@@ -86,7 +98,8 @@ async function ask(question) {
   return response.json();
 }
 
-const todayDuty = await ask("مين عناية ميري النهاردة؟");
+const todayDuty = await ask("مين عناية ميري امبارح؟");
+assert.equal(todayDuty.date, "2026-08-13");
 assert.match(todayDuty.answer, /جمعة/);
 assert.equal(todayDuty.assignments[0].scheduleType, "on_call");
 
@@ -100,5 +113,23 @@ assert.deepEqual(futureService.assignments.map((item) => item.resident), ["نظ�
 const arabicDigits = await ask("مين حسن يوم ٢٣ أغسطس ٢٠٢٦؟");
 assert.equal(arabicDigits.date, "2026-08-23");
 assert.ok(arabicDigits.assignments.length >= 2);
+
+const tomorrow = await ask("مين في قسطرة ميري بكرة؟");
+assert.equal(tomorrow.date, "2026-08-15");
+
+const afterFourDays = await ask("جدول حسن بعد ٤ أيام");
+assert.equal(afterFourDays.date, "2026-08-18");
+
+const fiveDaysAgo = await ask("مين عناية ميري من 5 ايام؟");
+assert.equal(fiveDaysAgo.date, "2026-08-09");
+
+const unknownArabicResident = await ask("فين عبد الرحمن بكرة؟");
+assert.equal(unknownArabicResident.unknownResident, true);
+assert.equal(unknownArabicResident.assignments.length, 0);
+assert.match(unknownArabicResident.answer, /متأكد من اسم الطبيب المقيم/);
+
+const unknownEnglishResident = await ask("Where is John Doe tomorrow?");
+assert.equal(unknownEnglishResident.unknownResident, true);
+assert.match(unknownEnglishResident.answer, /Are you sure of this resident's name/);
 
 console.log("Duty Bot smoke tests passed");
