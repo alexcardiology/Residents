@@ -360,6 +360,12 @@ function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
 }
 
 const includesAny = (question: string, values: string[]) => values.some((value) => question.includes(normalize(value)));
+const ON_CALL_TERMS = [
+  "on call", "duty", "night duty",
+  "نوبتجيه", "نوبتجية", "نوباتجي", "نوباتجى", "نوباتجيه", "نوباتجية", "نوبتاجي", "نوبتاجى",
+  "نبطشي", "النوبتشي", "نوبتشي", "نوبتشية", "نباطشي", "نباطشى", "نباطشيه", "نباطشية",
+  "نوبطشيه", "نوبطشية", "مناوبه", "مناوبة",
+];
 function findResident(question: string, residents: ResidentAlias[]) {
   const candidates = residents.flatMap((resident) => resident.aliases.map((alias) => ({ resident, alias: normalize(alias) })))
     .filter((item) => item.alias.length >= 2)
@@ -371,10 +377,11 @@ const RESIDENT_LOOKUP_CUES = [
   "فين ", "اين ", "مكان ", "جدول ", "توزيع ", "نوبتجيه ", "نوبتجية ", "مين ",
 ];
 const NON_NAME_WORDS = new Set([
+  ...ON_CALL_TERMS,
   "where", "is", "s", "who", "doctor", "dr", "resident", "schedule", "duty", "duties", "assignment", "assignments", "for", "of", "on", "at", "in", "from", "now", "later", "after", "before", "ago", "day", "days", "today", "tomorrow", "tmr", "yesterday", "this", "next", "last", "previous", "coming", "show", "me",
   "january", "jan", "february", "feb", "march", "mar", "april", "apr", "may", "june", "jun", "july", "jul", "august", "aug", "september", "sep", "sept", "october", "oct", "november", "nov", "december", "dec", "sunday", "sun", "monday", "mon", "tuesday", "tue", "wednesday", "wed", "thursday", "thu", "friday", "fri", "saturday", "sat",
   "miri", "mery", "el", "smouha", "nariman", "borg", "arab", "er", "emergency", "ccu", "angina", "unit", "senior", "cath", "catheter", "lab", "ward", "round", "echo", "clinic", "ep", "electrophysiology", "stress", "holter", "male", "female", "women", "men", "pregnancy", "rotation", "daytime", "night", "coverage",
-  "فين", "اين", "مين", "مكان", "جدول", "توزيع", "دكتور", "الدكتور", "د", "في", "من", "الي", "علي", "عن", "يوم", "يومين", "ايام", "النهارده", "اليوم", "بكره", "غدا", "امبارح", "امس", "بعد", "قبل", "كمان", "اول", "الجاي", "القادم", "الماضي", "السابق", "الحالي", "اللي", "نوبتجيه", "نوبتجيه", "نبطشي", "النوبتشي", "نباطشيه", "نباطشية", "نوبطشيه", "نوبطشية", "مناوبه", "مناوبة",
+  "فين", "اين", "مين", "مكان", "جدول", "توزيع", "دكتور", "الدكتور", "د", "في", "من", "الي", "علي", "عن", "يوم", "يومين", "ايام", "النهارده", "اليوم", "بكره", "غدا", "امبارح", "امس", "بعد", "قبل", "كمان", "اول", "الجاي", "القادم", "الماضي", "السابق", "الحالي", "اللي",
   "يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر", "الاحد", "الاثنين", "الثلاثاء", "الاربعاء", "الخميس", "الجمعه", "السبت",
   "الميري", "ميري", "ميري", "سموحه", "ناريمان", "برج", "العرب", "طواري", "الطواري", "عنايه", "العنايه", "ذبحه", "الذبحه", "سينيور", "قسطرة", "القسطره", "عنبر", "مرور", "ايكو", "الايكو", "عياده", "العياده", "كهرباء", "القلب", "هولتر", "مجهود", "رجال", "ذكور", "حريم", "سيدات", "اناث", "حمل", "الحوامل", "العمل", "الصباحي",
 ].map((word) => normalize(word)));
@@ -499,7 +506,7 @@ Deno.serve(async (request) => {
     const normalizedQuestion = normalize(question);
     const data = await scheduleData();
     const resident = findResident(normalizedQuestion, data.residents);
-    const asksOnCall = includesAny(normalizedQuestion, ["on call", "duty", "night duty", "نوبتجيه", "نوبتجية", "نبطشي", "النوبتشي", "نباطشية", "نوبطشية", "مناوبة"]);
+    const asksOnCall = includesAny(normalizedQuestion, ON_CALL_TERMS);
     const asksDaytime = includesAny(normalizedQuestion, ["day assignment", "daytime", "rotation", "morning assignment", "توزيع", "العمل الصباحي"]);
     const date = targetDate(normalizedQuestion, asksOnCall);
     const hospital = requestedHospital(normalizedQuestion);
