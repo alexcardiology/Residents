@@ -917,7 +917,8 @@ function penaltyIssuePanel(data, heading = "Sign a penalty") {
 }
 function penaltyActionButtons(row, context = "self") {
   const id=o(row.id);
-  if (context === "owner" && row.status === "pending_owner") return `<div class="table-row-actions"><button class="btn small success" data-owner-penalty-decision="${id}" data-decision="approved">Approve</button><button class="btn small danger" data-owner-penalty-decision="${id}" data-decision="rejected">Reject</button></div>`;
+  if (context === "owner" && row.status === "pending_owner") return `<div class="table-row-actions"><button class="btn small success" data-owner-penalty-decision="${id}" data-decision="approved">Approve</button><button class="btn small danger" data-owner-penalty-decision="${id}" data-decision="rejected">Reject</button><button class="btn small admin-delete-button" data-admin-delete-penalty="${id}">Delete</button></div>`;
+  if (context === "owner-all") return `<button class="btn small admin-delete-button" data-admin-delete-penalty="${id}">Delete</button>`;
   if (context === "resident" && String(row.resident_id)===String(s.p.id) && row.status === "approved") return `<button class="btn small danger" data-penalty-complain="${id}">Complain</button>`;
   if (context === "assessor-appeal") {
     const my = row.my_appeal_decision;
@@ -1120,11 +1121,11 @@ async function ownerReviewsPenaltiesPage() {
   }).join("");
   a.innerHTML = h("Reviews & penalties","Manage reviews, disciplinary penalties, resident complaints and immediate-action routing from one workspace.") + `<section class="card review-workspace">
     <div class="review-workspace-tabs"><button class="review-workspace-tab active" data-review-section="owner-reviews">Reviews <small>${reviews.length}</small></button><button class="review-workspace-tab" data-review-section="owner-pending-penalties">Penalty approval <small>${pending.length}</small></button><button class="review-workspace-tab" data-review-section="owner-appeals">Penalty appeals <small>${appeals.length}</small></button><button class="review-workspace-tab" data-review-section="owner-general-complaints">Resident complaints <small>${generalComplaints.filter(x=>!["resolved","dismissed"].includes(x.status)).length}</small></button><button class="review-workspace-tab" data-review-section="owner-all-penalties">All penalties <small>${penalties.length}</small></button><button class="review-workspace-tab" data-review-section="owner-penalty-config">Dropdown settings</button></div>
-    <div class="review-workspace-panel" data-review-panel="owner-reviews">${renderCommentsTable(reviews,"owner")}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-reviews"><div class="admin-record-toolbar"><div><span class="eyebrow rose">Admin controls</span><b>Review records</b><small>Delete one review from its row, or permanently clear every review.</small></div><button class="btn danger admin-reset-button" type="button" data-admin-reset-records="reviews">Reset ALL reviews</button></div>${renderCommentsTable(reviews,"owner")}</div>
     <div class="review-workspace-panel" data-review-panel="owner-pending-penalties" hidden><div class="review-section-heading"><div><span class="eyebrow">Owner approval</span><h2>Penalties awaiting your decision</h2><p>No penalty becomes active until the Admin approves it.</p></div></div>${renderPenaltyTable(pending,"owner")}</div>
     <div class="review-workspace-panel" data-review-panel="owner-appeals" hidden>${appealRows || '<div class="panel-empty">No penalty appeals are awaiting review.</div>'}</div>
     <div class="review-workspace-panel" data-review-panel="owner-general-complaints" hidden><div class="review-section-heading"><div><span class="eyebrow">Admin routing</span><h2>Resident complaints</h2><p>Every resident complaint comes to you first. Redirect it to 1–5 residents/assessors for immediate action, review their responses, then resolve or dismiss the complaint.</p></div><span class="tag warning">${generalComplaints.filter(x=>x.status==="submitted").length} unassigned</span></div>${renderOwnerGeneralComplaints(generalComplaints)}</div>
-    <div class="review-workspace-panel" data-review-panel="owner-all-penalties" hidden>${renderPenaltyTable(penalties,"self")}</div>
+    <div class="review-workspace-panel" data-review-panel="owner-all-penalties" hidden><div class="admin-record-toolbar"><div><span class="eyebrow rose">Admin controls</span><b>Penalty records</b><small>Delete one penalty from its row, or permanently clear every penalty and appeal record.</small></div><button class="btn danger admin-reset-button" type="button" data-admin-reset-records="penalties">Reset ALL penalties</button></div>${renderPenaltyTable(penalties,"owner-all")}</div>
     <div class="review-workspace-panel" data-review-panel="owner-penalty-config" hidden><div class="penalty-config-head"><div><span class="eyebrow">Owner editable</span><h2>Penalty dropdown lists</h2><p>Deleting an option hides it from future penalties; old penalty records keep their original wording.</p></div></div>
       <div class="penalty-config-grid"><section><div class="section-head"><h3>Penalty types</h3><button class="btn small" data-penalty-option-add="category">Add</button></div><div class="table-scroll"><table class="table"><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${optionRows("category",config.categories||[])}</tbody></table></div></section>
       <section><div class="section-head"><h3>Problems</h3><button class="btn small" data-penalty-option-add="problem">Add</button></div><div class="table-scroll"><table class="table"><thead><tr><th>Type</th><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${problemRows}</tbody></table></div></section>
@@ -1137,6 +1138,23 @@ function openPenaltyOptionEditor(kind,row=null) {
   y(`<form id="penaltyOptionForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Owner setting</span><h2>${row?"Edit":"Add"} ${kind === "category" ? "penalty type" : kind === "problem" ? "problem" : "punishment"}</h2></div><button type="button" data-close>×</button></div><div class="form-grid"><label class="full">Name<input name="name" value="${o(row?.name||"")}" required></label>${kind==="problem" ? `<label class="full">Penalty type<select name="category_id" required>${(config.categories||[]).filter(x=>x.is_active!==false).map(c=>`<option value="${c.id}" ${String(c.id)===String(row?.category_id)?"selected":""}>${o(c.name)}</option>`).join("")}</select></label>` : ""}<label>Order<input name="sort_order" type="number" value="${o(row?.sort_order??10)}"></label></div><input type="hidden" name="kind" value="${o(kind)}"><input type="hidden" name="option_id" value="${o(row?.id||"")}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button>Save</button></div></form>`);
 }
 
+
+function openAdminRecordResetConfirmation(scope) {
+  if (s.p.role !== "owner") return;
+  const config = scope === "reviews"
+    ? { title: "Reset ALL reviews", phrase: "RESET REVIEWS", detail: "Every clinical and behavioural review, reconsideration state, and linked review notification will be permanently deleted." }
+    : scope === "penalties"
+      ? { title: "Reset ALL penalties", phrase: "RESET PENALTIES", detail: "Every penalty, penalty appeal/reviewer record, and penalty-workflow notification will be permanently deleted. Resident complaints remain separate and are preserved." }
+      : null;
+  if (!config) return;
+  y(`<form id="adminRecordResetForm" class="modal owner-test-reset-modal">
+    <div class="modal-head"><div><span class="eyebrow rose">Admin-only destructive action</span><h2>${o(config.title)}</h2></div><button type="button" data-close>×</button></div>
+    <div class="danger-confirmation-box"><b>This cannot be undone.</b><p>${o(config.detail)}</p><p>Accounts, curriculum, E-logbooks, formal assessments and general resident complaints are not changed.</p></div>
+    <label>Type <b>${o(config.phrase)}</b> to confirm<input name="confirmation" autocomplete="off" required placeholder="${o(config.phrase)}"></label>
+    <input type="hidden" name="scope" value="${o(scope)}">
+    <div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="btn danger danger-button">Confirm permanent reset</button></div>
+  </form>`);
+}
 
 async function reviewPage() {
   if (!["observer", "assessor"].includes(s.p.role)) return g("dashboard");
@@ -2785,6 +2803,7 @@ function renderCommentsTable(rows, mode = "viewer") {
       ? `<button class="btn small success-button" data-review-resolve="${o(row.id)}" data-review-decision="accepted">Accept / edit</button><button class="btn small danger-button" data-review-resolve="${o(row.id)}" data-review-decision="upheld">Keep original</button>`
       : "";
     const detailsAction = `<button class="btn small secondary" data-open-review-notification="${o(row.id)}">Details</button>`;
+    const adminDeleteAction = mode === "owner" ? `<button class="btn small admin-delete-button" data-admin-delete-review="${o(row.id)}">Delete</button>` : "";
     const ownerIdentity = mode === "owner" && row.actual_observer_name && row.is_anonymous
       ? `<small class="owner-identity-note">Actual author: ${o(row.actual_observer_name)}</small>`
       : "";
@@ -2799,7 +2818,7 @@ function renderCommentsTable(rows, mode = "viewer") {
       <td data-label="Place">${o(row.place || "—")}</td>
       <td data-label="Reviewer">${o(displayObserver)}${ownerIdentity}</td>
       <td data-label="Reconsideration">${reviewReconsiderationLabel(status)}${row.reconsideration_text ? `<small class="review-request-preview">${o(row.reconsideration_text)}</small>` : ""}</td>
-      <td data-label="Actions"><div class="table-row-actions">${residentAction}${authorActions}${detailsAction}</div></td>
+      <td data-label="Actions"><div class="table-row-actions">${residentAction}${authorActions}${detailsAction}${adminDeleteAction}</div></td>
     </tr>`;
   }).join("");
   return `<section class="card review-table-card">
@@ -4517,6 +4536,18 @@ document.addEventListener("click", (event) => {
         b(outcome === "resolved" ? "Complaint marked resolved" : "Complaint dismissed");
         return void (await ownerReviewsPenaltiesPage());
       }
+      if (a.id === "adminRecordResetForm") {
+        const scope = String(r.get("scope") || "");
+        const result = u(await e.rpc("admin_reset_review_penalty_records_v1089", {
+          p_scope: scope,
+          p_confirmation: String(r.get("confirmation") || ""),
+        })) || {};
+        if (i.open) i.close();
+        await q();
+        const count = scope === "reviews" ? Number(result.reviews_deleted || 0) : Number(result.penalties_deleted || 0);
+        b(`${scope === "reviews" ? "Reviews" : "Penalties"} reset · ${count} record${count === 1 ? "" : "s"} deleted`);
+        return void (await ownerReviewsPenaltiesPage());
+      }
       if (a.id === "penaltyIssueForm") {
         u(await e.rpc("create_resident_penalty_v1071", {
           p_resident_id: r.get("resident_id"),
@@ -5201,6 +5232,33 @@ document.addEventListener("click", async (event) => {
       if (!row) throw new Error("Complaint could not be loaded");
       const outcome = button.dataset.outcome === "dismissed" ? "dismissed" : "resolved";
       y(`<form id="ownerComplaintResolveForm" class="modal"><div class="modal-head"><div><span class="eyebrow">Admin decision</span><h2>${outcome === "resolved" ? "Mark complaint resolved" : "Dismiss complaint"}</h2></div><button type="button" data-close>×</button></div><div class="complaint-modal-context"><div><span>From</span><b>${o(row.complainant_name)}</b></div><div><span>Against</span><b>${o(row.target_name)}</b></div></div><div class="message-body"><b>${o(row.subject)}</b><br>${o(row.details)}</div><label>Final note<textarea name="note" placeholder="Optional note shown to the complainant"></textarea></label><input type="hidden" name="complaint_id" value="${o(row.id)}"><input type="hidden" name="outcome" value="${o(outcome)}"><div class="actions"><button type="button" class="btn secondary" data-close>Cancel</button><button class="${outcome === "dismissed" ? "btn secondary" : "btn"}">${outcome === "resolved" ? "Mark resolved" : "Dismiss complaint"}</button></div></form>`);
+      return;
+    }
+    if (button.dataset.adminResetRecords) {
+      if (s.p.role !== "owner") throw new Error("Admin access required");
+      openAdminRecordResetConfirmation(button.dataset.adminResetRecords);
+      return;
+    }
+    if (button.dataset.adminDeleteReview) {
+      if (s.p.role !== "owner") throw new Error("Admin access required");
+      const row = window.observerReviewRows?.get(String(button.dataset.adminDeleteReview));
+      const label = row ? `${row.resident_name || "Resident"}: ${String(row.comment || "Review").slice(0,90)}` : "this review";
+      if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
+      const result = u(await e.rpc("admin_delete_review_v1089", { p_review_id: String(button.dataset.adminDeleteReview) })) || {};
+      b(`Review deleted${Number(result.messages_deleted || 0) ? ` · ${Number(result.messages_deleted)} linked notification${Number(result.messages_deleted) === 1 ? "" : "s"} removed` : ""}`);
+      await q();
+      await ownerReviewsPenaltiesPage();
+      return;
+    }
+    if (button.dataset.adminDeletePenalty) {
+      if (s.p.role !== "owner") throw new Error("Admin access required");
+      const row = window.penaltyAdminRows?.get(String(button.dataset.adminDeletePenalty));
+      const label = row ? `${row.resident_name || "Resident"} · ${row.problem || row.category || "Penalty"}` : "this penalty";
+      if (!confirm(`Permanently delete ${label}? It will disappear from the resident disciplinary/assessment record. This cannot be undone.`)) return;
+      const result = u(await e.rpc("admin_delete_penalty_v1089", { p_penalty_id: Number(button.dataset.adminDeletePenalty) })) || {};
+      b(`Penalty deleted${Number(result.messages_deleted || 0) ? ` · ${Number(result.messages_deleted)} linked notification${Number(result.messages_deleted) === 1 ? "" : "s"} removed` : ""}`);
+      await q();
+      await ownerReviewsPenaltiesPage();
       return;
     }
     if (button.dataset.penaltyComplain) {

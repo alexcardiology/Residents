@@ -5383,3 +5383,9 @@ aside nav .nav-main-label{display:inline-flex;align-items:center;gap:7px;min-wid
 .duty-new-mark{display:inline-flex;align-items:center;gap:3px;color:#ffd54a;font-size:.66rem;font-weight:950;letter-spacing:.035em;white-space:nowrap;text-transform:uppercase;text-shadow:0 0 10px rgba(255,213,74,.22)}
 .duty-new-mark>span{font-size:.8rem;line-height:1}
 @media(max-width:850px){.user-card-edit{font-size:.67rem}.duty-new-mark{font-size:.63rem}}
+
+/* v1.0.89 — Admin-specific review/penalty deletion + reset controls */
+.admin-record-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 16px;padding:14px 16px;border:1px solid #f1cbd2;border-radius:15px;background:linear-gradient(135deg,#fff8fa,#fff)}
+.admin-record-toolbar>div{display:grid;gap:3px;min-width:0}.admin-record-toolbar b{font-size:1rem}.admin-record-toolbar small{color:var(--muted);line-height:1.4}.admin-reset-button{flex:0 0 auto;white-space:nowrap}
+.admin-delete-button{color:#a5233c!important;background:#ffe7ec!important;border:1px solid #f5c8d2!important}.admin-delete-button:hover{background:#ffd7e0!important}
+@media(max-width:700px){.admin-record-toolbar{align-items:stretch;flex-direction:column}.admin-reset-button{width:100%}.table-row-actions .admin-delete-button{min-width:68px}}
