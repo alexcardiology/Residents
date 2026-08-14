@@ -319,12 +319,41 @@ function weekdayDate(question: string, currentDate: string) {
   if (coming && distance === 0) distance = 7;
   return addDays(currentDate, distance);
 }
+function relativeDayOffset(question: string) {
+  if (includesAny(question, ["day after tomorrow", "بعد بكره", "بعد بكرة"])) return 2;
+  if (includesAny(question, ["day before yesterday", "اول امبارح", "أول امبارح", "اول امس", "أول أمس"])) return -2;
+  if (includesAny(question, ["بعد يومين", "كمان يومين", "in two days"])) return 2;
+  if (includesAny(question, ["من يومين", "قبل يومين", "two days ago"])) return -2;
+
+  const futurePatterns = [
+    /(?:بعد|كمان)\s+(\d{1,3})\s+(?:يوم|ايام)/,
+    /\b(?:in|after)\s+(\d{1,3})\s+days?\b/,
+    /\b(\d{1,3})\s+days?\s+(?:from now|later)\b/,
+  ];
+  for (const pattern of futurePatterns) {
+    const match = question.match(pattern);
+    if (match) return Math.min(Number(match[1]), 366);
+  }
+
+  const pastPatterns = [
+    /(?:من|قبل)\s+(\d{1,3})\s+(?:يوم|ايام)/,
+    /\b(\d{1,3})\s+days?\s+ago\b/,
+    /\bbefore\s+(\d{1,3})\s+days?\b/,
+  ];
+  for (const pattern of pastPatterns) {
+    const match = question.match(pattern);
+    if (match) return -Math.min(Number(match[1]), 366);
+  }
+  return null;
+}
 function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
   const current = cairoParts();
   const stated = explicitDate(normalizedQuestion);
   if (stated) return stated;
+  const relativeOffset = relativeDayOffset(normalizedQuestion);
+  if (relativeOffset !== null) return addDays(current.date, relativeOffset);
   if (/\b(tomorrow|tmr)\b|بكره|غدا/.test(normalizedQuestion)) return addDays(current.date, 1);
-  if (/\byesterday\b|امس/.test(normalizedQuestion)) return addDays(current.date, -1);
+  if (/\byesterday\b|امس|امبارح/.test(normalizedQuestion)) return addDays(current.date, -1);
   const weekday = weekdayDate(normalizedQuestion, current.date);
   if (weekday) return weekday;
   return preferActiveDuty && current.hour < 8 ? addDays(current.date, -1) : current.date;
@@ -336,6 +365,40 @@ function findResident(question: string, residents: ResidentAlias[]) {
     .filter((item) => item.alias.length >= 2)
     .sort((a, b) => b.alias.length - a.alias.length);
   return candidates.find(({ alias }) => alias.length > 3 ? question.includes(alias) : (` ${question} `).includes(` ${alias} `))?.resident || null;
+}
+const RESIDENT_LOOKUP_CUES = [
+  "where is ", "where s ", "who is ", "schedule for ", "schedule of ", "duty for ", "duties for ", "assignment for ", "assignments for ",
+  "فين ", "اين ", "مكان ", "جدول ", "توزيع ", "نوبتجيه ", "نوبتجية ", "مين ",
+];
+const NON_NAME_WORDS = new Set([
+  "where", "is", "s", "who", "doctor", "dr", "resident", "schedule", "duty", "duties", "assignment", "assignments", "for", "of", "on", "at", "in", "from", "now", "later", "after", "before", "ago", "day", "days", "today", "tomorrow", "tmr", "yesterday", "this", "next", "last", "previous", "coming", "show", "me",
+  "january", "jan", "february", "feb", "march", "mar", "april", "apr", "may", "june", "jun", "july", "jul", "august", "aug", "september", "sep", "sept", "october", "oct", "november", "nov", "december", "dec", "sunday", "sun", "monday", "mon", "tuesday", "tue", "wednesday", "wed", "thursday", "thu", "friday", "fri", "saturday", "sat",
+  "miri", "mery", "el", "smouha", "nariman", "borg", "arab", "er", "emergency", "ccu", "angina", "unit", "senior", "cath", "catheter", "lab", "ward", "round", "echo", "clinic", "ep", "electrophysiology", "stress", "holter", "male", "female", "women", "men", "pregnancy", "rotation", "daytime", "night", "coverage",
+  "فين", "اين", "مين", "مكان", "جدول", "توزيع", "دكتور", "الدكتور", "د", "في", "من", "الي", "علي", "عن", "يوم", "يومين", "ايام", "النهارده", "اليوم", "بكره", "غدا", "امبارح", "امس", "بعد", "قبل", "كمان", "اول", "الجاي", "القادم", "الماضي", "السابق", "الحالي", "اللي", "نوبتجيه", "نوبتجيه", "نبطشي", "النوبتشي",
+  "يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر", "الاحد", "الاثنين", "الثلاثاء", "الاربعاء", "الخميس", "الجمعه", "السبت",
+  "الميري", "ميري", "ميري", "سموحه", "ناريمان", "برج", "العرب", "طواري", "الطواري", "عنايه", "العنايه", "ذبحه", "الذبحه", "سينيور", "قسطرة", "القسطره", "عنبر", "مرور", "ايكو", "الايكو", "عياده", "العياده", "كهرباء", "القلب", "هولتر", "مجهود", "رجال", "ذكور", "حريم", "سيدات", "اناث", "حمل", "الحوامل", "العمل", "الصباحي",
+].map((word) => normalize(word)));
+function unknownResidentCandidate(question: string) {
+  let cueIndex = -1;
+  let cue = "";
+  for (const candidateCue of RESIDENT_LOOKUP_CUES.map((item) => normalize(item))) {
+    const index = (` ${question} `).indexOf(` ${candidateCue}`);
+    if (index >= 0 && (cueIndex < 0 || index < cueIndex)) {
+      cueIndex = index;
+      cue = candidateCue;
+    }
+  }
+  if (cueIndex < 0) return "";
+  const remainder = (` ${question} `).slice(cueIndex + cue.length + 1);
+  return remainder.split(/\s+/)
+    .filter((token) => token && !/^\d+$/.test(token) && !NON_NAME_WORDS.has(token))
+    .join(" ")
+    .trim();
+}
+function unknownResidentAnswer(question: string) {
+  return /[\u0600-\u06ff]/.test(question)
+    ? "هل أنت متأكد من اسم الطبيب المقيم؟ تأكد من أن الاسم موجود في جدول المقيمين المعتمد ثم حاول مرة أخرى."
+    : "Are you sure of this resident's name? Make sure the resident is present in the approved residents schedule, then try again.";
 }
 function requestedHospital(question: string) {
   if (includesAny(question, ["miri", "mery", "el miri", "الميري", "ميري", "ميرى"])) return "Miri";
@@ -445,6 +508,17 @@ Deno.serve(async (request) => {
     const asksNext = includesAny(normalizedQuestion, ["next duty", "next shift", "next assignment", "النوبتجيه الجايه", "النوبتجية الجاية", "اقرب نوبتجيه", "أقرب نوبتجية", "التوزيع الجاي"]);
     const asksPrevious = includesAny(normalizedQuestion, ["previous duty", "last duty", "previous assignment", "النوبتجيه اللي فاتت", "النوبتجية السابقة", "التوزيع السابق"]);
     const asksWeek = includesAny(normalizedQuestion, ["this week", "next 7 days", "الاسبوع", "أسبوع"]);
+
+    const unknownCandidate = resident ? "" : unknownResidentCandidate(normalizedQuestion);
+    if (unknownCandidate) {
+      return json({
+        answer: unknownResidentAnswer(question),
+        assignments: [],
+        date,
+        unknownResident: true,
+        warnings: data.warnings,
+      });
+    }
 
     let rows = data.assignments.filter((item) => {
       if (resident && normalize(item.resident) !== normalize(resident.scheduleName)) return false;
