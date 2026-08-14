@@ -233,7 +233,7 @@ const s = {
   },
   g = (e) => {
     location.hash = e;
-    t("aside")?.classList.remove("open");
+    t(".shell > aside")?.classList.remove("open");
     t("#backdrop")?.classList.remove("show");
   },
   y = (e) => {
@@ -5179,16 +5179,26 @@ document.addEventListener("click", (event) => {
     }
   }),
   (t("#menu").onclick = () => {
-    (t("aside").classList.add("open"), t("#backdrop").classList.add("show"));
+    (t(".shell > aside").classList.add("open"), t("#backdrop").classList.add("show"));
+  }),
+  (t("#drawerClose").onclick = () => {
+    (t(".shell > aside").classList.remove("open"),
+      t("#backdrop").classList.remove("show"));
   }),
   (t("#backdrop").onclick = () => {
-    (t("aside").classList.remove("open"),
+    (t(".shell > aside").classList.remove("open"),
       t("#backdrop").classList.remove("show"));
   }),
   (t("#profileChip").onclick = t("#userCard").onclick = () => g("profile")),
   t("#password")?.addEventListener("click", () => g("profile")),
   (t("#logout").onclick = async () => {
     (await e.auth.signOut(), location.replace("index.html"));
+  }),
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && t(".shell > aside")?.classList.contains("open")) {
+      t(".shell > aside")?.classList.remove("open");
+      t("#backdrop")?.classList.remove("show");
+    }
   }),
   addEventListener("hashchange", $));
 
