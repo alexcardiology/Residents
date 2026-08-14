@@ -1,40 +1,31 @@
-# Resident Training & Assessment v1.0.82
+# Resident Training v1.0.91 — Ask El Médico + persistent sign-in
 
 ## What changed
+- Renamed the visible Duty Bot identity everywhere to **Ask El Médico** while keeping the working backend route/Edge Function (`duty-bot`) unchanged.
+- Added the approved El Médico logo to the sidebar, dashboard launcher, chat header, chat bubbles and assistant page.
+- Redesigned the assistant page into a compact chat + mascot/quick-question layout.
+- Removed the visible **Choose any date** control.
+- Quick questions are exactly:
+  - Who is in Miri CCU today?
+  - Who is in Miri ER today?
+  - Who is in Smouha today?
+- User sessions are persisted in browser local storage, refreshed automatically, and the sign-in page returns an already signed-in user directly to the portal.
+- Temporary profile/network loading errors no longer automatically sign out a valid session.
 
-### Faculty Duty & Rotation Bot
-- Added a protected **Duty Bot** page for every signed-in portal role.
-- Added a prominent dashboard shortcut without increasing the compact dashboard card count.
-- Combines approved Airtable 24-hour duties with the live Google Sheet for daytime ward, cath, echo, EP and clinic assignments.
-- Supports Arabic and English questions about today, explicit past/future dates, tomorrow/yesterday and previous/coming weekdays.
-- Understands the 24-hour shift rule: duty starts at **08:00** and ends at **08:00 the next day**.
-- Can find a resident's next/previous assignment or the next seven days when aliases are configured in Airtable.
-- Adds a date picker and an owner-only **Modify schedule** button for `drmohamedalaa90@gmail.com`.
-- Reads approved assignments through a Supabase Edge Function; the Airtable token is never exposed in browser code.
+## Install
+Replace these files in GitHub:
+- `app.html`
+- `index.html`
+- `assets/app.js`
+- `assets/style.css`
+- `assets/login.js`
+- `assets/supabase.js`
+- add `assets/el-medico.png`
 
-### Prior Experience Logbook assessor scopes
-- Each intervention/scope can now have **2 to 5 assigned assessors**.
-- The Owner chooses the assessor group in **Owner → Logbooks → Prior experience assessors**.
-- After the two senior-resident approvals are complete, all assigned assessors can review that scope.
-- **Any 2 assessor approvals are sufficient** to verify the scope.
-- Once the second approval is received, the remaining pending assessor requests are automatically closed as **Not required after 2 approvals** and stop generating reminder alerts.
-- Rejections remain historically visible. A rejection only blocks verification when fewer than two possible approvals remain; the resident can still request reconsideration from the exact rejecting assessor.
-- Existing Junior/Older assessor pairs are migrated automatically into slots 1 and 2.
+Then hard-refresh (Ctrl+Shift+R).
 
-### TTE
-- Added **TTE** immediately before **TEE** in the normal E-logbook manual intervention list.
-- Added TTE to Prior Experience Logbook interventions.
-- Added TTE to Owner intervention fairness audit.
-- Added TTE to assessor supervision scope display and Prior Experience assessor assignment matrix.
+## Database
+No SQL migration is required for v1.0.91. Keep the already deployed `duty-bot` Edge Function and existing Supabase secrets.
 
-## Installation
-1. No database migration is required when upgrading from v1.0.80.
-2. Configure and deploy the `duty-bot` Supabase Edge Function as described in `SETUP_GUIDE.md`.
-3. Replace `app.html`, `assets/app.js`, and `assets/style.css` with this package.
-4. Keep your existing `assets/supabase.js` and `assets/login.js`.
-5. Hard refresh the website (Ctrl+Shift+R).
-
-## Data safety
-- Existing Prior Experience submissions and completed assessor signatures are preserved.
-- Existing two-assessor assignments are migrated into the new 2–5 assessor matrix.
-- No resident accounts, curriculum, assessments, reviews, or normal E-logbook records are deleted.
+## Session behavior
+A user remains signed in across page refreshes and browser restarts until they use **Log out**, unless their account is suspended/revoked or Supabase invalidates the server-side session.

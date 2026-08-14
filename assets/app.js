@@ -119,7 +119,7 @@ const s = {
   p = {
     resident: [
       ["dashboard", "Dashboard"],
-      ["duty-bot", "Duty Bot"],
+      ["duty-bot", "Ask El Médico"],
       ["resident-directory", "Residents"],
       ["chapters", "My chapters"],
       ["assessments", "My assessments"],
@@ -130,7 +130,7 @@ const s = {
     ],
     observer: [
       ["dashboard", "Dashboard"],
-      ["duty-bot", "Duty Bot"],
+      ["duty-bot", "Ask El Médico"],
       ["write-review", "Write a review"],
       ["reviews", "My reviews"],
       ["logbook", "Logbook approvals"],
@@ -139,7 +139,7 @@ const s = {
     ],
     assessor: [
       ["dashboard", "Dashboard"],
-      ["duty-bot", "Duty Bot"],
+      ["duty-bot", "Ask El Médico"],
       ["resident-directory", "Residents"],
       ["write-review", "Reviews & penalties"],
       ["assessments", "Assessments"],
@@ -149,7 +149,7 @@ const s = {
     ],
     owner: [
       ["dashboard", "Overview"],
-      ["duty-bot", "Duty Bot"],
+      ["duty-bot", "Ask El Médico"],
       ["resident-directory", "Residents"],
       ["users", "Accounts"],
       ["curriculum", "Curriculum"],
@@ -185,7 +185,7 @@ const s = {
   dashboardTile = (title, valueHtml, meta, go, extraClass = "") =>
     `<button type="button" class="dashboard-tile ${extraClass}" ${go ? `data-go="${o(go)}"` : ""}><span>${o(title)}</span><strong>${valueHtml}</strong><small>${o(meta || "")}</small></button>`,
   dutyBotLaunch = () =>
-    `<button type="button" class="duty-bot-launch" data-go="duty-bot"><span class="duty-bot-launch-icon" aria-hidden="true">✦</span><span><small>LIVE FACULTY SCHEDULE</small><strong>Ask Duty Bot</strong><em>Find duties and daytime assignments for any previous, current or coming date in Arabic or English.</em></span><b>Open bot →</b></button>`,
+    `<button type="button" class="duty-bot-launch" data-go="duty-bot"><img class="duty-bot-launch-logo" src="assets/el-medico.png" alt=""><span><small>YOUR FACULTY ASSISTANT</small><strong>Ask El Médico</strong><em>Check approved faculty duties and rotations in Arabic or English.</em></span><b>Ask now →</b></button>`,
   evidenceDashboardTile = (knowledgeCount, skillCount) =>
     `<button type="button" class="dashboard-tile evidence-dashboard-tile" data-go="chapters"><span>Knowledge & skills</span><div class="evidence-split"><div><b>${o(knowledgeCount)}</b><small>Knowledge complete</small></div><div><b>${o(skillCount)}</b><small>Skills tracked</small></div></div><small>Open curriculum and update your progress</small></button>`,
   weakPointSummary = (assessment) => {
@@ -251,7 +251,7 @@ function f() {
     (t("#nav").innerHTML = p[e.role]
       .map(([route, label]) => {
         const navLabel = route === "duty-bot"
-          ? `<span class="nav-main-label">Duty Bot <span class="duty-new-mark"><span aria-hidden="true">★</span> NEW!</span></span>`
+          ? `<span class="nav-main-label el-medico-nav-label"><img class="el-medico-nav-logo" src="assets/el-medico.png" alt=""><span>Ask El Médico</span><span class="duty-new-mark"><span aria-hidden="true">★</span> NEW!</span></span>`
           : `<span>${o(label)}</span>`;
         const badge = route === "inbox"
           ? '<span class="nav-badge" data-inbox-badge hidden>0</span>'
@@ -336,7 +336,10 @@ function addDutyBotMessage(kind, message, assignments = []) {
   if (!transcript) return null;
   const bubble = document.createElement("article");
   bubble.className = `duty-message duty-message-${kind}`;
-  bubble.innerHTML = `<span>${kind === "user" ? "You" : "Duty Bot"}</span><p>${o(message).replace(/\n/g, "<br>")}</p>${kind === "bot" ? dutyAssignmentCards(assignments) : ""}`;
+  const body = `<p>${o(message).replace(/\n/g, "<br>")}</p>${kind === "bot" ? dutyAssignmentCards(assignments) : ""}`;
+  bubble.innerHTML = kind === "bot"
+    ? `<img class="duty-message-avatar" src="assets/el-medico.png" alt=""><div><span>El Médico</span>${body}</div>`
+    : `<span>You</span>${body}`;
   transcript.appendChild(bubble);
   transcript.scrollTop = transcript.scrollHeight;
   return bubble;
@@ -359,7 +362,7 @@ async function askDutyBot(question) {
   } catch (error) {
     console.error(error);
     loading?.remove();
-    addDutyBotMessage("bot", "Duty Bot could not read the approved schedules. Please try again or contact the admin.");
+    addDutyBotMessage("bot", "El Médico could not read the approved schedules. Please try again or contact the admin.");
   } finally {
     if (submit) submit.disabled = false;
     t("#dutyBotQuestion")?.focus();
@@ -369,42 +372,48 @@ async function askDutyBot(question) {
 const w = {
   dashboard: k,
   "duty-bot": async function () {
-    t("#title").textContent = "Duty Bot";
+    t("#title").textContent = "Ask El Médico";
     t("#crumb").textContent = m(s.p.role);
     const canModifyDutySchedule = String(s.p.email || s.session?.user?.email || "").trim().toLowerCase() === "drmohamedalaa90@gmail.com";
     const ownerNote = canModifyDutySchedule
-      ? '<div class="duty-owner-note"><b>Schedule administrator</b><span>Google Sheet changes appear in the bot within one minute.</span><a class="duty-modify-link" href="https://docs.google.com/spreadsheets/d/185wfhkbv3s7M5gj7J04-zb_6UhCgK1pA1qjN7O9dLBY/edit?gid=569773954#gid=569773954" target="_blank" rel="noopener">Modify schedule ↗</a></div>'
+      ? '<div class="duty-owner-note"><b>Schedule admin</b><span>Google Sheet changes appear in El Médico within one minute.</span><a class="duty-modify-link" href="https://docs.google.com/spreadsheets/d/185wfhkbv3s7M5gj7J04-zb_6UhCgK1pA1qjN7O9dLBY/edit?gid=569773954#gid=569773954" target="_blank" rel="noopener">Modify schedule ↗</a></div>'
       : "";
     const prompts = [
       "Who is in Miri CCU today?",
-      "Where is Hassan on 23 August 2026?",
-      "Who is in Miri Cath 1 on 15 August 2026?",
-      "مين حسن يوم 23 أغسطس 2026؟",
-      "مين طوارئ الميري الجمعة الجاية؟",
+      "Who is in Miri ER today?",
+      "Who is in Smouha today?",
     ];
     a.innerHTML =
-      h("Faculty Duty & Rotation Bot", "Ask about 24-hour duties and daytime ward, cath, echo and clinic assignments for today or any previous or coming date.") +
-      `<section class="duty-bot-shell">
-        <aside class="duty-bot-sidebar">
-          <span class="eyebrow">Quick questions</span>
-          <h3>What do you need?</h3>
-          <div class="duty-quick-prompts">${prompts.map((prompt) => `<button type="button" data-duty-question="${o(prompt)}">${o(prompt)}</button>`).join("")}</div>
-          <div class="duty-date-lookup"><label for="dutyBotDate">Choose any date</label><div><input id="dutyBotDate" type="date"><button type="button" data-duty-date-query>Show</button></div></div>
-          <div class="duty-shift-rule"><b>Two live schedules</b><span>24-hour duty: 08:00 → 08:00 next day<br>Day assignments: time not specified</span></div>
-          ${ownerNote}
-        </aside>
-        <div class="duty-chat-panel">
-          <header><div class="duty-bot-avatar">✦</div><div><b>Faculty Duty Bot</b><span><i></i> Approved schedule</span></div></header>
+      h("Ask El Médico", "Your faculty assistant") +
+      `<section class="el-medico-layout">
+        <div class="duty-chat-panel el-medico-chat-panel">
+          <header>
+            <img class="duty-bot-avatar-image" src="assets/el-medico.png" alt="El Médico">
+            <div><b>El Médico</b><span><i></i> Approved faculty schedule</span></div>
+          </header>
           <div id="dutyBotTranscript" class="duty-transcript" aria-live="polite">
-            <article class="duty-message duty-message-bot"><span>Duty Bot</span><p>Hello — ask where a resident is, who is covering a service, or choose any date. I check both the 24-hour duty schedule and the daytime Google schedule.</p></article>
+            <article class="duty-message duty-message-bot">
+              <img class="duty-message-avatar" src="assets/el-medico.png" alt="">
+              <div><span>El Médico</span><p>Hello 👋 I’m El Médico, your faculty assistant. Ask me who is on duty or where a resident is assigned today.</p></div>
+            </article>
           </div>
           <form id="dutyBotForm" class="duty-chat-form">
-            <label class="sr-only" for="dutyBotQuestion">Ask Duty Bot</label>
-            <input id="dutyBotQuestion" name="question" maxlength="300" autocomplete="off" placeholder="Example: Who is in Miri ER today?" required>
+            <label class="sr-only" for="dutyBotQuestion">Ask El Médico</label>
+            <input id="dutyBotQuestion" name="question" maxlength="300" autocomplete="off" placeholder="Ask El Médico about the faculty schedule…" required>
             <button type="submit">Ask <span aria-hidden="true">→</span></button>
           </form>
-          <small class="duty-data-note">Answers combine approved Airtable duties with the live Google daytime schedule. Confirm urgent clinical coverage through your usual hospital channel.</small>
+          <small class="duty-data-note">El Médico reads approved duty and daytime schedules. Confirm urgent clinical coverage through your usual hospital channel.</small>
         </div>
+        <aside class="el-medico-side-panel">
+          <article class="el-medico-portrait-card">
+            <img src="assets/el-medico.png" alt="El Médico — your faculty assistant">
+          </article>
+          <article class="el-medico-quick-card">
+            <div class="el-medico-quick-title"><span aria-hidden="true">✦</span><div><small>QUICK QUESTIONS</small><h3>Ask in one click</h3></div></div>
+            <div class="duty-quick-prompts">${prompts.map((prompt) => `<button type="button" data-duty-question="${o(prompt)}"><span>${o(prompt)}</span><b aria-hidden="true">›</b></button>`).join("")}</div>
+            ${ownerNote}
+          </article>
+        </aside>
       </section>`;
   },
   chapters: async function () {
@@ -5347,14 +5356,23 @@ const {
 } = await e.auth.getSession();
 if (I) {
   s.session = I;
-  const { data: t } = await e
+  const profileResult = await e
     .from("profiles")
     .select("*")
     .eq("id", I.user.id)
     .single();
-  t?.is_active
-    ? ((s.p = t), f(), $())
-    : (await e.auth.signOut(), location.replace("index.html"));
+  if (profileResult.error) {
+    console.error(profileResult.error);
+    t("#loading").innerHTML = '♥<span>Signed in. Unable to load your profile right now — refresh to retry.</span>';
+  } else if (profileResult.data?.is_active) {
+    s.p = profileResult.data;
+    f();
+    $();
+  } else {
+    // Access was explicitly disabled: this is the only automatic sign-out path.
+    await e.auth.signOut();
+    location.replace("index.html");
+  }
 } else location.replace("index.html");
 
 
