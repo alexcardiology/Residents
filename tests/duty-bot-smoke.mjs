@@ -85,6 +85,30 @@ const dutyRecords = [
       Status: "Approved",
     },
   },
+  {
+    id: "duty-7",
+    fields: {
+      Date: "2026-08-14",
+      Day: "Friday",
+      Hospital: "Miri",
+      Unit: "CCU",
+      "Role / Group": "CCU duty",
+      "Resident schedule name": "سلمى",
+      Status: "Approved",
+    },
+  },
+  {
+    id: "duty-8",
+    fields: {
+      Date: "2026-08-14",
+      Day: "Friday",
+      Hospital: "Miri",
+      Unit: "ER",
+      "Role / Group": "ER duty",
+      "Resident schedule name": "حسن",
+      Status: "Approved",
+    },
+  },
 ];
 const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل", "رمزي", "منه عسران"].map((name, index) => ({
   id: `resident-${index}`,
@@ -115,6 +139,7 @@ globalThis.__createClient = () => ({
     maybeSingle: async () => ({ data: { role: "owner", is_active: true } }),
   }),
 });
+let dutyFetchAttempts = 0;
 globalThis.fetch = async (input) => {
   const url = String(input);
   if (url.includes("docs.google.com")) {
@@ -123,7 +148,11 @@ globalThis.fetch = async (input) => {
       headers: { "content-disposition": 'attachment; filename="August2026duties-August2026.csv"' },
     });
   }
-  if (url.includes("Bot_Assignments")) return Response.json({ records: dutyRecords });
+  if (url.includes("Bot_Assignments")) {
+    dutyFetchAttempts += 1;
+    if (dutyFetchAttempts === 1) return new Response("Temporary Airtable failure", { status: 503 });
+    return Response.json({ records: dutyRecords });
+  }
   if (url.includes("Residents")) return Response.json({ records: residentRecords });
   throw new Error(`Unexpected request: ${url}`);
 };
@@ -147,9 +176,25 @@ async function ask(question) {
 }
 
 const todayDuty = await ask("مين عناية ميري امبارح؟");
+assert.equal(dutyFetchAttempts, 2);
 assert.equal(todayDuty.date, "2026-08-13");
 assert.match(todayDuty.answer, /جمعة/);
 assert.equal(todayDuty.assignments[0].scheduleType, "on_call");
+
+const todayMiriDuty = await ask("مين نباطشي الميري؟");
+assert.equal(todayMiriDuty.date, "2026-08-14");
+assert.deepEqual(todayMiriDuty.assignments.map((item) => item.resident), ["سلمى", "حسن"]);
+assert.ok(todayMiriDuty.assignments.every((item) => item.hospital === "Miri" && item.scheduleType === "on_call"));
+
+const todayMiriCcu = await ask("مين عناية الميري؟");
+assert.equal(todayMiriCcu.date, "2026-08-14");
+assert.deepEqual(todayMiriCcu.assignments.map((item) => item.resident), ["سلمى"]);
+assert.equal(todayMiriCcu.assignments[0].unit, "CCU");
+
+const todayMiriEr = await ask("مين طوارئ الميري؟");
+assert.equal(todayMiriEr.date, "2026-08-14");
+assert.deepEqual(todayMiriEr.assignments.map((item) => item.resident), ["حسن"]);
+assert.equal(todayMiriEr.assignments[0].unit, "ER");
 
 const futureResident = await ask("Where is Hassan on 23 August 2026?");
 assert.ok(futureResident.assignments.some((item) => item.scheduleType === "daytime" && item.service === "Miri Cath 1"));
