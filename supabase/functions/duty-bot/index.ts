@@ -14,6 +14,21 @@ const TIME_ZONE = "Africa/Cairo";
 const AIRTABLE_BASE_ID = Deno.env.get("AIRTABLE_BASE_ID") || "appSmzqYTynjlWK9B";
 const ASSIGNMENTS_TABLE = "Bot_Assignments";
 const RESIDENTS_TABLE = "Residents";
+const ASSIGNMENT_FIELDS = {
+  date: "fldsFcDWIndwQT3K7",
+  day: "fld6ANwcExjbSb9Gw",
+  hospital: "fldf6vANi872nnW67",
+  unit: "fldN25AS27vsEWxlc",
+  role: "fldIWLIHk992PgDPo",
+  resident: "fldzhlyO2BfDmNzTR",
+  status: "fld3RwwBVIouuer72",
+  source: "fldazKpMhJppT0wYR",
+} as const;
+const RESIDENT_FIELDS = {
+  scheduleName: "fldK0N06gZTn5p89V",
+  fullName: "fldNVMdQpXsm9POV9",
+  aliases: "fldxBP7Z38Kpzb7wf",
+} as const;
 const GOOGLE_SHEET_ID = Deno.env.get("GOOGLE_DUTY_SHEET_ID") || "185wfhkbv3s7M5gj7J04-zb_6UhCgK1pA1qjN7O9dLBY";
 const GOOGLE_SHEET_GID = Deno.env.get("GOOGLE_DUTY_SHEET_GID") || "569773954";
 const GOOGLE_SHEET_FALLBACK_YEAR = Number(Deno.env.get("GOOGLE_DUTY_SHEET_YEAR") || "2026");
@@ -114,6 +129,8 @@ const selectName = (value: unknown) => {
 };
 const splitAliases = (value: unknown) =>
   String(value || "").split(/[,;|\n]+/).map((item) => item.trim()).filter(Boolean);
+const recordField = (record: AirtableRecord, name: string, fieldId: string) =>
+  record.fields[fieldId] ?? record.fields[name];
 
 const pause = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 async function airtablePage(url: URL, token: string) {
@@ -148,6 +165,7 @@ async function airtableRecords(table: string) {
   do {
     const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`);
     url.searchParams.set("pageSize", "100");
+    url.searchParams.set("returnFieldsByFieldId", "true");
     if (offset) url.searchParams.set("offset", offset);
     const page = await airtablePage(url, token);
     records.push(...(page.records || []));
@@ -284,20 +302,20 @@ async function googleSheetAssignments() {
 
 function airtableAssignments(records: AirtableRecord[]) {
   return records.map((record): Assignment => {
-    const hospital = selectName(record.fields.Hospital);
-    const unit = selectName(record.fields.Unit);
-    const role = selectName(record.fields["Role / Group"]);
+    const hospital = selectName(recordField(record, "Hospital", ASSIGNMENT_FIELDS.hospital));
+    const unit = selectName(recordField(record, "Unit", ASSIGNMENT_FIELDS.unit));
+    const role = selectName(recordField(record, "Role / Group", ASSIGNMENT_FIELDS.role));
     return {
       id: record.id,
-      date: String(record.fields.Date || ""),
-      day: selectName(record.fields.Day),
+      date: String(recordField(record, "Date", ASSIGNMENT_FIELDS.date) || "").slice(0, 10),
+      day: selectName(recordField(record, "Day", ASSIGNMENT_FIELDS.day)),
       hospital,
       unit,
       role,
       service: [hospital, unit, role].filter(Boolean).join(" · "),
-      resident: selectName(record.fields["Resident schedule name"]),
-      status: selectName(record.fields.Status),
-      source: String(record.fields.Source || "Airtable · 24-hour duty"),
+      resident: selectName(recordField(record, "Resident schedule name", ASSIGNMENT_FIELDS.resident)),
+      status: selectName(recordField(record, "Status", ASSIGNMENT_FIELDS.status)),
+      source: selectName(recordField(record, "Source", ASSIGNMENT_FIELDS.source)) || "Airtable · 24-hour duty",
       scheduleType: "on_call",
       shift: "08:00 → 08:00 next day",
     };
@@ -305,12 +323,12 @@ function airtableAssignments(records: AirtableRecord[]) {
 }
 function airtableResidents(records: AirtableRecord[]) {
   return records.map((record): ResidentAlias => {
-    const scheduleName = String(record.fields["Schedule name"] || "").trim();
-    const fullName = String(record.fields["Full resident name"] || "").trim();
+    const scheduleName = String(recordField(record, "Schedule name", RESIDENT_FIELDS.scheduleName) || "").trim();
+    const fullName = String(recordField(record, "Full resident name", RESIDENT_FIELDS.fullName) || "").trim();
     return {
       scheduleName,
       fullName,
-      aliases: [scheduleName, fullName, ...splitAliases(record.fields["Other aliases / nicknames"])].filter(Boolean),
+      aliases: [scheduleName, fullName, ...splitAliases(recordField(record, "Other aliases / nicknames", RESIDENT_FIELDS.aliases))].filter(Boolean),
     };
   }).filter((item) => item.scheduleName);
 }
@@ -322,12 +340,16 @@ async function scheduleData() {
     googleSheetAssignments(),
   ]);
   const warnings: string[] = [];
-  const onCallAvailable = assignmentResult.status === "fulfilled";
-  const daytimeAvailable = googleResult.status === "fulfilled";
+  const onCallAssignments = assignmentResult.status === "fulfilled" ? airtableAssignments(assignmentResult.value) : [];
+  const daytimeAssignments = googleResult.status === "fulfilled" ? googleResult.value : [];
+  const onCallAvailable = assignmentResult.status === "fulfilled" && onCallAssignments.length > 0;
+  const daytimeAvailable = googleResult.status === "fulfilled" && daytimeAssignments.length > 0;
   const assignments = [
-    ...(assignmentResult.status === "fulfilled" ? airtableAssignments(assignmentResult.value) : (warnings.push("The 24-hour duty schedule could not be loaded."), [])),
-    ...(googleResult.status === "fulfilled" ? googleResult.value : (warnings.push("The daytime Google schedule could not be loaded."), [])),
+    ...onCallAssignments,
+    ...daytimeAssignments,
   ];
+  if (!onCallAvailable) warnings.push("The 24-hour duty schedule could not be loaded.");
+  if (!daytimeAvailable) warnings.push("The daytime Google schedule could not be loaded.");
   if (!assignments.length) throw new Error("No schedule source is currently available");
   const residents = residentResult.status === "fulfilled" ? airtableResidents(residentResult.value) : [];
   const knownNames = new Set(residents.map((item) => normalize(item.scheduleName)));
