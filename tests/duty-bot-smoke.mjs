@@ -37,6 +37,18 @@ const dutyRecords = [
       Status: "Approved",
     },
   },
+  {
+    id: "duty-3",
+    fields: {
+      Date: "2026-08-15",
+      Day: "Saturday",
+      Hospital: "Miri",
+      Unit: "CCU",
+      "Role / Group": "CCU duty",
+      "Resident schedule name": "نظامي",
+      Status: "Approved",
+    },
+  },
 ];
 const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل", "رمزي"].map((name, index) => ({
   id: `resident-${index}`,
@@ -116,6 +128,12 @@ assert.ok(arabicDigits.assignments.length >= 2);
 
 const tomorrow = await ask("مين في قسطرة ميري بكرة؟");
 assert.equal(tomorrow.date, "2026-08-15");
+
+const egyptianDutySpelling = await ask("مين نباطشية ميري بكرة؟");
+assert.equal(egyptianDutySpelling.date, "2026-08-15");
+assert.equal(egyptianDutySpelling.unknownResident, undefined);
+assert.deepEqual(egyptianDutySpelling.assignments.map((item) => item.resident), ["نظامي"]);
+assert.ok(egyptianDutySpelling.assignments.every((item) => item.scheduleType === "on_call"));
 
 const afterFourDays = await ask("جدول حسن بعد ٤ أيام");
 assert.equal(afterFourDays.date, "2026-08-18");
