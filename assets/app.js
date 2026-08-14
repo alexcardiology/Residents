@@ -384,7 +384,6 @@ const w = {
       "Who is in Smouha today?",
     ];
     a.innerHTML =
-      h("Ask El Médico", "Your faculty assistant") +
       `<section class="el-medico-layout">
         <div class="duty-chat-panel el-medico-chat-panel">
           <header>
