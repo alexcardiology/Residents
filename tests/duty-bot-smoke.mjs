@@ -49,6 +49,18 @@ const dutyRecords = [
       Status: "Approved",
     },
   },
+  {
+    id: "duty-4",
+    fields: {
+      Date: "2026-08-15",
+      Day: "Saturday",
+      Hospital: "Smouha",
+      Unit: "ER",
+      "Role / Group": "ER duty",
+      "Resident schedule name": "جمعة",
+      Status: "Approved",
+    },
+  },
 ];
 const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل", "رمزي"].map((name, index) => ({
   id: `resident-${index}`,
@@ -134,6 +146,35 @@ assert.equal(egyptianDutySpelling.date, "2026-08-15");
 assert.equal(egyptianDutySpelling.unknownResident, undefined);
 assert.deepEqual(egyptianDutySpelling.assignments.map((item) => item.resident), ["نظامي"]);
 assert.ok(egyptianDutySpelling.assignments.every((item) => item.scheduleType === "on_call"));
+
+for (const dutyWord of ["نوباتجي", "نوبتاجى", "نباطشي", "نباطشى", "نباطشيه", "نوباتجيه"]) {
+  const result = await ask(`مين ${dutyWord} ميري بكرة؟`);
+  assert.equal(result.date, "2026-08-15", dutyWord);
+  assert.equal(result.unknownResident, undefined, dutyWord);
+  assert.deepEqual(result.assignments.map((item) => item.resident), ["نظامي"], dutyWord);
+  assert.ok(result.assignments.every((item) => item.scheduleType === "on_call"), dutyWord);
+}
+
+for (const hospitalWord of ["ميري", "الميري", "الميرى"]) {
+  const result = await ask(`مين نباطشي ${hospitalWord} بكره؟`);
+  assert.deepEqual(result.assignments.map((item) => item.resident), ["نظامي"], hospitalWord);
+}
+
+for (const hospitalWord of ["سموحه", "سموحة"]) {
+  const result = await ask(`مين نوباتجي ${hospitalWord} بكرة؟`);
+  assert.deepEqual(result.assignments.map((item) => item.resident), ["جمعة"], hospitalWord);
+}
+
+for (const tomorrowWord of ["بكرة", "بكره"]) {
+  const result = await ask(`مين نباطشي ميري ${tomorrowWord}؟`);
+  assert.equal(result.date, "2026-08-15", tomorrowWord);
+}
+
+for (const yesterdayWord of ["امبارح", "امس", "أمس"]) {
+  const result = await ask(`مين نباطشي ميري ${yesterdayWord}؟`);
+  assert.equal(result.date, "2026-08-13", yesterdayWord);
+  assert.deepEqual(result.assignments.map((item) => item.resident), ["جمعة"], yesterdayWord);
+}
 
 const afterFourDays = await ask("جدول حسن بعد ٤ أيام");
 assert.equal(afterFourDays.date, "2026-08-18");
