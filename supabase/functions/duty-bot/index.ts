@@ -59,6 +59,50 @@ const normalize = (value: unknown) =>
     .replace(/[^a-z0-9\u0600-\u06ff/\-\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+const words = (value: string) => normalize(value).split(/\s+/).filter(Boolean);
+function editDistance(left: string, right: string) {
+  const a = Array.from(left);
+  const b = Array.from(right);
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= a.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= b.length; column += 1) {
+      current[column] = Math.min(
+        current[column - 1] + 1,
+        previous[column] + 1,
+        previous[column - 1] + (a[row - 1] === b[column - 1] ? 0 : 1),
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[b.length];
+}
+function typoBudget(value: string, allowShort = true) {
+  const length = Array.from(value).length;
+  if (length <= 2) return 0;
+  if (length === 3) return allowShort ? 1 : 0;
+  return length >= 7 ? 2 : 1;
+}
+function sameWritingSystem(left: string, right: string) {
+  return /[\u0600-\u06ff]/.test(left) === /[\u0600-\u06ff]/.test(right);
+}
+function typoTokenMatches(input: string, expected: string, allowShort = true) {
+  if (input === expected) return true;
+  if (!sameWritingSystem(input, expected)) return false;
+  return editDistance(input, expected) <= typoBudget(expected, allowShort);
+}
+function phraseMatches(question: string, value: string) {
+  const normalizedValue = normalize(value);
+  if (!normalizedValue) return false;
+  if ((` ${question} `).includes(` ${normalizedValue} `)) return true;
+  const questionWords = words(question);
+  const valueWords = words(normalizedValue);
+  if (!valueWords.length || valueWords.length > questionWords.length) return false;
+  for (let index = 0; index <= questionWords.length - valueWords.length; index += 1) {
+    if (valueWords.every((expected, offset) => typoTokenMatches(questionWords[index + offset], expected))) return true;
+  }
+  return false;
+}
 const selectName = (value: unknown) => {
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "name" in value) {
@@ -297,6 +341,18 @@ function explicitDate(question: string) {
   if (dayMonth) return isoDate(Number(dayMonth[3] || cairoParts().date.slice(0, 4)), MONTHS[dayMonth[2]], Number(dayMonth[1]));
   const monthDay = question.match(new RegExp(`(?:^|\\s)(${MONTH_PATTERN})\\s+(\\d{1,2})(?:\\s+(20\\d{2}))?(?:$|\\s)`));
   if (monthDay) return isoDate(Number(monthDay[3] || cairoParts().date.slice(0, 4)), MONTHS[monthDay[1]], Number(monthDay[2]));
+  const questionWords = words(question);
+  for (let index = 0; index < questionWords.length; index += 1) {
+    const possibleMonths = [...new Set(Object.entries(MONTHS)
+      .filter(([alias]) => typoTokenMatches(questionWords[index], normalize(alias), false))
+      .map(([, month]) => month))];
+    if (possibleMonths.length !== 1) continue;
+    const nearby = [questionWords[index - 1], questionWords[index + 1]].filter((item) => /^\d{1,2}$/.test(item || ""));
+    const day = Number(nearby[0] || 0);
+    if (!day) continue;
+    const year = Number(questionWords.find((item) => /^20\d{2}$/.test(item)) || cairoParts().date.slice(0, 4));
+    return isoDate(year, possibleMonths[0], day);
+  }
   return "";
 }
 function currentMonthDate(question: string, currentDate: string) {
@@ -312,6 +368,16 @@ function currentMonthDate(question: string, currentDate: string) {
     const [year, month] = currentDate.split("-").map(Number);
     return isoDate(year, month, Number(match[1]));
   }
+  const questionWords = words(question);
+  for (let index = 0; index < questionWords.length; index += 1) {
+    if (!/^\d{1,2}$/.test(questionWords[index])) continue;
+    const precededByDay = ["يوم", "day"].some((value) => typoTokenMatches(questionWords[index - 1] || "", normalize(value)));
+    const followedByCurrentMonth = typoTokenMatches(questionWords[index + 1] || "", normalize("الشهر"))
+      && ["ده", "دا", "الحالي"].some((value) => typoTokenMatches(questionWords[index + 2] || "", normalize(value)));
+    if (!precededByDay && !followedByCurrentMonth) continue;
+    const [year, month] = currentDate.split("-").map(Number);
+    return isoDate(year, month, Number(questionWords[index]));
+  }
   return "";
 }
 const WEEKDAYS: Array<{ day: number; aliases: string[] }> = [
@@ -324,7 +390,7 @@ const WEEKDAYS: Array<{ day: number; aliases: string[] }> = [
   { day: 6, aliases: ["saturday", "sat", "السبت"] },
 ];
 function weekdayDate(question: string, currentDate: string) {
-  const weekday = WEEKDAYS.find((item) => item.aliases.some((alias) => (` ${question} `).includes(` ${alias} `)));
+  const weekday = WEEKDAYS.find((item) => item.aliases.some((alias) => phraseMatches(question, alias)));
   if (!weekday) return "";
   const currentDay = new Date(`${currentDate}T12:00:00Z`).getUTCDay();
   const previous = /\b(last|previous)\b|اللي فات|الماضي|السابق/.test(question);
@@ -359,6 +425,16 @@ function relativeDayOffset(question: string) {
     const match = question.match(pattern);
     if (match) return -Math.min(Number(match[1]), 366);
   }
+  const questionWords = words(question);
+  for (let index = 0; index < questionWords.length; index += 1) {
+    if (!/^\d{1,3}$/.test(questionWords[index])) continue;
+    const amount = Math.min(Number(questionWords[index]), 366);
+    const direction = questionWords[index - 1] || "";
+    const period = questionWords[index + 1] || "";
+    if (!["يوم", "ايام", "day", "days"].some((value) => typoTokenMatches(period, normalize(value)))) continue;
+    if (["بعد", "كمان", "in", "after"].some((value) => typoTokenMatches(direction, normalize(value)))) return amount;
+    if (["من", "قبل", "before"].some((value) => typoTokenMatches(direction, normalize(value)))) return -amount;
+  }
   return null;
 }
 function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
@@ -369,8 +445,8 @@ function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
   if (currentMonthDay) return currentMonthDay;
   const relativeOffset = relativeDayOffset(normalizedQuestion);
   if (relativeOffset !== null) return addDays(current.date, relativeOffset);
-  if (/\b(tomorrow|tmr)\b|بكره|غدا/.test(normalizedQuestion)) return addDays(current.date, 1);
-  if (/\byesterday\b|امس|امبارح/.test(normalizedQuestion)) return addDays(current.date, -1);
+  if (includesAny(normalizedQuestion, ["tomorrow", "tmr", "بكره", "غدا"])) return addDays(current.date, 1);
+  if (includesAny(normalizedQuestion, ["yesterday", "امس", "امبارح"])) return addDays(current.date, -1);
   const weekday = weekdayDate(normalizedQuestion, current.date);
   if (weekday) return weekday;
   return preferActiveDuty && current.hour < 8 ? addDays(current.date, -1) : current.date;
@@ -388,7 +464,7 @@ function requestedMonthRange(question: string) {
   };
 }
 
-const includesAny = (question: string, values: string[]) => values.some((value) => question.includes(normalize(value)));
+const includesAny = (question: string, values: string[]) => values.some((value) => phraseMatches(question, value));
 const ON_CALL_TERMS = [
   "on call", "duty", "night duty",
   "نوبتجيه", "نوبتجية", "نوباتجي", "نوباتجى", "نوباتجيه", "نوباتجية", "نوبتاجي", "نوبتاجى",
@@ -399,7 +475,24 @@ function findResident(question: string, residents: ResidentAlias[]) {
   const candidates = residents.flatMap((resident) => resident.aliases.map((alias) => ({ resident, alias: normalize(alias) })))
     .filter((item) => item.alias.length >= 2)
     .sort((a, b) => b.alias.length - a.alias.length);
-  return candidates.find(({ alias }) => alias.length > 3 ? question.includes(alias) : (` ${question} `).includes(` ${alias} `))?.resident || null;
+  const exact = candidates.find(({ alias }) => alias.length > 3 ? question.includes(alias) : (` ${question} `).includes(` ${alias} `))?.resident;
+  if (exact) return exact;
+  const questionWords = words(question);
+  const fuzzyMatches: Array<{ resident: ResidentAlias; score: number }> = [];
+  candidates.forEach(({ resident, alias }) => {
+    const aliasWords = words(alias);
+    if (!aliasWords.length || aliasWords.length > questionWords.length || aliasWords.some((word) => Array.from(word).length <= 3)) return;
+    for (let index = 0; index <= questionWords.length - aliasWords.length; index += 1) {
+      const distances = aliasWords.map((expected, offset) => editDistance(questionWords[index + offset], expected));
+      if (!distances.every((distance, offset) => sameWritingSystem(questionWords[index + offset], aliasWords[offset]) && distance <= typoBudget(aliasWords[offset], false))) continue;
+      fuzzyMatches.push({ resident, score: distances.reduce((sum, distance) => sum + distance, 0) });
+    }
+  });
+  fuzzyMatches.sort((a, b) => a.score - b.score);
+  if (!fuzzyMatches.length) return null;
+  const best = fuzzyMatches[0];
+  const equallyCloseOther = fuzzyMatches.some((item, index) => index > 0 && item.score === best.score && item.resident.scheduleName !== best.resident.scheduleName);
+  return equallyCloseOther ? null : best.resident;
 }
 const RESIDENT_LOOKUP_CUES = [
   "where is ", "where s ", "who is ", "schedule for ", "schedule of ", "duty for ", "duties for ", "assignment for ", "assignments for ",
@@ -414,6 +507,10 @@ const NON_NAME_WORDS = new Set([
   "يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر", "الاحد", "الاثنين", "الثلاثاء", "الاربعاء", "الخميس", "الجمعه", "السبت",
   "الميري", "ميري", "ميري", "سموحه", "ناريمان", "برج", "العرب", "طواري", "الطواري", "عنايه", "العنايه", "ذبحه", "الذبحه", "سينيور", "قسطرة", "القسطره", "عنبر", "مرور", "ايكو", "الايكو", "عياده", "العياده", "كهرباء", "القلب", "هولتر", "مجهود", "رجال", "ذكور", "حريم", "سيدات", "اناث", "حمل", "الحوامل", "العمل", "الصباحي",
 ].map((word) => normalize(word)));
+function isNonNameWord(token: string) {
+  if (NON_NAME_WORDS.has(token)) return true;
+  return [...NON_NAME_WORDS].some((knownWord) => typoTokenMatches(token, knownWord));
+}
 function unknownResidentCandidate(question: string) {
   let cueIndex = -1;
   let cue = "";
@@ -427,7 +524,7 @@ function unknownResidentCandidate(question: string) {
   if (cueIndex < 0) return "";
   const remainder = (` ${question} `).slice(cueIndex + cue.length + 1);
   return remainder.split(/\s+/)
-    .filter((token) => token && !/^\d+$/.test(token) && !NON_NAME_WORDS.has(token))
+    .filter((token) => token && !/^\d+$/.test(token) && !isNonNameWord(token))
     .join(" ")
     .trim();
 }

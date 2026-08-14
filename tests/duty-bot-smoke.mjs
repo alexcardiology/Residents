@@ -227,4 +227,30 @@ assert.equal(unknownEnglishResident.unknownResident, true);
 assert.match(unknownEnglishResident.answer, /Are you sure of this resident's name/);
 assert.match(unknownEnglishResident.answer, /Dr\. Mohamed Alaa/);
 
+const typoArabicQuestion = await ask("مين نباطشسي سموحا بكرخ؟");
+assert.equal(typoArabicQuestion.date, "2026-08-15");
+assert.equal(typoArabicQuestion.unknownResident, undefined);
+assert.deepEqual(typoArabicQuestion.assignments.map((item) => item.resident), ["جمعة"]);
+assert.ok(typoArabicQuestion.assignments.every((item) => item.scheduleType === "on_call"));
+
+const typoDayWord = await ask("مين نباطشي سموحه يم 5؟");
+assert.equal(typoDayWord.date, "2026-08-05");
+assert.deepEqual(typoDayWord.assignments.map((item) => item.resident), ["رمزي"]);
+
+const typoService = await ask("مين قسطرا ميري بكرة؟");
+assert.equal(typoService.date, "2026-08-15");
+assert.deepEqual(typoService.assignments.map((item) => item.resident), ["نظامي"]);
+
+const typoWeekday = await ask("مين نباطشي ميري السبب؟");
+assert.equal(typoWeekday.date, "2026-08-15");
+assert.deepEqual(typoWeekday.assignments.map((item) => item.resident), ["نظامي"]);
+
+const typoMonth = await ask("فين حسن يوم 23 اغصطس 2026؟");
+assert.equal(typoMonth.date, "2026-08-23");
+assert.ok(typoMonth.assignments.length >= 2);
+
+const typoResidentAlias = await ask("Where is Hasan on 23 August 2026?");
+assert.equal(typoResidentAlias.unknownResident, undefined);
+assert.ok(typoResidentAlias.assignments.some((item) => item.resident === "حسن"));
+
 console.log("Duty Bot smoke tests passed");
