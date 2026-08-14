@@ -117,6 +117,25 @@ const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل"
     "Other aliases / nicknames": name === "حسن" ? "Hassan" : "",
   },
 }));
+const assignmentFieldIds = {
+  Date: "fldsFcDWIndwQT3K7",
+  Day: "fld6ANwcExjbSb9Gw",
+  Hospital: "fldf6vANi872nnW67",
+  Unit: "fldN25AS27vsEWxlc",
+  "Role / Group": "fldIWLIHk992PgDPo",
+  "Resident schedule name": "fldzhlyO2BfDmNzTR",
+  Status: "fld3RwwBVIouuer72",
+  Source: "fldazKpMhJppT0wYR",
+};
+const residentFieldIds = {
+  "Schedule name": "fldK0N06gZTn5p89V",
+  "Full resident name": "fldNVMdQpXsm9POV9",
+  "Other aliases / nicknames": "fldxBP7Z38Kpzb7wf",
+};
+const fieldsById = (record, fieldIds) => ({
+  ...record,
+  fields: Object.fromEntries(Object.entries(record.fields).map(([name, value]) => [fieldIds[name], value])),
+});
 
 const NativeDate = globalThis.Date;
 const fixedNow = "2026-08-14T12:00:00Z";
@@ -151,9 +170,9 @@ globalThis.fetch = async (input) => {
   if (url.includes("Bot_Assignments")) {
     dutyFetchAttempts += 1;
     if (dutyFetchAttempts === 1) return new Response("Temporary Airtable failure", { status: 503 });
-    return Response.json({ records: dutyRecords });
+    return Response.json({ records: dutyRecords.map((record) => fieldsById(record, assignmentFieldIds)) });
   }
-  if (url.includes("Residents")) return Response.json({ records: residentRecords });
+  if (url.includes("Residents")) return Response.json({ records: residentRecords.map((record) => fieldsById(record, residentFieldIds)) });
   throw new Error(`Unexpected request: ${url}`);
 };
 
