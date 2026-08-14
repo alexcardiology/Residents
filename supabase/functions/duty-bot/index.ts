@@ -454,8 +454,20 @@ function targetDate(normalizedQuestion: string, preferActiveDuty = false) {
 function requestedMonthRange(question: string) {
   const previous = includesAny(question, ["last month", "previous month", "الشهر اللي فات", "الشهر الي فات", "الشهر الماضي", "الشهر السابق"]);
   const next = includesAny(question, ["next month", "coming month", "الشهر اللي جاي", "الشهر الي جاي", "الشهر القادم"]);
-  if (!previous && !next) return null;
-  const [year, month] = cairoParts().date.split("-").map(Number);
+  const throughEnd = includesAny(question, [
+    "until end of month", "until the end of the month", "through end of month", "through the end of the month", "rest of this month",
+    "لنهايه الشهر", "لحد نهايه الشهر", "حتي نهايه الشهر", "الي نهايه الشهر", "لاخر الشهر", "لحد اخر الشهر", "باقي الشهر",
+  ]);
+  if (!previous && !next && !throughEnd) return null;
+  const currentDate = cairoParts().date;
+  const [year, month] = currentDate.split("-").map(Number);
+  if (throughEnd) {
+    const last = new Date(Date.UTC(year, month, 0, 12));
+    return {
+      start: currentDate,
+      end: last.toISOString().slice(0, 10),
+    };
+  }
   const first = new Date(Date.UTC(year, month - 1 + (previous ? -1 : 1), 1, 12));
   const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0, 12));
   return {

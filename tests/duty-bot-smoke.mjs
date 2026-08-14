@@ -73,8 +73,20 @@ const dutyRecords = [
       Status: "Approved",
     },
   },
+  {
+    id: "duty-6",
+    fields: {
+      Date: "2026-08-17",
+      Day: "Monday",
+      Hospital: "Smouha",
+      Unit: "CCU",
+      "Role / Group": "CCU duty",
+      "Resident schedule name": "منه عسران",
+      Status: "Approved",
+    },
+  },
 ];
-const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل", "رمزي"].map((name, index) => ({
+const residentRecords = ["جمعة", "حسن", "نظامي", "محمد عادل", "رمزي", "منه عسران"].map((name, index) => ({
   id: `resident-${index}`,
   fields: {
     "Schedule name": name,
@@ -209,6 +221,23 @@ const nextMonth = await ask("مين نباطشي ميري الشهر اللي ج
 assert.equal(nextMonth.scheduleUnavailable, true);
 assert.deepEqual(nextMonth.period, { start: "2026-09-01", end: "2026-09-30" });
 assert.match(nextMonth.answer, /لا تتوفر لدي جداول هذا الشهر حاليًا/);
+
+for (const monthEndQuestion of [
+  "ممكن جدول منة عسران لنهاية الشهر؟",
+  "جدول منه عسران من دلوقتي لحد نهاية الشهر",
+  "منه عسران لآخر الشهر",
+  "جدول منه عسران لباقي الشهر",
+]) {
+  const result = await ask(monthEndQuestion);
+  assert.deepEqual(result.period, { start: "2026-08-14", end: "2026-08-31" }, monthEndQuestion);
+  assert.equal(result.date, "2026-08-14", monthEndQuestion);
+  assert.deepEqual(result.assignments.map((item) => item.resident), ["منه عسران"], monthEndQuestion);
+  assert.equal(result.assignments[0].date, "2026-08-17", monthEndQuestion);
+}
+
+const englishMonthEnd = await ask("Where is Hassan through the end of the month?");
+assert.deepEqual(englishMonthEnd.period, { start: "2026-08-14", end: "2026-08-31" });
+assert.ok(englishMonthEnd.assignments.some((item) => item.resident === "حسن" && item.date === "2026-08-23"));
 
 const afterFourDays = await ask("جدول حسن بعد ٤ أيام");
 assert.equal(afterFourDays.date, "2026-08-18");
