@@ -62,13 +62,13 @@ function buildScheduleNameField(value = "") {
     <input
       name="faculty_schedule_name"
       value="${escapeHtml(value)}"
-      maxlength="80"
+      maxlength="180"
       autocomplete="off"
       dir="auto"
-      placeholder="Example: مرزوق"
+      placeholder="Example: مرزوق  or  رمزي / رمزى"
       required
     >
-    <small>Enter it exactly as it appears in the faculty duty/rotation schedules. Example: Mohamed Marzouk → مرزوق. El Médico uses this to match you with your assignments.</small>
+    <small>Enter every form that may appear in faculty duty/rotation schedules. If there is more than one form, separate them with <b>/</b>. Examples: Mohamed Marzouk → مرزوق · Mahmoud Ramzy → رمزي / رمزى. El Médico treats all listed forms as the same resident.</small>
   `;
   return label;
 }
