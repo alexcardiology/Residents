@@ -1,0 +1,189 @@
+/* Admin/Owner-only visual theme.
+   Applied only when admin-red-theme.js confirms profile.role === "owner". */
+
+html.admin-red-theme {
+  --navy: #3b0710;
+  --navy2: #64111f;
+  --blue: #a61f33;
+  --cyan: #d95a6d;
+  --rose: #d53c55;
+  --ink: #29171d;
+  --muted: #756168;
+  --line: #ead8dd;
+  --bg: #fbf6f7;
+}
+
+html.admin-red-theme body {
+  background:
+    radial-gradient(circle at 88% 8%, rgba(166, 31, 51, .045), transparent 28%),
+    var(--bg);
+}
+
+/* Deep burgundy admin navigation */
+html.admin-red-theme .shell aside {
+  background:
+    radial-gradient(circle at 12% 5%, rgba(231, 83, 104, .18), transparent 24%),
+    linear-gradient(180deg, #2b050c 0%, #430812 42%, #65101d 100%);
+  box-shadow: inset -1px 0 rgba(255, 255, 255, .06), 10px 0 34px rgba(67, 8, 18, .07);
+}
+
+html.admin-red-theme .shell aside .brand b {
+  background: linear-gradient(145deg, #e9566b, #bd263b);
+  box-shadow: 0 8px 22px rgba(180, 31, 52, .3);
+}
+
+html.admin-red-theme .user-card {
+  background: rgba(255, 255, 255, .09);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .045);
+}
+
+html.admin-red-theme nav button.active,
+html.admin-red-theme nav button:hover {
+  background: rgba(255, 255, 255, .12);
+}
+
+html.admin-red-theme #logout {
+  color: #ffc1cb;
+}
+
+/* Header and workspace accents */
+html.admin-red-theme .workspace header {
+  border-bottom-color: #ead6db;
+  background: rgba(255, 252, 253, .95);
+  box-shadow: 0 5px 18px rgba(78, 10, 24, .025);
+}
+
+html.admin-red-theme .workspace header small,
+html.admin-red-theme .eyebrow,
+html.admin-red-theme .blue {
+  color: #a61f33;
+}
+
+html.admin-red-theme #profileChip .avatar-fallback,
+html.admin-red-theme #mobileHeaderIdentity strong {
+  color: #4b0b16;
+}
+
+html.admin-red-theme #profileChip .avatar-fallback {
+  background: #f4e5e9;
+}
+
+html.admin-red-theme #menu,
+html.admin-red-theme #mobileHeaderRefresh {
+  border-color: #e4cfd5;
+}
+
+/* Main interactive controls inherit the admin red accent. */
+html.admin-red-theme form button,
+html.admin-red-theme .btn {
+  background: linear-gradient(135deg, #b1283d, #981b2f);
+  box-shadow: 0 5px 14px rgba(143, 22, 43, .1);
+}
+
+html.admin-red-theme .btn:hover,
+html.admin-red-theme form button:hover {
+  filter: brightness(.98);
+}
+
+html.admin-red-theme .secondary,
+html.admin-red-theme .btn.secondary {
+  color: #3b2027;
+  background: #f1e6e9;
+  box-shadow: none;
+}
+
+html.admin-red-theme input:focus,
+html.admin-red-theme select:focus,
+html.admin-red-theme textarea:focus {
+  border-color: #bd5b6c;
+  outline: 3px solid rgba(166, 31, 51, .11);
+}
+
+html.admin-red-theme .card {
+  border-color: #ead9de;
+}
+
+html.admin-red-theme .tag:not(.success):not(.warning):not(.danger) {
+  color: #851a2d;
+  background: #f8e8ec;
+}
+
+html.admin-red-theme .scale div {
+  background: #f7ecef;
+}
+
+/* Account switcher: current Admin side should visually belong to the red workspace. */
+html.admin-red-theme #accountSwitchButton:not([hidden]) {
+  border-color: #e6cfd5;
+  color: #5c1020;
+  background: #fffafb;
+  box-shadow: 0 4px 14px rgba(89, 12, 28, .07);
+}
+
+html.admin-red-theme #accountSwitchButton:hover {
+  border-color: #d9aeb9;
+  background: #fff4f6;
+}
+
+html.admin-red-theme .account-switch-head small {
+  color: #a61f33;
+}
+
+html.admin-red-theme .account-remember-option {
+  border-color: #e7cbd2;
+  background: #fff5f7;
+}
+
+html.admin-red-theme .account-remember-option input {
+  accent-color: #a61f33;
+}
+
+html.admin-red-theme .account-switch-card.is-current {
+  border-color: #e5b8c2;
+  background: #fff1f4;
+}
+
+html.admin-red-theme .account-switch-action,
+html.admin-red-theme .account-login-submit {
+  background: #a61f33;
+}
+
+/* El Médico admin page: recolour UI chrome while keeping the logo/artwork unchanged. */
+html.admin-red-theme .el-medico-quick-card,
+html.admin-red-theme .duty-bot-shell,
+html.admin-red-theme .duty-bot-panel,
+html.admin-red-theme .duty-assignment-card {
+  border-color: #ead8dd !important;
+}
+
+html.admin-red-theme .el-medico-quick-card .duty-quick-prompts button {
+  border-color: #ead4d9 !important;
+  color: #48101b !important;
+  background: linear-gradient(180deg, #fffdfd, #fff7f8) !important;
+}
+
+html.admin-red-theme .el-medico-quick-card .duty-quick-prompts button:hover {
+  border-color: #dbaeb9 !important;
+  background: #fff0f3 !important;
+}
+
+html.admin-red-theme .duty-contact-btn,
+html.admin-red-theme .duty-bot-submit,
+html.admin-red-theme [data-duty-submit] {
+  border-color: #cc5164 !important;
+}
+
+/* Preserve semantic colors: success remains green, warnings amber, danger red. */
+html.admin-red-theme .success,
+html.admin-red-theme .warning,
+html.admin-red-theme .danger,
+html.admin-red-theme .success-button,
+html.admin-red-theme .danger-button {
+  box-shadow: none;
+}
+
+@media (max-width: 850px) {
+  html.admin-red-theme .shell aside {
+    box-shadow: 16px 0 42px rgba(54, 6, 15, .2);
+  }
+}
