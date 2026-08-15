@@ -1,6 +1,9 @@
 /* v1.0.133 — Admin readability rule: every light surface uses dark text. Only explicit deep burgundy/red surfaces use white. */
 html.admin-red-theme main,
 html.admin-red-theme main *{color:#111827!important}
+/* Neutralize the older automatic red-surface detector on pale gradients/cards. */
+html.admin-red-theme main .admin-on-red-surface,
+html.admin-red-theme main .admin-on-red-surface *{color:#111827!important}
 html.admin-red-theme main :is(input,select,textarea,option){color:#111827!important}
 html.admin-red-theme main ::placeholder{color:#6b7280!important;opacity:1}
 /* Explicitly deep red/burgundy surfaces and controls */
