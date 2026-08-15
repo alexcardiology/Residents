@@ -1,0 +1,105 @@
+name: Build mobile apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "app.html"
+      - "assets/**"
+      - "mobile/**"
+      - "download.html"
+      - "package.json"
+      - "capacitor.config.json"
+      - ".github/workflows/mobile-build.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Create Android project
+        run: |
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+
+      - name: Build installable APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug
+          cd ..
+          cp android/app/build/outputs/apk/debug/app-debug.apk resident-training-android.apk
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: resident-training-android
+          path: resident-training-android.apk
+          if-no-files-found: error
+
+      - name: Publish stable Android download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view mobile-latest >/dev/null 2>&1; then
+            gh release upload mobile-latest resident-training-android.apk --clobber
+          else
+            gh release create mobile-latest resident-training-android.apk \
+              --target "$GITHUB_SHA" \
+              --title "Resident Training Mobile" \
+              --notes "Android beta build for the Resident Training & Assessment mobile app. This APK opens the live training portal and uses the same Supabase data as the web version."
+          fi
+
+  ios-project:
+    name: iOS native project
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Create iOS project
+        run: |
+          rm -rf ios
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Package iOS source project
+        run: zip -qry resident-training-ios-project.zip ios
+
+      - name: Upload iOS project artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: resident-training-ios-project
+          path: resident-training-ios-project.zip
+          if-no-files-found: error
