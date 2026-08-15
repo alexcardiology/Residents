@@ -52,6 +52,15 @@ async function rememberCurrentSession() {
   return session;
 }
 
+function paintSwitchButton() {
+  if (!button) return;
+  const otherAccount = ACCOUNTS.find((account) => account.email.toLowerCase() !== currentEmail);
+  const target = otherAccount?.label || "account";
+  button.innerHTML = `<span class="account-switch-button-icon" aria-hidden="true">⇄</span><span class="account-switch-button-text">Switch to ${target}</span>`;
+  button.setAttribute("aria-label", `Switch to ${target}`);
+  button.setAttribute("title", `Switch to ${target}`);
+}
+
 function ensureDialog() {
   if (dialog) return dialog;
   dialog = document.createElement("dialog");
@@ -165,6 +174,7 @@ async function handleAccountAction(email) {
       await sb.auth.setSession({ access_token: previous.access_token, refresh_token: previous.refresh_token }).catch(() => {});
     }
     currentEmail = String(previous?.user?.email || currentEmail).toLowerCase();
+    paintSwitchButton();
     busy = false;
     renderDialog("That saved session expired. Enter the password once to reconnect this account.");
     const form = ensureDialog().querySelector(`[data-login-email="${email}"]`);
@@ -198,6 +208,7 @@ async function signInAndSwitch(email, password) {
       rememberSession(previous);
       currentEmail = String(previous.user?.email || currentEmail).toLowerCase();
     }
+    paintSwitchButton();
     busy = false;
     renderDialog("Could not switch: check the password and try again.");
     const form = ensureDialog().querySelector(`[data-login-email="${email}"]`);
@@ -214,9 +225,11 @@ async function init() {
   if (!ALLOWED.has(currentEmail)) return;
   await rememberCurrentSession();
   if (button) {
+    paintSwitchButton();
     button.hidden = false;
     button.addEventListener("click", () => {
       void rememberCurrentSession().finally(() => {
+        paintSwitchButton();
         renderDialog();
         ensureDialog().showModal();
       });
@@ -225,7 +238,9 @@ async function init() {
 
   sb.auth.onAuthStateChange((event, session) => {
     if (event !== "SIGNED_OUT" && session && ALLOWED.has(String(session.user?.email || "").toLowerCase())) {
+      currentEmail = String(session.user?.email || "").toLowerCase();
       rememberSession(session);
+      paintSwitchButton();
     }
   });
 
