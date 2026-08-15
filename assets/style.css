@@ -5493,3 +5493,41 @@ aside nav .nav-main-label{display:inline-flex;align-items:center;gap:7px;min-wid
     z-index:auto;
   }
 }
+
+/* =========================================================
+   v1.0.97 — Show full signed-in user's name in mobile header
+========================================================= */
+@media (max-width:700px){
+  #profileChip{
+    display:flex !important;
+    align-items:center;
+    gap:7px;
+    min-width:0;
+    max-width:min(50vw,250px);
+    padding:4px 2px 4px 5px;
+    text-align:right;
+    justify-content:flex-end;
+  }
+  #profileChip span:last-child{
+    display:block !important;
+    min-width:0;
+    max-width:195px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:.78rem;
+    font-weight:800;
+    line-height:1.1;
+    color:var(--navy);
+  }
+  #profileChip .nav-avatar{
+    width:31px;
+    height:31px;
+    flex:0 0 31px;
+  }
+}
+@media (max-width:390px){
+  #profileChip{max-width:49vw;gap:5px;}
+  #profileChip span:last-child{font-size:.71rem;max-width:145px;}
+  #profileChip .nav-avatar{width:29px;height:29px;flex-basis:29px;}
+}
