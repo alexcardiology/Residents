@@ -15,16 +15,11 @@
     <link rel="stylesheet" href="assets/resident-requirements-matrix.css?v=1.0.116" />
     <link rel="stylesheet" href="assets/audit-hierarchy.css?v=1.0.118" />
     <link rel="stylesheet" href="assets/prior-experience-hierarchy-ui.css?v=1.0.118" />
+    <link rel="stylesheet" href="assets/admin-logbook-governance.css?v=1.0.119" />
     <script type="module" src="assets/admin-red-theme.js?v=1.0.116"></script>
     <style>
-      [hidden] {
-        display: none !important;
-      }
-
-      #mobileHeaderIdentity {
-        display: none;
-      }
-
+      [hidden] { display: none !important; }
+      #mobileHeaderIdentity { display: none; }
       @media (max-width: 850px) {
         #mobileHeaderIdentity {
           display: flex;
@@ -37,7 +32,6 @@
           text-align: right;
           line-height: 1.08;
         }
-
         #mobileHeaderIdentity strong {
           display: block;
           max-width: 100%;
@@ -48,7 +42,6 @@
           font-size: .86rem;
           font-weight: 800;
         }
-
         #mobileHeaderIdentity small {
           display: block;
           max-width: 100%;
@@ -62,23 +55,12 @@
           text-transform: none;
           letter-spacing: 0;
         }
-
-        #mobileHeaderRefresh {
-          margin-left: 8px !important;
-          flex: 0 0 42px;
-        }
+        #mobileHeaderRefresh { margin-left: 8px !important; flex: 0 0 42px; }
       }
-
       @media (max-width: 390px) {
-        #mobileHeaderIdentity {
-          max-width: 43vw;
-        }
-        #mobileHeaderIdentity strong {
-          font-size: .79rem;
-        }
-        #mobileHeaderIdentity small {
-          font-size: .61rem;
-        }
+        #mobileHeaderIdentity { max-width: 43vw; }
+        #mobileHeaderIdentity strong { font-size: .79rem; }
+        #mobileHeaderIdentity small { font-size: .61rem; }
       }
     </style>
   </head>
@@ -86,16 +68,9 @@
     <div id="loading" class="loading">♥<span>Preparing your portal…</span></div>
     <div id="shell" class="shell" hidden>
       <aside>
-        <button id="drawerClose" class="drawer-close" type="button" aria-label="Close navigation menu" title="Close menu">
-          <span></span><span></span><span></span>
-        </button>
-        <a class="brand light"
-          ><b>♥</b
-          ><span
-            ><strong>Cardiology</strong
-            ><small>Training & Assessment</small></span
-          ></a
-        ><button id="userCard" class="user-card"></button>
+        <button id="drawerClose" class="drawer-close" type="button" aria-label="Close navigation menu" title="Close menu"><span></span><span></span><span></span></button>
+        <a class="brand light"><b>♥</b><span><strong>Cardiology</strong><small>Training & Assessment</small></span></a>
+        <button id="userCard" class="user-card"></button>
         <nav id="nav"></nav>
         <button id="logout">↪ Log out</button>
       </aside>
@@ -103,16 +78,10 @@
       <section class="workspace">
         <header>
           <button id="menu">☰</button>
-          <div>
-            <small id="crumb"></small>
-            <h1 id="title">Dashboard</h1>
-          </div>
+          <div><small id="crumb"></small><h1 id="title">Dashboard</h1></div>
           <button id="profileChip"></button>
           <div id="mobileHeaderIdentity" aria-label="Signed in user"></div>
-          <button id="accountSwitchButton" type="button" hidden aria-label="Switch account" title="Switch account">
-            <span class="account-switch-button-icon" aria-hidden="true">⇄</span>
-            <span class="account-switch-button-text">Switch account</span>
-          </button>
+          <button id="accountSwitchButton" type="button" hidden aria-label="Switch account" title="Switch account"><span class="account-switch-button-icon" aria-hidden="true">⇄</span><span class="account-switch-button-text">Switch account</span></button>
           <button id="mobileHeaderRefresh" type="button" aria-label="Refresh page" title="Refresh" onclick="location.reload()">↻</button>
         </header>
         <main id="content"></main>
@@ -129,15 +98,14 @@
     <script type="module" src="assets/account-switcher.js?v=1.0.110"></script>
     <script type="module" src="assets/audit-hierarchy.js?v=1.0.118"></script>
     <script type="module" src="assets/prior-experience-hierarchy-ui.js?v=1.0.118"></script>
+    <script type="module" src="assets/admin-logbook-governance.js?v=1.0.119"></script>
     <script src="assets/duty-bot-display-format.js?v=1.0.110"></script>
     <script type="module">
       import { sb } from "./assets/supabase.js";
-
       const identity = document.querySelector("#mobileHeaderIdentity");
       const profileChip = document.querySelector("#profileChip");
       let username = "";
       let fallbackName = "";
-
       const paintMobileIdentity = () => {
         if (!identity) return;
         const chipName = profileChip?.querySelector("span:last-child")?.textContent?.trim();
@@ -149,29 +117,17 @@
         userNode.textContent = username ? `@${username.replace(/^@/, "")}` : "";
         identity.append(nameNode, userNode);
       };
-
       try {
         const { data: sessionData } = await sb.auth.getSession();
         const userId = sessionData?.session?.user?.id;
         if (userId) {
-          const { data: profile } = await sb
-            .from("profiles")
-            .select("display_name,username")
-            .eq("id", userId)
-            .single();
+          const { data: profile } = await sb.from("profiles").select("display_name,username").eq("id", userId).single();
           username = String(profile?.username || "").trim();
           fallbackName = String(profile?.display_name || profile?.username || "").trim();
         }
       } catch (_) {}
-
       paintMobileIdentity();
-      if (profileChip) {
-        new MutationObserver(paintMobileIdentity).observe(profileChip, {
-          childList: true,
-          subtree: true,
-          characterData: true,
-        });
-      }
+      if (profileChip) new MutationObserver(paintMobileIdentity).observe(profileChip, { childList: true, subtree: true, characterData: true });
       setTimeout(paintMobileIdentity, 250);
       setTimeout(paintMobileIdentity, 900);
     </script>
