@@ -48,8 +48,54 @@ const contactActions = (contact) => {
     </span>`;
 };
 
-let timer = null;
+const inlineContacts = new Map();
+const cacheContact = (scheduleName, contact) => {
+  const key = String(scheduleName || "").trim();
+  if (!key || !contact?.whatsapp) return;
+  inlineContacts.set(key, {
+    scheduleName: key,
+    displayName: String(contact.displayName || contact.contactDisplayName || key).trim(),
+    whatsapp: String(contact.whatsapp || "").trim(),
+  });
+};
+
+/*
+ * Route El Médico through the combined function. It resolves duty + contact
+ * details before returning, so the contact icons are already cached before
+ * the reply cards are inserted into the DOM.
+ */
+const originalInvoke = sb.functions.invoke.bind(sb.functions);
+sb.functions.invoke = async (functionName, options) => {
+  if (functionName !== "duty-bot") return originalInvoke(functionName, options);
+
+  let result = await originalInvoke("duty-bot-fast", options);
+  if (result?.error) {
+    console.warn("Fast El Médico endpoint unavailable; using standard duty lookup", result.error);
+    result = await originalInvoke("duty-bot", options);
+  }
+
+  if (!result?.error && Array.isArray(result?.data?.assignments)) {
+    result.data.assignments.forEach((assignment) => {
+      cacheContact(assignment?.resident, {
+        contactDisplayName: assignment?.contactDisplayName,
+        whatsapp: assignment?.whatsapp,
+      });
+    });
+  }
+  return result;
+};
+
 let lookupInProgress = false;
+
+const insertActions = (card, nameNode, name, contact) => {
+  if (!contact?.whatsapp) return false;
+  if (contact.displayName && nameNode) nameNode.textContent = contact.displayName;
+  const topRow = card.querySelector(":scope > div") || card.querySelector(":scope > header");
+  if (!topRow || topRow.querySelector(".duty-contact-actions")) return true;
+  topRow.classList.add("duty-assignment-contact-head");
+  topRow.insertAdjacentHTML("beforeend", contactActions(contact));
+  return true;
+};
 
 async function enrichVisibleDutyCards() {
   if (lookupInProgress) return;
@@ -66,27 +112,35 @@ async function enrichVisibleDutyCards() {
     return;
   }
 
-  const names = [...new Set(cardRows.map((row) => row.name))];
+  /* Fast path: contacts arrived in the same El Médico response. */
+  const unresolved = [];
+  cardRows.forEach((row) => {
+    const contact = inlineContacts.get(row.name);
+    if (contact && insertActions(row.card, row.nameNode, row.name, contact)) {
+      row.card.dataset.elMedicoContactChecked = "1";
+    } else {
+      unresolved.push(row);
+    }
+  });
+  if (!unresolved.length) return;
+
+  /* Backward-compatible fallback for any old/non-enriched response. */
+  const names = [...new Set(unresolved.map((row) => row.name))];
   lookupInProgress = true;
   try {
-    const { data, error } = await sb.functions.invoke("duty-contact", { body: { names } });
+    const { data, error } = await originalInvoke("duty-contact", { body: { names } });
     if (error) throw error;
 
     const contacts = new Map(
       (data?.contacts || []).map((item) => [String(item?.scheduleName || "").trim(), item]),
     );
 
-    cardRows.forEach(({ card, nameNode, name }) => {
+    unresolved.forEach(({ card, nameNode, name }) => {
       const contact = contacts.get(name);
       card.dataset.elMedicoContactChecked = "1";
       if (!contact?.whatsapp) return;
-
-      if (contact.displayName && nameNode) nameNode.textContent = contact.displayName;
-
-      const topRow = card.querySelector(":scope > div") || card.querySelector(":scope > header");
-      if (!topRow || topRow.querySelector(".duty-contact-actions")) return;
-      topRow.classList.add("duty-assignment-contact-head");
-      topRow.insertAdjacentHTML("beforeend", contactActions(contact));
+      cacheContact(name, contact);
+      insertActions(card, nameNode, name, contact);
     });
   } catch (error) {
     console.warn("El Médico contact actions are temporarily unavailable", error);
@@ -95,12 +149,7 @@ async function enrichVisibleDutyCards() {
   }
 }
 
-function scheduleEnrichment() {
-  clearTimeout(timer);
-  timer = setTimeout(enrichVisibleDutyCards, 60);
-}
-
+/* MutationObserver runs immediately after the reply is painted; no timer. */
 const content = document.querySelector("#content") || document.body;
-new MutationObserver(scheduleEnrichment).observe(content, { childList: true, subtree: true });
-
-scheduleEnrichment();
+new MutationObserver(enrichVisibleDutyCards).observe(content, { childList: true, subtree: true });
+enrichVisibleDutyCards();
