@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Resident Training app icon">
+  <rect width="1024" height="1024" rx="220" fill="#081c35"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 790C456 740 250 596 250 398c0-105 78-180 174-180 62 0 118 31 150 79 32-48 88-79 150-79 96 0 174 75 174 180 0 198-206 342-262 392-31 28-58 48-62 51-4-3-31-23-62-51Z" stroke="#FFFFFF" stroke-width="64"/>
+    <path d="M312 500h112l56-132 84 270 64-138h112" stroke="#F45B69" stroke-width="52"/>
+  </g>
+</svg>
