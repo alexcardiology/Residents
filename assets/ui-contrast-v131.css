@@ -19,12 +19,11 @@ html.admin-red-theme main .lead h2,
 html.admin-red-theme main .lead p,
 html.admin-red-theme main .lead small{color:#111827!important}
 html.admin-red-theme main .eyebrow{color:#8f1d31!important}
-html.admin-red-theme main button:not(.secondary):not(.schedule-reconsider-button):not(.schedule-el-medico-button):not(.schedule-inline-cancel),
-html.admin-red-theme main .btn:not(.secondary){color:#fff!important}
-html.admin-red-theme main button:not(.secondary):not(.schedule-reconsider-button):not(.schedule-el-medico-button):not(.schedule-inline-cancel) *,
-html.admin-red-theme main .btn:not(.secondary) *{color:inherit!important}
-html.admin-red-theme main :is(.secondary,.btn.secondary,.schedule-reconsider-button,.schedule-el-medico-button,.schedule-inline-cancel),
-html.admin-red-theme main :is(.secondary,.btn.secondary,.schedule-reconsider-button,.schedule-el-medico-button,.schedule-inline-cancel) *{color:#111827!important}
+/* Only genuinely coloured primary controls are forced white. Light controls stay dark. */
+html.admin-red-theme main :is(.btn:not(.secondary),button.primary,.success-button,.danger-button,.audit-save-button,.schedule-submit,.schedule-actions .approve,.schedule-actions .reject,.schedule-inline-confirm){color:#fff!important}
+html.admin-red-theme main :is(.btn:not(.secondary),button.primary,.success-button,.danger-button,.audit-save-button,.schedule-submit,.schedule-actions .approve,.schedule-actions .reject,.schedule-inline-confirm) *{color:inherit!important}
+html.admin-red-theme main :is(.secondary,.btn.secondary,.admin-global-back,.schedule-reconsider-button,.schedule-el-medico-button,.schedule-inline-cancel),
+html.admin-red-theme main :is(.secondary,.btn.secondary,.admin-global-back,.schedule-reconsider-button,.schedule-el-medico-button,.schedule-inline-cancel) *{color:#111827!important}
 html.admin-red-theme main :is(.tag.success,.schedule-status.approved,.schedule-el-medico-informed){color:#11603d!important}
 html.admin-red-theme main :is(.tag.warning,.schedule-status.pending){color:#765000!important}
 html.admin-red-theme main :is(.tag.danger,.schedule-status.rejected){color:#8b1f34!important}
