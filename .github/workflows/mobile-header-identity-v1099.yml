@@ -1,0 +1,124 @@
+name: Mobile header identity v1.0.99
+
+on:
+  push:
+    paths:
+      - '.deploy-v1099'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add signed-in name and username beside mobile refresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          html_path = Path('app.html')
+          js_path = Path('assets/app.js')
+          css_path = Path('assets/style.css')
+
+          html = html_path.read_text(encoding='utf-8')
+          if 'id="mobileHeaderIdentity"' not in html:
+              html = html.replace(
+                  '          <button id="mobileHeaderRefresh" type="button" aria-label="Refresh page" title="Refresh" onclick="location.reload()">↻</button>',
+                  '          <div id="mobileHeaderIdentity" aria-label="Signed in user"></div>\n          <button id="mobileHeaderRefresh" type="button" aria-label="Refresh page" title="Refresh" onclick="location.reload()">↻</button>'
+              )
+          html = re.sub(r'assets/style\.css\?v=1\.0\.\d+', 'assets/style.css?v=1.0.99', html)
+          html = re.sub(r'assets/app\.js\?v=1\.0\.\d+', 'assets/app.js?v=1.0.99', html)
+          html_path.write_text(html, encoding='utf-8')
+
+          js = js_path.read_text(encoding='utf-8')
+          marker = '(t("#profileChip").innerHTML =\n      `${a}<span>${o(e.display_name || e.username)}</span>`),'
+          replacement = '''(t("#profileChip").innerHTML =\n      `${a}<span>${o(e.display_name || e.username)}</span>`),\n    (t("#mobileHeaderIdentity").innerHTML =\n      `<strong>${o(e.display_name || e.username)}</strong><small>@${o(e.username || "user")}</small>`),'''
+          if 't("#mobileHeaderIdentity").innerHTML' not in js:
+              if marker not in js:
+                  raise SystemExit('Could not find profile-chip render marker in assets/app.js')
+              js = js.replace(marker, replacement, 1)
+          js_path.write_text(js, encoding='utf-8')
+
+          css = css_path.read_text(encoding='utf-8')
+          css_marker = 'v1.0.99 — Mobile signed-in identity beside refresh'
+          if css_marker not in css:
+              css += r'''
+
+/* =========================================================
+   v1.0.99 — Mobile signed-in identity beside refresh
+========================================================= */
+#mobileHeaderIdentity{
+  display:none;
+}
+
+@media (max-width:850px){
+  #mobileHeaderIdentity{
+    display:flex;
+    min-width:0;
+    max-width:min(48vw,230px);
+    margin-left:auto;
+    flex-direction:column;
+    align-items:flex-end;
+    justify-content:center;
+    text-align:right;
+    line-height:1.08;
+  }
+
+  #mobileHeaderIdentity strong{
+    display:block;
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    color:var(--navy);
+    font-size:.86rem;
+    font-weight:800;
+  }
+
+  #mobileHeaderIdentity small{
+    display:block;
+    max-width:100%;
+    margin-top:3px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    color:var(--muted);
+    font-size:.65rem;
+    font-weight:650;
+    text-transform:none;
+    letter-spacing:0;
+  }
+
+  #mobileHeaderRefresh{
+    margin-left:8px !important;
+    flex:0 0 42px;
+  }
+}
+
+@media (max-width:390px){
+  #mobileHeaderIdentity{
+    max-width:43vw;
+  }
+  #mobileHeaderIdentity strong{
+    font-size:.79rem;
+  }
+  #mobileHeaderIdentity small{
+    font-size:.61rem;
+  }
+}
+'''
+          css_path.write_text(css, encoding='utf-8')
+          PY
+
+          node --check assets/app.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.html assets/app.js assets/style.css
+          git rm -f .deploy-v1099 .github/workflows/mobile-header-identity-v1099.yml
+          git commit -m 'Show full name and username beside mobile refresh v1.0.99'
+          git push
