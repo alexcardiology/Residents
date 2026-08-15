@@ -1,0 +1,90 @@
+--- a/assets/app.js
++++ b/assets/app.js
+@@ -20,9 +20,9 @@
+   n = [1, 2, 3, 4, 5],
+   PRIOR_EXPERIENCE_INTERVENTIONS = [
+     "CVP", "Intubation", "Temporary pacemaker", "Permanent pacemaker implantation", "Pacemaker programming",
+-    "ICD implantation", "CRT implantation", "Pericardiocentesis", "TTE", "TEE", "DSE", "Coronary angiography",
++    "ICD implantation", "CRT implantation", "Ablation", "Pericardiocentesis", "TTE", "TEE", "DSE", "Coronary angiography",
+     "Elective PCI", "Primary PCI", "IVUS", "Rotablation", "TAVI", "ASD closure", "Mitral balloon valvotomy",
+-    "Exercise stress ECG", "Tilting table", "Nuclear imaging", "CT CA", "CMR", "CPR"
++    "Exercise stress ECG", "Tilting table", "Holter monitoring", "Nuclear imaging", "CT CA", "CMR", "CPR"
+   ],
+   o = (e) =>
+     String(e ?? "").replace(
+@@ -208,7 +208,26 @@
+       solo_guided: "Performed solo under guidance",
+       solo_unguided: "Performed solo without guidance",
+       solo: "Performed solo without guidance",
++      supervised: "Supervised another trainee",
+     })[value] || String(value || "—"),
++  minimumParticipationLabel = (value) =>
++    ({
++      attended: "Attended",
++      assisted: "Performed with assistance",
++      solo_guided: "Performed under direct guidance",
++      solo_unguided: "Performed unassisted",
++      supervised: "Supervised another trainee",
++    })[value] || participationLabel(value),
++  minimumRequirementTargetRows = (rows = []) =>
++    (rows || []).flatMap((row) => {
++      const targets = Array.isArray(row?.targets) ? row.targets : [];
++      return targets.map((target) => ({
++        ...target,
++        intervention_name: row.intervention_name,
++        sort_order: row.sort_order,
++        assessor_names: row.assessor_names || [],
++      }));
++    }),
+   logbookCaseCount = (entry) => Math.max(1, Number(entry?.case_count) || 1),
+   logbookCaseDetails = (entry) => {
+     const raw = entry?.case_details;
+@@ -293,7 +312,7 @@
+     e.rpc("get_my_logbook_reconsiderations_v1044"),
+     e.rpc("get_my_review_message_actions_v1051"),
+     e.rpc("get_prior_experience_review_queue_v1069"),
+-    s.p.role === "assessor" ? e.rpc("get_my_logbook_requirement_review_queue_v1084") : Promise.resolve({ data: [], error: null }),
++    s.p.role === "assessor" ? e.rpc("get_my_logbook_requirement_review_queue_v1096") : Promise.resolve({ data: [], error: null }),
+   ]);
+   const count = countUnreadInboxThreads(normalResult.data || [], reviewActionResult.data || []);
+   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
+@@ -1368,7 +1387,7 @@
+       reviewRpcResult(residentId),
+       e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
+       e.rpc("get_resident_penalties_for_assessment_v1071", { p_resident_id: residentId }),
+-      isStandardResidencyYear(profile.residency_year) ? e.rpc("get_logbook_minimum_progress_v1084", { p_resident_id: residentId }) : Promise.resolve({data:[]}),
++      isStandardResidencyYear(profile.residency_year) ? e.rpc("get_logbook_minimum_progress_v1096", { p_resident_id: residentId }) : Promise.resolve({data:[]}),
+     ]);
+     const datasets = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult, minimumRequirementsResult];
+     const failed = datasets.find((result) => result?.error);
+@@ -1389,7 +1408,8 @@
+     const penalties = penaltiesResult.data || [];
+     const minimumRequirements = minimumRequirementsResult.data || [];
+     const minimumSummary = minimumRequirementSummary(minimumRequirements);
+-    const minimumHtml = isStandardResidencyYear(profile.residency_year) ? (minimumSummary.required ? `<table class="portfolio-table"><thead><tr><th>Intervention</th><th>Minimum</th><th>Verified</th><th>Pending</th><th>Missing</th><th>Status</th></tr></thead><tbody>${minimumRequirements.filter((row)=>Number(row.minimum_required)>0).map((row)=>`<tr><td><b>${o(row.intervention_name)}</b></td><td>${o(row.minimum_required)}</td><td>${o(row.verified_count)}</td><td>${o(row.pending_count)}</td><td>${o(row.missing_count)}</td><td>${Number(row.missing_count)===0?'MET':'NOT MET'}</td></tr>`).join('')}</tbody></table>` : '<div class="portfolio-empty">No minimum procedural requirements configured.</div>') : '<div class="portfolio-empty">Year-based minimum requirements are not applicable to this training status.</div>';
++    const minimumTargets = minimumRequirementTargetRows(minimumRequirements).filter((row)=>Number(row.minimum_required)>0);
++    const minimumHtml = isStandardResidencyYear(profile.residency_year) ? (minimumTargets.length ? `<table class="portfolio-table"><thead><tr><th>Intervention</th><th>Required activity</th><th>Minimum</th><th>Verified</th><th>Pending</th><th>Missing</th><th>Timing</th><th>Status</th></tr></thead><tbody>${minimumTargets.map((row)=>`<tr><td><b>${o(row.intervention_name)}</b></td><td>${o(row.participation_label || minimumParticipationLabel(row.participation_mode))}</td><td>${o(row.minimum_required)}</td><td>${o(row.verified_count)}</td><td>${o(row.pending_count)}</td><td>${o(row.missing_count)}</td><td>${o(row.timing_note || "—")}</td><td>${Number(row.missing_count)===0?'MET':'NOT MET'}</td></tr>`).join('')}</tbody></table>` : '<div class="portfolio-empty">No minimum procedural requirements configured.</div>') : '<div class="portfolio-empty">Year-based minimum requirements are not applicable to this training status.</div>';
+     const penaltyHtml = penalties.length ? `<table class="portfolio-table"><thead><tr><th>Date</th><th>Type / problem</th><th>Punishment</th><th>Details</th><th>Status</th></tr></thead><tbody>${penalties.map((row)=>`<tr><td>${d(row.created_at)}</td><td><b>${o(row.category||"—")}</b><br>${o(row.problem||"—")}</td><td>${o(row.punishment||"—")}</td><td>${o(row.details||"—")}</td><td>${o(penaltyStatusLabel(row.status))}</td></tr>`).join("")}</tbody></table>` : '<div class="portfolio-empty">No active approved penalties.</div>';
+     const summary = `<section class="portfolio-summary"><div><span>Residency</span><b>${o(residentTrainingLabel(profile.residency_year))}</b></div><div><span>Knowledge</span><b>${completed.length}/${kRows.length} checked</b></div><div><span>Skills</span><b>${[...levelMap.values()].length}/${skillRows.length} levels recorded</b></div><div><span>Approved logbook</span><b>${approvedLogbook.length} records</b></div><div><span>Reviews</span><b>${reviews.length}</b></div><div><span>Penalties</span><b>${penalties.length}</b></div><div><span>Assessments</span><b>${previousAssessments.length}</b></div></section>`;
+     popup.document.open();
+@@ -1445,7 +1465,7 @@
+     reviewRpcResult(residentId),
+     e.from("assessments").select("*").eq("resident_id", residentId).order("assessment_date", { ascending: false }),
+     e.rpc("get_resident_penalties_for_assessment_v1071", { p_resident_id: residentId }),
+-    isStandardResidencyYear(profile.residency_year) ? e.rpc("get_logbook_minimum_progress_v1084", { p_resident_id: residentId }) : Promise.resolve({ data: [] }),
++    isStandardResidencyYear(profile.residency_year) ? e.rpc("get_logbook_minimum_progress_v1096", { p_resident_id: residentId }) : Promise.resolve({ data: [] }),
+   ]);
+   const failed = [knowledge, progress, skills, skillLevels, skillLogs, logbookResult, reviewsResult, assessments, penaltiesResult, minimumRequirementsResult].find((result) => result?.error);
+   if (failed?.error) throw failed.error;
+@@ -2037,7 +2057,7 @@
+     e.rpc("get_my_logbook_reconsiderations_v1044"),
+     e.rpc("get_prior_experience_review_queue_v1069"),
+     s.p.role === "assessor" ? e.rpc("get_my_supervised_interventions_v1079") : Promise.resolve({ data: [], error: null }),
+-    s.p.role === "assessor" ? e.rpc("get_my_logbook_requirement_review_queue_v1084") : Promise.resolve({ data: [], error: null }),
++    s.p.role === "assessor" ? e.rpc("get_my_logbook_requirement_review_queue_v1096") : Promise.resolve({ data: [], error: null }),
+   ]);
+   const hiddenIds = new Set((u(hiddenResult) || []).map((row) => String(row.message_id)));
+   const keepVisible = (items) => (u(items) || []).filter((message) => !hiddenIds.has(String(message.id)));
+@@ -2274,7 +2294,7 @@
+       e.from("skill_levels").select("*", { head: !0, count: "exact" }).eq("resident_id", i.id),
+       e.from("assessments").select("*").eq("resident_id", i.id).order("assessment_date", { ascending: !1 }).limit(1),
