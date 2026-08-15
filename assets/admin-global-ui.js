@@ -24,6 +24,7 @@ function currentRoute(){
 function parentRoute(route){
   if (route === "owner-logbook-center") return "dashboard";
   if (route === "owner-assessment-center") return "dashboard";
+  if (route === "admin-schedule") return "dashboard";
   if (LOGBOOK_ROUTES.has(route) || route.includes("prior-experience") || route.includes("logbook")) return "owner-logbook-center";
   if (ASSESSMENT_ROUTES.has(route) || route.includes("assessment")) return "owner-assessment-center";
   return "dashboard";
@@ -54,10 +55,21 @@ function parseRgbToken(token){
   return { r:parts[0], g:parts[1], b:parts[2], a:parts.length>3 && Number.isFinite(parts[3]) ? parts[3] : 1 };
 }
 
+function brightness(c){ return .299*c.r + .587*c.g + .114*c.b; }
 function isRedSurface(c){
   if (!c || c.a <= .04) return false;
-  const brightness = .299*c.r + .587*c.g + .114*c.b;
-  return c.r >= 55 && c.r > c.g * 1.38 && c.r > c.b * 1.12 && brightness < 175;
+  return c.r >= 55 && c.r > c.g * 1.38 && c.r > c.b * 1.12 && brightness(c) < 165;
+}
+
+/* A pale pink/white gradient is NOT a deep-red surface merely because one stop is burgundy.
+   At least 60% of meaningful gradient stops must themselves be dark red. */
+function gradientIsDeepRed(image){
+  const colors = [...String(image || "").matchAll(/rgba?\([^)]+\)/gi)]
+    .map((m)=>parseRgbToken(m[0]))
+    .filter((c)=>c && c.a > .25);
+  if (!colors.length) return null;
+  const redCount = colors.filter(isRedSurface).length;
+  return redCount >= Math.ceil(colors.length * .6);
 }
 
 function backgroundState(el, parentRed){
@@ -65,12 +77,11 @@ function backgroundState(el, parentRed){
   const bg = parseRgbToken(style.backgroundColor);
   const image = String(style.backgroundImage || "none");
   if (image !== "none") {
-    const colors = [...image.matchAll(/rgba?\([^)]+\)/gi)].map((m)=>parseRgbToken(m[0])).filter(Boolean);
-    if (colors.some(isRedSurface)) return true;
-    if (colors.length && colors.every((c)=>c.a > .5)) return false;
+    const gradientState = gradientIsDeepRed(image);
+    if (gradientState !== null) return gradientState;
   }
   if (bg && bg.a >= .55) return isRedSurface(bg);
-  if (bg && bg.a > .04) return parentRed || isRedSurface(bg);
+  if (bg && bg.a > .04) return parentRed && brightness(bg) < 210;
   return parentRed;
 }
 
