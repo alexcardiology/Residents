@@ -1,0 +1,60 @@
+/* v1.0.137 · unconditional hierarchy cleanup */
+#auditHierarchyOverlay .audit-rank-chip,
+#auditHierarchyOverlay .audit-inline-rank-select,
+#auditHierarchyOverlay .audit-person-copy small,
+#auditHierarchyOverlay .audit-slot.rank-invalid::before,
+#auditHierarchyOverlay .audit-slot.rank-invalid::after {
+  display:none !important;
+  content:none !important;
+}
+
+#auditHierarchyOverlay .audit-slot.rank-invalid,
+#auditHierarchyOverlay .audit-slot:has(.audit-person-card) {
+  background:#fff !important;
+  border-color:#d8e1ea !important;
+  box-shadow:none !important;
+  outline:none !important;
+}
+
+#auditHierarchyOverlay .audit-slot.rank-invalid {
+  color:inherit !important;
+}
+
+#auditHierarchyOverlay .audit-person-card {
+  background:#fff !important;
+  border-color:#dce4ec !important;
+  box-shadow:none !important;
+  min-height:56px;
+  padding:9px 10px;
+  gap:10px;
+}
+
+#auditHierarchyOverlay .audit-person-copy {
+  min-width:0;
+  flex:1 1 auto;
+}
+
+#auditHierarchyOverlay .audit-person-copy b {
+  display:block;
+  font-size:.95rem;
+  line-height:1.2;
+  white-space:normal !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  word-break:normal;
+}
+
+#auditHierarchyOverlay .audit-remove-slot { margin-left:auto; }
+
+/* the left bank is name-only too */
+#auditHierarchyOverlay .audit-assessor-list .audit-person-card {
+  min-height:52px;
+}
+
+/* eliminate any old rank-warning tint, even if old JS re-adds rank-invalid */
+#auditHierarchyOverlay [class*="rank-invalid"],
+#auditHierarchyOverlay [class*="rank-warning"] {
+  background:#fff !important;
+  border-color:#d8e1ea !important;
+  box-shadow:none !important;
+}
