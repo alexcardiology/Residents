@@ -1,0 +1,121 @@
++              <fieldset class="choice-field"><legend>Participation</legend><div class="choice-checks participation-options"><label><input type="radio" name="participation_mode" value="attended" required><span>Attended</span></label><label><input type="radio" name="participation_mode" value="failed_trial" required><span>Failed trial</span></label><label><input type="radio" name="participation_mode" value="assisted" required><span>Performed with assistance</span></label><label><input type="radio" name="participation_mode" value="solo_guided" required><span>Performed solo under guidance</span></label><label><input type="radio" name="participation_mode" value="solo_unguided" required><span>Performed solo without guidance</span></label><label><input type="radio" name="participation_mode" value="supervised" required><span>Supervised another trainee</span></label></div></fieldset>
+               <label class="case-count-box">Total number of cases<input id="logbookCaseCount" name="case_count" type="number" min="1" max="100" step="1" value="1" required><small>Cases done in this same setting with the same intervention, participation level, date, hospital and reviewers.</small></label>
+               <div class="full case-details-builder"><div class="case-details-heading"><div><b>Optional case details</b><small>One box is created for each case. You may leave any box empty.</small></div><span id="logbookCaseCountBadge" class="tag">1 case</span></div><div id="logbookCaseDetails" class="case-detail-input-grid"></div></div>
+               <label>Activity date<input type="date" name="activity_date" value="${todayValue}" max="${todayValue}" required><small class="date-format-hint">Shown across the site as ${d(todayValue)}</small></label>
+@@ -3872,6 +3918,9 @@
+       location.reload();
+       return;
+     }
++    if (a.dataset.minimumRequirementYear) {
++      return void ownerLogbookRequirementsPage(Number(a.dataset.minimumRequirementYear));
++    }
+     if (a.dataset.dutyQuestion) {
+       const input = document.querySelector("#dutyBotQuestion");
+       if (input) input.value = a.dataset.dutyQuestion;
+@@ -4486,6 +4535,8 @@
+         const requirements = [...a.querySelectorAll("[data-logbook-minimum]")].map((input) => ({
+           intervention_name: String(input.dataset.intervention || ""),
+           residency_year: Number(input.dataset.residencyYear),
++          participation_mode: String(input.dataset.participationMode || ""),
++          timing_note: String(input.dataset.timingNote || "") || null,
+           minimum_required: Math.max(0, Math.floor(Number(input.value) || 0)),
+         }));
+         const saved = u(await e.rpc("owner_save_logbook_requirements_v1083", { p_requirements: requirements }));
+@@ -4507,7 +4558,7 @@
+       if (a.id === "logbookMinimumAssessmentForm") {
+         const decision = t.submitter?.dataset.minimumDecision;
+         if (!decision) throw new Error("Choose Approve or Return");
+-        const result = u(await e.rpc("assessor_decide_logbook_requirements_v1084", {
++        const result = u(await e.rpc("assessor_decide_logbook_requirements_v1096", {
+           p_submission_id: Number(r.get("submission_id")),
+           p_decision: decision,
+         })) || {};
+@@ -5478,7 +5529,7 @@
+       return;
+     }
+     if (button.hasAttribute("data-submit-minimum-logbook")) {
+-      const submissionId = u(await e.rpc("resident_submit_logbook_requirements_v1084"));
++      const submissionId = u(await e.rpc("resident_submit_logbook_requirements_v1096"));
+       await q();
+       b(`E-logbook submitted for minimum-requirement assessment · submission ${submissionId}`);
+       await residentMinimumRequirementsPage();
+--- a/assets/style.css
++++ b/assets/style.css
+@@ -5757,3 +5757,77 @@
+     font-size:.78rem;
+   }
+ }
++
++
++/* ========================================================================== */
++/* v1.0.96 — participation-specific minimum logbook requirements              */
++/* ========================================================================== */
++.minimum-year-tabs{
++  display:flex;
++  flex-wrap:wrap;
++  gap:7px;
++  margin:0 0 10px;
++}
++.minimum-year-tabs button{
++  border:1px solid #c9d8e5;
++  background:#fff;
++  color:#173a60;
++  border-radius:999px;
++  padding:8px 14px;
++  font-weight:850;
++  cursor:pointer;
++}
++.minimum-year-tabs button.active{
++  background:#0b2747;
++  border-color:#0b2747;
++  color:#ffd34f;
++  box-shadow:0 6px 16px rgba(11,39,71,.15);
++}
++.minimum-requirements-mode-table{
++  min-width:980px;
++}
++.minimum-requirements-mode-table th:not(:first-child),
++.minimum-requirements-mode-table td:not(:first-child){
++  text-align:center;
++  min-width:132px;
++}
++.minimum-requirements-mode-table .minimum-requirement-input{
++  width:76px;
++  min-width:76px;
++  margin-inline:auto;
++}
++.minimum-timing-note{
++  display:block;
++  margin:5px auto 0;
++  max-width:120px;
++  color:#8b5a00;
++  font-size:.66rem;
++  line-height:1.2;
++  font-weight:800;
++}
++.minimum-timing-pill{
++  display:inline-flex;
++  max-width:150px;
++  padding:5px 8px;
++  border-radius:999px;
++  background:#fff4cc;
++  color:#7b5200;
++  font-size:.68rem;
++  line-height:1.15;
++  font-weight:850;
++}
++.resident-minimum-table td:nth-child(2){
++  min-width:175px;
++}
++@media (max-width:680px){
++  .minimum-year-tabs{
++    gap:5px;
++  }
++  .minimum-year-tabs button{
++    padding:7px 10px;
++    font-size:.74rem;
++  }
++  .resident-minimum-table{
++    min-width:1040px;
++  }
++}
