@@ -56,7 +56,7 @@ function buildScheduleNameField(value = "") {
   label.dataset.facultyScheduleField = "1";
   label.innerHTML = `
     <span class="faculty-schedule-name-title">
-      <span>Name in faculty schedules</span>
+      <span>How your name is written in the faculty schedules</span>
       <b>IMPORTANT</b>
     </span>
     <input
@@ -68,7 +68,7 @@ function buildScheduleNameField(value = "") {
       placeholder="Example: مرزوق"
       required
     >
-    <small>Write your name exactly as it appears in the faculty duty/rotation schedules. El Médico uses this name to match you with your assignments.</small>
+    <small>Enter it exactly as it appears in the faculty duty/rotation schedules. Example: Mohamed Marzouk → مرزوق. El Médico uses this to match you with your assignments.</small>
   `;
   return label;
 }
