@@ -263,6 +263,61 @@
   font-weight: 700;
 }
 
+/* Compact the readiness area so the matrix starts much higher on the page. */
+.minimum-resident-hero {
+  gap: 14px !important;
+  margin-bottom: 8px !important;
+  padding: 11px 16px !important;
+  min-height: 0 !important;
+  border-radius: 15px !important;
+  box-shadow: 0 7px 18px rgba(8, 28, 53, .09) !important;
+}
+
+.minimum-resident-hero .eyebrow {
+  margin: 0 0 2px !important;
+  font-size: .58rem !important;
+  line-height: 1.15 !important;
+  letter-spacing: .105em !important;
+}
+
+.minimum-resident-hero h2 {
+  margin: 1px 0 2px !important;
+  font-size: 1.16rem !important;
+  line-height: 1.12 !important;
+  letter-spacing: -.015em !important;
+}
+
+.minimum-resident-hero p {
+  max-width: 980px;
+  margin: 0 !important;
+  font-size: .68rem !important;
+  line-height: 1.32 !important;
+  font-weight: 700 !important;
+}
+
+.minimum-hero-status {
+  gap: 3px !important;
+  flex: 0 0 auto;
+}
+
+.minimum-hero-status .tag,
+.minimum-hero-status > span,
+.minimum-hero-status > b {
+  padding: 5px 9px !important;
+  font-size: .62rem !important;
+  line-height: 1.05 !important;
+}
+
+.minimum-hero-status small {
+  font-size: .59rem !important;
+}
+
+/* The four-target explanation is now redundant with the grouped table. */
+.minimum-resident-card > .minimum-rules-note,
+.minimum-resident-card .minimum-rules-note {
+  display: none !important;
+}
+
 @media (max-width: 760px) {
   .resident-requirements-toolbar {
     align-items: flex-start;
@@ -287,5 +342,18 @@
   .resident-intervention-head,
   .resident-intervention-cell {
     min-width: 170px;
+  }
+
+  .minimum-resident-hero {
+    gap: 8px !important;
+    padding: 10px 12px !important;
+  }
+
+  .minimum-resident-hero h2 {
+    font-size: 1rem !important;
+  }
+
+  .minimum-resident-hero p {
+    font-size: .64rem !important;
   }
 }
