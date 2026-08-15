@@ -1,18 +1,77 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Cardiology Residents premium cardiology logo">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Cardiology Residents premium app icon">
   <defs>
-    <linearGradient id="heart" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#a8ecff"/><stop offset=".32" stop-color="#66b9ff"/><stop offset=".68" stop-color="#367dde"/><stop offset="1" stop-color="#19468f"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#102d57"/>
+      <stop offset="0.42" stop-color="#081c35"/>
+      <stop offset="1" stop-color="#03101f"/>
     </linearGradient>
-    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ff876a"/><stop offset=".46" stop-color="#ff5360"/><stop offset="1" stop-color="#e82e49"/>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9fe3ff"/>
+      <stop offset="0.48" stop-color="#4f8fe8"/>
+      <stop offset="1" stop-color="#ff4459"/>
     </linearGradient>
+    <linearGradient id="metal" x1="0.08" y1="0.08" x2="0.9" y2="0.92">
+      <stop offset="0" stop-color="#eaf8ff"/>
+      <stop offset="0.22" stop-color="#a8d8ff"/>
+      <stop offset="0.48" stop-color="#f6fbff"/>
+      <stop offset="0.72" stop-color="#74a8e6"/>
+      <stop offset="1" stop-color="#244e91"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff7b6b"/>
+      <stop offset="0.48" stop-color="#ff3f49"/>
+      <stop offset="1" stop-color="#ff6257"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0.35" cy="0.12" r="0.85">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".22"/>
+      <stop offset=".45" stop-color="#ffffff" stop-opacity=".03"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="18" result="blur"/>
+      <feOffset dy="14" result="off"/>
+      <feColorMatrix in="off" type="matrix" values="0 0 0 0 0  0 0 0 0 0.02  0 0 0 0 0.08  0 0 0 .72 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="redGlow" x="-40%" y="-80%" width="180%" height="260%">
+      <feGaussianBlur stdDeviation="18" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="1 0 0 0 0.4  0 0.15 0 0 0  0 0 0.12 0 0  0 0 0 1 0" result="rg"/>
+      <feMerge><feMergeNode in="rg"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="clip"><rect x="36" y="36" width="952" height="952" rx="214"/></clipPath>
   </defs>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="#0b1a37" stroke-width="104" opacity=".72"/>
-    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="url(#heart)" stroke-width="82"/>
-    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="#d9f6ff" stroke-width="11" opacity=".82" transform="translate(0,-7)"/>
-    <path d="M304 520H402L454 430L514 642L579 474L628 540H720" stroke="#4a0b1a" stroke-width="72" opacity=".85"/>
-    <path d="M304 520H402L454 430L514 642L579 474L628 540H720" stroke="url(#pulse)" stroke-width="54"/>
-    <path d="M304 511H399L452 420L512 630L577 464L632 531H720" stroke="#ffd09a" stroke-width="8" opacity=".82"/>
+
+  <rect x="36" y="36" width="952" height="952" rx="214" fill="url(#bg)"/>
+  <g clip-path="url(#clip)">
+    <circle cx="512" cy="514" r="353" fill="none" stroke="#6aa2e8" stroke-width="3" opacity=".16"/>
+    <g stroke="#6aa2e8" stroke-width="2" opacity=".055">
+      <path d="M230 320H794M230 416H794M230 512H794M230 608H794M230 704H794"/>
+      <path d="M320 230V794M416 230V794M512 230V794M608 230V794M704 230V794"/>
+    </g>
+    <path d="M512 168V212M512 812V856M168 512H212M812 512H856" stroke="#7aa8e8" stroke-width="8" stroke-linecap="round" opacity=".18"/>
+    <ellipse cx="412" cy="208" rx="370" ry="250" fill="url(#shine)" opacity=".55"/>
+  </g>
+
+  <rect x="36" y="36" width="952" height="952" rx="214" fill="none" stroke="#071427" stroke-width="18"/>
+  <rect x="48" y="48" width="928" height="928" rx="203" fill="none" stroke="url(#rim)" stroke-width="8" opacity=".9"/>
+  <rect x="60" y="60" width="904" height="904" rx="192" fill="none" stroke="#d4ebff" stroke-width="2" opacity=".4"/>
+
+  <g filter="url(#softShadow)">
+    <path d="M512 784C468 747 278 612 278 424C278 322 351 252 443 252C475 252 499 266 512 290C525 266 549 252 581 252C673 252 746 322 746 424C746 612 556 747 512 784Z"
+          fill="none" stroke="#07162d" stroke-width="94" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+    <path d="M512 784C468 747 278 612 278 424C278 322 351 252 443 252C475 252 499 266 512 290C525 266 549 252 581 252C673 252 746 322 746 424C746 612 556 747 512 784Z"
+          fill="none" stroke="url(#metal)" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M512 777C467 740 292 608 292 426C292 337 355 276 440 276C473 276 498 292 512 315C526 292 551 276 584 276C669 276 732 337 732 426C732 608 557 740 512 777Z"
+          fill="none" stroke="#f3fbff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity=".82"/>
+  </g>
+
+  <g filter="url(#redGlow)">
+    <path d="M210 535H365L405 477L456 572L510 395L566 650L620 484L660 535H814"
+          fill="none" stroke="#4b0610" stroke-width="54" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+    <path d="M210 535H365L405 477L456 572L510 395L566 650L620 484L660 535H814"
+          fill="none" stroke="url(#pulse)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M210 529H365L405 470L456 563L510 386L566 640L620 476L660 529H814"
+          fill="none" stroke="#ffd0c7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".86"/>
+    <circle cx="814" cy="535" r="18" fill="#ff5a50" stroke="#ffd0c7" stroke-width="5"/>
   </g>
 </svg>
