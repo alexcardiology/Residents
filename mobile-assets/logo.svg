@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Resident Training cardiology logo">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Cardiology Residents cardiology logo">
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 790C456 740 250 596 250 398c0-105 78-180 174-180 62 0 118 31 150 79 32-48 88-79 150-79 96 0 174 75 174 180 0 198-206 342-262 392-31 28-58 48-62 51-4-3-31-23-62-51Z" stroke="#FFFFFF" stroke-width="64"/>
-    <path d="M312 500h112l56-132 84 270 64-138h112" stroke="#F45B69" stroke-width="52"/>
+    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="#FFFFFF" stroke-width="64"/>
+    <path d="M330 515H420L470 400L535 635L592 500H694" stroke="#F45B69" stroke-width="52"/>
   </g>
 </svg>

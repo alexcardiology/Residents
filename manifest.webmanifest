@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Cardiology Resident Training & Assessment",
-  "short_name": "Resident Training",
-  "description": "Cardiology resident curriculum, logbook, reviews and assessment portal.",
+  "name": "Cardiology Residents",
+  "short_name": "Cardiology Residents",
+  "description": "Cardiology residents curriculum, logbook, reviews and assessment portal.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -13,6 +13,12 @@
       "src": "mobile-assets/pwa-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "mobile-assets/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
       "purpose": "any"
     }
   ]

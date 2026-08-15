@@ -1,6 +1,6 @@
 {
   "appId": "org.drmohamedalaa.residenttraining",
-  "appName": "Resident Training",
+  "appName": "Cardiology Residents",
   "webDir": "mobile/web",
   "server": {
     "url": "https://drmohamedalaa90.github.io/Residents/",
