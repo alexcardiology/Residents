@@ -1,0 +1,8 @@
+/* v1.0.125 — push notification opt-in */
+#notificationEnableButton{display:inline-grid;place-items:center;flex:0 0 38px;width:38px;height:38px;margin-left:6px;padding:0;border:1px solid #dbe5ee;border-radius:12px;background:#fff;color:#1b3c5d;font-size:1rem;cursor:pointer;box-shadow:0 3px 12px rgba(16,45,72,.06)}
+#notificationEnableButton:hover{transform:translateY(-1px);box-shadow:0 6px 15px rgba(16,45,72,.1)}
+#notificationEnableButton.is-enabled{color:#16704a;background:#ecf8f1;border-color:#cde8d8}
+#notificationEnableButton.is-denied{color:#8a3445;background:#fff4f6;border-color:#efcfd6}
+html.admin-red-theme #notificationEnableButton{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22);color:#fff}
+html.admin-red-theme #notificationEnableButton.is-enabled{background:#eaf8ef;color:#176b46;border-color:#c7e7d4}
+@media(max-width:850px){#notificationEnableButton{width:36px;height:36px;flex-basis:36px;margin-left:4px}}
