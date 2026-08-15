@@ -1,6 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Cardiology Residents cardiology logo">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Cardiology Residents premium cardiology logo">
+  <defs>
+    <linearGradient id="heart" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a8ecff"/><stop offset=".32" stop-color="#66b9ff"/><stop offset=".68" stop-color="#367dde"/><stop offset="1" stop-color="#19468f"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff876a"/><stop offset=".46" stop-color="#ff5360"/><stop offset="1" stop-color="#e82e49"/>
+    </linearGradient>
+  </defs>
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="#FFFFFF" stroke-width="64"/>
-    <path d="M330 515H420L470 400L535 635L592 500H694" stroke="#F45B69" stroke-width="52"/>
+    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="#0b1a37" stroke-width="104" opacity=".72"/>
+    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="url(#heart)" stroke-width="82"/>
+    <path d="M512 824C458 776 236 620 236 400C236 288 320 212 424 212C468 212 500 232 512 266C524 232 556 212 600 212C704 212 788 288 788 400C788 620 566 776 512 824Z" stroke="#d9f6ff" stroke-width="11" opacity=".82" transform="translate(0,-7)"/>
+    <path d="M304 520H402L454 430L514 642L579 474L628 540H720" stroke="#4a0b1a" stroke-width="72" opacity=".85"/>
+    <path d="M304 520H402L454 430L514 642L579 474L628 540H720" stroke="url(#pulse)" stroke-width="54"/>
+    <path d="M304 511H399L452 420L512 630L577 464L632 531H720" stroke="#ffd09a" stroke-width="8" opacity=".82"/>
   </g>
 </svg>
