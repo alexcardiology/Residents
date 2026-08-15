@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="assets/el-medico-contact-actions.css?v=1.0.100" />
     <link rel="stylesheet" href="assets/profile-schedule-name.css?v=1.0.101" />
     <link rel="stylesheet" href="assets/el-medico-quick-prompts.css?v=1.0.105" />
+    <link rel="stylesheet" href="assets/account-switcher.css?v=1.0.109" />
     <style>
       [hidden] {
         display: none !important;
@@ -102,6 +103,10 @@
           </div>
           <button id="profileChip"></button>
           <div id="mobileHeaderIdentity" aria-label="Signed in user"></div>
+          <button id="accountSwitchButton" type="button" hidden aria-label="Switch account" title="Switch account">
+            <span class="account-switch-button-icon" aria-hidden="true">⇄</span>
+            <span class="account-switch-button-text">Switch account</span>
+          </button>
           <button id="mobileHeaderRefresh" type="button" aria-label="Refresh page" title="Refresh" onclick="location.reload()">↻</button>
         </header>
         <main id="content"></main>
@@ -113,6 +118,7 @@
     <script type="module" src="assets/el-medico-contact-actions.js?v=1.0.108"></script>
     <script type="module" src="assets/profile-schedule-name.js?v=1.0.104"></script>
     <script type="module" src="assets/el-medico-quick-prompts.js?v=1.0.106"></script>
+    <script type="module" src="assets/account-switcher.js?v=1.0.109"></script>
     <script type="module">
       import { sb } from "./assets/supabase.js";
 
