@@ -22,57 +22,23 @@
     <link rel="stylesheet" href="assets/workflow-ui-v125.css?v=1.0.130" />
     <link rel="stylesheet" href="assets/audit-horizontal-light-v127.css?v=1.0.130" />
     <link rel="stylesheet" href="assets/prior-experience-resident-threads-v127.css?v=1.0.130" />
-    <link rel="stylesheet" href="assets/resident-schedule-v125.css?v=1.0.130" />
+    <link rel="stylesheet" href="assets/resident-schedule-v125.css?v=1.0.131" />
     <link rel="stylesheet" href="assets/notifications-v125.css?v=1.0.125" />
     <link rel="stylesheet" href="assets/admin-logbook-governance.css?v=1.0.120" />
     <link rel="stylesheet" href="assets/admin-global-ui.css?v=1.0.121" />
     <link rel="stylesheet" href="assets/workflow-v130.css?v=1.0.130" />
+    <link rel="stylesheet" href="assets/ui-contrast-v131.css?v=1.0.131" />
     <script type="module" src="assets/admin-red-theme.js?v=1.0.116"></script>
     <style>
       [hidden] { display: none !important; }
       #mobileHeaderIdentity { display: none; }
       @media (max-width: 850px) {
-        #mobileHeaderIdentity {
-          display: flex;
-          min-width: 0;
-          max-width: min(48vw, 230px);
-          margin-left: auto;
-          flex-direction: column;
-          align-items: flex-end;
-          justify-content: center;
-          text-align: right;
-          line-height: 1.08;
-        }
-        #mobileHeaderIdentity strong {
-          display: block;
-          max-width: 100%;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: var(--navy);
-          font-size: .86rem;
-          font-weight: 800;
-        }
-        #mobileHeaderIdentity small {
-          display: block;
-          max-width: 100%;
-          margin-top: 3px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: var(--muted);
-          font-size: .65rem;
-          font-weight: 650;
-          text-transform: none;
-          letter-spacing: 0;
-        }
-        #mobileHeaderRefresh { margin-left: 8px !important; flex: 0 0 42px; }
+        #mobileHeaderIdentity { display:flex;min-width:0;max-width:min(48vw,230px);margin-left:auto;flex-direction:column;align-items:flex-end;justify-content:center;text-align:right;line-height:1.08; }
+        #mobileHeaderIdentity strong { display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--navy);font-size:.86rem;font-weight:800; }
+        #mobileHeaderIdentity small { display:block;max-width:100%;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.65rem;font-weight:650;text-transform:none;letter-spacing:0; }
+        #mobileHeaderRefresh { margin-left:8px!important;flex:0 0 42px; }
       }
-      @media (max-width: 390px) {
-        #mobileHeaderIdentity { max-width: 43vw; }
-        #mobileHeaderIdentity strong { font-size: .79rem; }
-        #mobileHeaderIdentity small { font-size: .61rem; }
-      }
+      @media (max-width:390px){#mobileHeaderIdentity{max-width:43vw}#mobileHeaderIdentity strong{font-size:.79rem}#mobileHeaderIdentity small{font-size:.61rem}}
     </style>
   </head>
   <body>
@@ -117,7 +83,7 @@
     <script type="module" src="assets/workflow-ui-v125.js?v=1.0.130"></script>
     <script type="module" src="assets/prior-experience-resident-threads-v127.js?v=1.0.130"></script>
     <script type="module" src="assets/prior-pass-v130.js?v=1.0.130"></script>
-    <script type="module" src="assets/resident-schedule-v125.js?v=1.0.130"></script>
+    <script type="module" src="assets/resident-schedule-v125.js?v=1.0.131"></script>
     <script type="module" src="assets/notifications-v125.js?v=1.0.125"></script>
     <script src="assets/prior-logbook-mobile.js?v=1.0.122"></script>
     <script type="module" src="assets/admin-logbook-governance-v120.js?v=1.0.120"></script>
@@ -125,34 +91,10 @@
     <script src="assets/duty-bot-display-format.js?v=1.0.110"></script>
     <script type="module">
       import { sb } from "./assets/supabase.js";
-      const identity = document.querySelector("#mobileHeaderIdentity");
-      const profileChip = document.querySelector("#profileChip");
-      let username = "";
-      let fallbackName = "";
-      const paintMobileIdentity = () => {
-        if (!identity) return;
-        const chipName = profileChip?.querySelector("span:last-child")?.textContent?.trim();
-        const displayName = chipName || fallbackName || username || "Signed in";
-        identity.replaceChildren();
-        const nameNode = document.createElement("strong");
-        const userNode = document.createElement("small");
-        nameNode.textContent = displayName;
-        userNode.textContent = username ? `@${username.replace(/^@/, "")}` : "";
-        identity.append(nameNode, userNode);
-      };
-      try {
-        const { data: sessionData } = await sb.auth.getSession();
-        const userId = sessionData?.session?.user?.id;
-        if (userId) {
-          const { data: profile } = await sb.from("profiles").select("display_name,username").eq("id", userId).single();
-          username = String(profile?.username || "").trim();
-          fallbackName = String(profile?.display_name || profile?.username || "").trim();
-        }
-      } catch (_) {}
-      paintMobileIdentity();
-      if (profileChip) new MutationObserver(paintMobileIdentity).observe(profileChip, { childList: true, subtree: true, characterData: true });
-      setTimeout(paintMobileIdentity, 250);
-      setTimeout(paintMobileIdentity, 900);
+      const identity=document.querySelector("#mobileHeaderIdentity"),profileChip=document.querySelector("#profileChip");let username="",fallbackName="";
+      const paintMobileIdentity=()=>{if(!identity)return;const chipName=profileChip?.querySelector("span:last-child")?.textContent?.trim(),displayName=chipName||fallbackName||username||"Signed in";identity.replaceChildren();const nameNode=document.createElement("strong"),userNode=document.createElement("small");nameNode.textContent=displayName;userNode.textContent=username?`@${username.replace(/^@/,"")}`:"";identity.append(nameNode,userNode)};
+      try{const{data:sessionData}=await sb.auth.getSession(),userId=sessionData?.session?.user?.id;if(userId){const{data:profile}=await sb.from("profiles").select("display_name,username").eq("id",userId).single();username=String(profile?.username||"").trim();fallbackName=String(profile?.display_name||profile?.username||"").trim()}}catch(_){}
+      paintMobileIdentity();if(profileChip)new MutationObserver(paintMobileIdentity).observe(profileChip,{childList:true,subtree:true,characterData:true});setTimeout(paintMobileIdentity,250);setTimeout(paintMobileIdentity,900);
     </script>
   </body>
 </html>
