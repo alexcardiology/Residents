@@ -1,16 +1,16 @@
-name: Apply v1.0.96 frontend patch
+name: Deploy v1.0.96 verified frontend
 
 on:
   push:
     branches: [main]
     paths:
-      - 'v1096.patch.ready'
+      - 'v1096.full.ready'
 
 permissions:
   contents: write
 
 jobs:
-  apply-v1096:
+  deploy-v1096:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,17 +18,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply verified v1.0.96 patch
+      - name: Reconstruct verified frontend files
         shell: bash
         run: |
           set -euo pipefail
-          cat v1096.patch.part* > v1096.patch
-          git apply --check v1096.patch
-          git apply v1096.patch
-          git rm v1096.patch.part* v1096.patch.ready .github/workflows/apply-v1096.yml
-          rm -f v1096.patch
+          cat appjs.b64.part* | base64 -d | gzip -d > assets/app.js
+          cat stylecss.b64.part* | base64 -d | gzip -d > assets/style.css
+          node --check assets/app.js
+          grep -q 'get_logbook_minimum_progress_v1096' assets/app.js
+          grep -q 'Ablation' assets/app.js
+          grep -q 'Holter monitoring' assets/app.js
+          grep -q 'Supervised another trainee' assets/app.js
+          grep -q 'v1.0.96' assets/style.css
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/app.js assets/style.css
-          git commit -m "Deploy v1.0.96 participation-specific logbook requirements"
+          git add assets/app.js assets/style.css app.html
+          git rm -f v1096.patch.part* v1096.patch.ready appjs.b64.part* stylecss.b64.part* v1096.full.ready .github/workflows/apply-v1096.yml || true
+          git commit -m "Deploy v1.0.96 logbook minimum requirements"
           git push
