@@ -1,12 +1,14 @@
 {
   "name": "resident-training-mobile",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Native Android and iOS wrappers for the Resident Training & Assessment portal.",
   "scripts": {
     "cap:android": "npx cap add android",
     "cap:ios": "npx cap add ios",
-    "cap:sync": "npx cap sync"
+    "cap:sync": "npx cap sync",
+    "assets:android": "npx @capacitor/assets generate --android --assetPath mobile-assets --iconBackgroundColor '#081c35' --iconBackgroundColorDark '#081c35' --splashBackgroundColor '#081c35' --splashBackgroundColorDark '#081c35' --logoSplashScale 0.24",
+    "assets:ios": "npx @capacitor/assets generate --ios --assetPath mobile-assets --iconBackgroundColor '#081c35' --iconBackgroundColorDark '#081c35' --splashBackgroundColor '#081c35' --splashBackgroundColorDark '#081c35' --logoSplashScale 0.24"
   },
   "dependencies": {
     "@capacitor/android": "8.4.2",
@@ -14,6 +16,7 @@
     "@capacitor/ios": "8.4.2"
   },
   "devDependencies": {
+    "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "8.4.2"
   }
 }
