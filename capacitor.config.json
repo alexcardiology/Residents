@@ -1,0 +1,9 @@
+{
+  "appId": "org.drmohamedalaa.residenttraining",
+  "appName": "Resident Training",
+  "webDir": "mobile/web",
+  "server": {
+    "url": "https://drmohamedalaa90.github.io/Residents/",
+    "cleartext": false
+  }
+}
