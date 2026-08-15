@@ -14,6 +14,7 @@ html.admin-red-theme main .schedule-card,
 html.admin-red-theme main .schedule-request-card,
 html.admin-red-theme main .schedule-admin-history-row{color:#111827!important}
 html.admin-red-theme main :is(h1,h2,h3,h4,h5,h6,p,label,th,td,strong,b,small):not(.eyebrow){color:#111827!important}
+html.admin-red-theme main span:not(.tag):not(.year-chip):not(.nav-badge):not(.schedule-status):not(.eyebrow):not(.activity-mode-icon){color:#111827!important}
 html.admin-red-theme main .lead h2,
 html.admin-red-theme main .lead p,
 html.admin-red-theme main .lead small{color:#111827!important}
