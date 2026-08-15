@@ -1,0 +1,80 @@
++  const targets = minimumRequirementTargetRows(rows).filter((row) => !requiredOnly || Number(row.minimum_required || 0) > 0);
++  if (!targets.length) return '<div class="panel-empty">No minimum procedural requirements are configured for this residency year.</div>';
++  return `<div class="table-scroll"><table class="table resident-minimum-table"><thead><tr><th>Intervention</th><th>Required activity</th><th>Minimum</th><th>Verified</th><th>Pending</th><th>Missing</th><th>Timing</th><th>Status</th><th>Assigned assessors</th></tr></thead><tbody>${targets.map((row) => {
+     const name = String(row.intervention_name || '—');
+     const assigned = Array.isArray(row.assessor_names) ? row.assessor_names : [];
+     const review = scopeStatus.get(name);
+     const assignedToMe = myScopes.has(name);
++    const minimum = Number(row.minimum_required || 0);
++    const verified = Number(row.verified_count || 0);
++    const missing = Number(row.missing_count || 0);
++    const statusHtml = review
++      ? `<span class="tag ${review.status === 'approved' ? 'success' : review.status === 'returned' ? 'danger' : review.status === 'not_required' ? 'neutral' : 'warning'}">${o(String(review.status || '').replaceAll('_',' '))}</span>`
++      : missing === 0
++        ? '<span class="tag success">✓ Met</span>'
++        : `<span class="tag warning">${missing} missing</span>`;
+     return `<tr class="${assignedToMe ? 'minimum-scope-mine' : ''}">
+       <td><b>${o(name)}</b>${assignedToMe ? '<small class="mine-label">Assigned to you</small>' : ''}</td>
+-      <td><strong>${o(row.minimum_required || 0)}</strong></td>
+-      <td><span class="minimum-count verified">${o(row.verified_count || 0)}</span></td>
++      <td><b>${o(row.participation_label || minimumParticipationLabel(row.participation_mode))}</b></td>
++      <td><strong>${o(minimum)}</strong></td>
++      <td><span class="minimum-count verified">${o(verified)}</span></td>
+       <td><span class="minimum-count pending">${o(row.pending_count || 0)}</span></td>
+-      <td><span class="minimum-count ${Number(row.missing_count || 0) ? 'missing' : 'done'}">${o(row.missing_count || 0)}</span></td>
+-      <td>${review ? `<span class="tag ${review.status === 'approved' ? 'success' : review.status === 'returned' ? 'danger' : review.status === 'not_required' ? 'neutral' : 'warning'}">${o(String(review.status || '').replaceAll('_',' '))}</span>` : minimumRequirementBadge(row)}</td>
+-      <td>${assigned.length ? `<div class="minimum-assessor-names">${assigned.map((name) => `<span>${o(name)}</span>`).join('')}</div>` : '<span class="tag danger">Not assigned</span>'}</td>
++      <td><span class="minimum-count ${missing ? 'missing' : 'done'}">${o(missing)}</span></td>
++      <td>${row.timing_note ? `<span class="minimum-timing-pill">${o(row.timing_note)}</span>` : '—'}</td>
++      <td>${statusHtml}</td>
++      <td>${assigned.length ? `<div class="minimum-assessor-names">${assigned.map((assessorName) => `<span>${o(assessorName)}</span>`).join('')}</div>` : '<span class="tag danger">Not assigned</span>'}</td>
+     </tr>`;
+   }).join('')}</tbody></table></div>`;
+ }
+ 
+ function minimumRequirementSummary(rows = []) {
+-  const required = rows.filter((row) => Number(row.minimum_required || 0) > 0);
+-  const met = required.filter((row) => Number(row.missing_count || 0) === 0).length;
+-  const missing = required.reduce((sum,row) => sum + Number(row.missing_count || 0), 0);
+-  const pending = required.reduce((sum,row) => sum + Number(row.pending_count || 0), 0);
+-  return { required: required.length, met, missing, pending };
++  const targets = minimumRequirementTargetRows(rows).filter((row) => Number(row.minimum_required || 0) > 0);
++  const met = targets.filter((row) => Number(row.missing_count || 0) === 0).length;
++  const missing = targets.reduce((sum,row) => sum + Number(row.missing_count || 0), 0);
++  const pending = targets.reduce((sum,row) => sum + Number(row.pending_count || 0), 0);
++  return { required: targets.length, met, missing, pending };
+ }
+ 
+ async function residentMinimumRequirementsPage() {
+@@ -2511,8 +2557,8 @@
+     return;
+   }
+   const [progressResult, submissionResult] = await Promise.all([
+-    e.rpc('get_logbook_minimum_progress_v1084',{p_resident_id:null}),
+-    e.rpc('get_my_logbook_requirement_submission_v1084'),
++    e.rpc('get_logbook_minimum_progress_v1096',{p_resident_id:null}),
++    e.rpc('get_my_logbook_requirement_submission_v1096'),
+   ]);
+   const progress = u(progressResult) || [];
+   const submission = u(submissionResult) || null;
+@@ -2527,7 +2573,7 @@
+     '<button class="btn secondary" data-go="logbook">Back to E-logbook</button>',
+   ) + `
+     <section class="minimum-resident-hero ${summary.missing ? 'needs-work' : 'ready'}">
+-      <div><span class="eyebrow">Year ${o(s.p.residency_year)} E-logbook readiness</span><h2>${summary.met}/${summary.required || 0} requirements met</h2><p>${summary.missing ? `${summary.missing} verified qualifying case${summary.missing===1?'':'s'} still missing.` : summary.required ? 'All configured minimum case numbers are currently met.' : 'No minimums configured yet.'}</p></div>
++      <div><span class="eyebrow">Year ${o(s.p.residency_year)} E-logbook readiness</span><h2>${summary.met}/${summary.required || 0} requirements met</h2><p>${summary.missing ? `${summary.missing} case${summary.missing===1?'':'s'} still missing across the required activity targets.` : summary.required ? 'All configured minimum case numbers are currently met.' : 'No minimums configured yet.'}</p></div>
+       <div class="minimum-hero-status">${statusHtml}${submission?.attempt_no ? `<small>Submission attempt ${o(submission.attempt_no)}</small>` : ''}</div>
+     </section>
+     ${submission?.automatic_message ? `<section class="card minimum-return-message ${status==='returned'?'returned':''}"><span class="eyebrow">Latest assessor response</span><p>${o(submission.automatic_message).replace(/\n/g,'<br>')}</p></section>` : ''}
+@@ -2580,14 +2626,14 @@
+ async function openLogbookMinimumAssessment(submissionId) {
+   y('<div class="modal minimum-assessment-modal"><div class="modal-head"><h2>Loading minimum requirements…</h2><button type="button" data-close>×</button></div></div>');
+   try {
+-    const detail = u(await e.rpc('get_logbook_requirement_submission_detail_v1084',{p_submission_id:Number(submissionId)})) || {};
++    const detail = u(await e.rpc('get_logbook_requirement_submission_detail_v1096',{p_submission_id:Number(submissionId)})) || {};
+     const submission = detail.submission || {};
+     const requirements = detail.requirements || [];
+     const myScopes = detail.my_scopes || [];
+     const scopeReviews = detail.scope_reviews || [];
+     const summary = minimumRequirementSummary(requirements);
+-    const missingRows = requirements.filter((row)=>Number(row.minimum_required)>0 && Number(row.missing_count)>0);
