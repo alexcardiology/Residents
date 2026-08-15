@@ -57,12 +57,36 @@ async function replaceSupervisionStrip() {
   strip.innerHTML = `<small>Audit fields</small>${[...unique.values()].map((row) => `<span class="assessor-field-badge ${row.tier === "lead_professor" ? "professor" : "faculty"}" title="${row.tier === "lead_professor" ? "Professor-level final audit" : "First-level faculty audit"}">${row.field_label}</span>`).join("")}`;
   old.replaceWith(strip);
 }
+function compactHistoricalTable(modal) {
+  const table = modal?.querySelector(".prior-readonly-summary table.prior-count-table");
+  if (!table || table.dataset.auditFourModes === "1") return;
+  const headers = [...table.querySelectorAll("thead th")].map((th)=>String(th.textContent||"").replace(/\s+/g," ").trim().toLowerCase());
+  const superviseIndex = headers.findIndex((h)=>h === "supervise");
+  const attendedIndex = headers.findIndex((h)=>h === "attended");
+  const assistanceIndex = headers.findIndex((h)=>/with assistance/.test(h));
+  const guidedIndex = headers.findIndex((h)=>/solo under guidance/.test(h));
+  const unassistedIndex = headers.findIndex((h)=>/solo without guidance/.test(h));
+  const notesIndex = headers.findIndex((h)=>h === "notes");
+  if ([attendedIndex,assistanceIndex,guidedIndex,unassistedIndex,superviseIndex].some((i)=>i<0)) return;
+  const rows = [...table.querySelectorAll("tbody tr")].map((tr) => {
+    const cells=[...tr.cells];
+    const number=(i)=>Number(String(cells[i]?.textContent||"0").trim())||0;
+    const name=String(cells[0]?.textContent||"Manual").trim();
+    const note=notesIndex>=0?String(cells[notesIndex]?.textContent||"").trim():"";
+    return {name,note,attended:number(attendedIndex),assisted:number(assistanceIndex)+number(guidedIndex),unassisted:number(unassistedIndex),supervise:number(superviseIndex)};
+  });
+  table.dataset.auditFourModes="1";
+  table.innerHTML=`<thead><tr><th>Manual</th><th>Attended</th><th>Performed assisted</th><th>Performed unassisted</th><th>Supervise</th></tr></thead><tbody>${rows.map((r)=>`<tr><td><b>${r.name}</b>${r.note&&r.note!=="—"?`<small class="audit-inline-note">${r.note}</small>`:""}</td><td>${r.attended}</td><td>${r.assisted}</td><td>${r.unassisted}</td><td>${r.supervise}</td></tr>`).join("")}</tbody>`;
+}
 function classifyPriorModal() {
   const dialog = document.querySelector("#modal");
   const modal = document.querySelector("#modalBody .prior-review-modal");
   if (!dialog) return;
   dialog.classList.toggle("prior-review-compact", Boolean(modal));
-  if (modal) applyIcons(modal);
+  if (modal) {
+    compactHistoricalTable(modal);
+    applyIcons(modal);
+  }
 }
 function enhance() {
   applyIcons(document);
