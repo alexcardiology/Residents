@@ -1,0 +1,80 @@
+import { sb } from "./supabase.js";
+
+let profile = null;
+let rendering = false;
+let adminRefreshing = false;
+const esc = (v) => String(v ?? "").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[c]);
+const unwrap = (r) => { if (r?.error) throw r.error; return r?.data; };
+const dateLabel = (value) => { if (!value) return "—"; const [y,m,d]=String(value).slice(0,10).split("-"); return `${d}-${m}-${y}`; };
+function toast(text){const n=document.querySelector("#toast");if(!n)return;n.textContent=text;n.style.display="block";setTimeout(()=>n.style.display="none",3000)}
+function statusInfo(status){return ({pending_substitute:["Waiting for substitute","pending"],pending_admin:["Substitute approved · waiting for Admin","pending"],approved:["Approved","approved"],rejected_substitute:["Declined by substitute","rejected"],rejected_admin:["Not approved by Admin","rejected"],cancelled:["Cancelled","rejected"]})[status]||[status,"pending"]}
+function requestCard(row, mode="history") {
+  const [label,cls]=statusInfo(row.status);
+  const counterpart = row.viewer_role === "substitute" ? row.requester_name : row.substitute_name;
+  const action = mode === "substitute" && row.status === "pending_substitute"
+    ? `<div class="schedule-actions"><button class="reject" data-schedule-peer-decision="rejected" data-request-id="${row.id}">Decline</button><button class="approve" data-schedule-peer-decision="approved" data-request-id="${row.id}">Approve</button></div>`
+    : `<span class="schedule-status ${cls}">${esc(label)}</span>`;
+  return `<article class="schedule-request-card ${mode === "substitute" ? "action-needed" : ""}"><div><strong>${row.request_type === "duty" ? "🌙 On-call duty" : "🕒 Shift"} · ${dateLabel(row.scheduled_date)}</strong><small>${row.viewer_role === "substitute" ? `${esc(row.requester_name)} asks you to cover this ${row.request_type}.` : `Substitute: ${esc(counterpart || "Resident")}`}</small><div class="schedule-request-meta"><span class="schedule-chip">${esc(row.requester_name)} → ${esc(row.substitute_name)}</span>${row.requester_note?`<span class="schedule-chip">Note: ${esc(row.requester_note)}</span>`:""}${row.substitute_note?`<span class="schedule-chip">Substitute: ${esc(row.substitute_note)}</span>`:""}${row.admin_note?`<span class="schedule-chip">Admin: ${esc(row.admin_note)}</span>`:""}</div></div>${action}</article>`;
+}
+async function getProfile(){
+  if(profile)return profile;
+  const {data:sess}=await sb.auth.getSession(); const uid=sess?.session?.user?.id; if(!uid)return null;
+  const {data,error}=await sb.from("profiles").select("id,display_name,role,residency_year").eq("id",uid).single(); if(error)return null; profile=data; return data;
+}
+function installResidentNav(){
+  if(profile?.role !== "resident") return;
+  const nav=document.querySelector("#nav"); if(!nav || nav.querySelector("[data-resident-schedule-link]"))return;
+  const b=document.createElement("button"); b.type="button"; b.className="schedule-nav-link"; b.dataset.residentScheduleLink="1"; b.innerHTML="<span>Schedule</span>";
+  const anchor=nav.querySelector('[data-go="logbook-requests"]'); if(anchor) anchor.after(b); else nav.appendChild(b);
+}
+async function renderSchedule(){
+  if(rendering || profile?.role!=="resident")return; rendering=true;
+  try{
+    const content=document.querySelector("#content"); if(!content)return;
+    document.querySelector("#title").textContent="Schedule"; document.querySelector("#crumb").textContent="RESIDENT";
+    content.classList.remove("mail-content");
+    const [candidates,requests]=await Promise.all([sb.rpc("get_schedule_substitution_candidates_v125"),sb.rpc("get_schedule_substitution_requests_v125")]);
+    const people=unwrap(candidates)||[], rows=unwrap(requests)||[];
+    const actionRows=rows.filter(r=>r.viewer_role==="substitute"&&r.status==="pending_substitute");
+    const history=rows.filter(r=>r.viewer_role==="requester" || r.status!=="pending_substitute");
+    const today=new Date(); today.setMinutes(today.getMinutes()-today.getTimezoneOffset()); const min=today.toISOString().slice(0,10);
+    content.innerHTML=`<div class="schedule-page"><section class="schedule-hero"><div><span>Resident schedule</span><h2>Shifts, duties & substitutions</h2><p>A substitution becomes valid only after the selected resident accepts it and the Admin gives final approval.</p></div><div class="schedule-hero-icon">↔</div></section><div class="schedule-grid"><section class="schedule-card"><h3>Request a substitution</h3><p>Choose what you need covered, the date, and the resident who will substitute you.</p><form id="scheduleSubstitutionForm" class="schedule-form"><div class="schedule-type-picker"><label class="schedule-type-option"><input type="radio" name="request_type" value="shift" checked> 🕒 Shift</label><label class="schedule-type-option"><input type="radio" name="request_type" value="duty"> 🌙 On-call duty</label></div><label>Date<input type="date" name="scheduled_date" min="${min}" required></label><label>Resident who will substitute you<select name="substitute_id" required><option value="">Choose resident</option>${people.map(p=>`<option value="${p.id}">${esc(p.display_name)} · Year ${p.residency_year}</option>`).join("")}</select></label><label>Note <small>optional</small><textarea name="note" placeholder="Add any useful schedule details"></textarea></label><button class="schedule-submit" type="submit">Send to substitute for approval</button></form></section><section class="schedule-card"><h3>Needs my response</h3><p>Admin will not see these requests until you approve them first.</p><div class="schedule-list">${actionRows.length?actionRows.map(r=>requestCard(r,"substitute")).join(""):'<div class="schedule-empty">No substitution request is waiting for your response.</div>'}</div><h3 style="margin-top:16px">My substitution requests</h3><div class="schedule-list" style="margin-top:8px">${history.length?history.map(r=>requestCard(r)).join(""):'<div class="schedule-empty">You have not requested a substitution yet.</div>'}</div></section></div></div>`;
+  }catch(error){alert(error?.message||String(error))}finally{rendering=false}
+}
+async function adminApprovalCard(){
+  if(adminRefreshing||profile?.role!=="owner")return;
+  const title=String(document.querySelector("#title")?.textContent||"").toLowerCase(); if(!/overview|dashboard/.test(title))return;
+  adminRefreshing=true;
+  try{
+    const rows=unwrap(await sb.rpc("get_schedule_substitution_requests_v125"))||[];
+    document.querySelector(".admin-schedule-approval-card")?.remove();
+    if(!rows.length)return;
+    const content=document.querySelector("#content"); if(!content)return;
+    const card=document.createElement("section"); card.className="admin-schedule-approval-card";
+    card.innerHTML=`<div class="schedule-admin-head"><div><h3>Schedule substitution approvals</h3><p>Only requests already accepted by the substitute resident appear here.</p></div><span class="schedule-status pending">${rows.length} pending</span></div><div class="schedule-list">${rows.map(row=>`<article class="schedule-request-card action-needed"><div><strong>${row.request_type==="duty"?"🌙 On-call duty":"🕒 Shift"} · ${dateLabel(row.scheduled_date)}</strong><small>${esc(row.requester_name)} → ${esc(row.substitute_name)}</small>${row.substitute_note?`<div class="schedule-request-meta"><span class="schedule-chip">Substitute note: ${esc(row.substitute_note)}</span></div>`:""}</div><div class="schedule-actions"><button class="reject" data-schedule-admin-decision="rejected" data-request-id="${row.id}">Reject</button><button class="approve" data-schedule-admin-decision="approved" data-request-id="${row.id}">Approve</button></div></article>`).join("")}</div>`;
+    const lead=content.querySelector(".lead"); if(lead)lead.after(card);else content.prepend(card);
+  }catch(error){console.warn("Schedule approvals",error)}finally{adminRefreshing=false}
+}
+async function refreshContext(){
+  await getProfile(); installResidentNav();
+  if(location.hash==="#resident-schedule"&&profile?.role==="resident")setTimeout(renderSchedule,80);
+  void adminApprovalCard();
+}
+document.addEventListener("click",async(event)=>{
+  const schedule=event.target.closest("[data-resident-schedule-link]");
+  if(schedule){event.preventDefault();event.stopImmediatePropagation();history.replaceState(null,"","#resident-schedule");await renderSchedule();return;}
+  const peer=event.target.closest("[data-schedule-peer-decision]");
+  if(peer){event.preventDefault();event.stopImmediatePropagation();const approved=peer.dataset.schedulePeerDecision==="approved";const note=prompt(approved?"Optional note before accepting:":"Optional reason for declining:","")??"";try{unwrap(await sb.rpc("resident_decide_schedule_substitution_v125",{p_request_id:Number(peer.dataset.requestId),p_decision:peer.dataset.schedulePeerDecision,p_note:note||null}));toast(approved?"Accepted · sent to Admin for final approval":"Substitution declined");await renderSchedule()}catch(e){alert(e?.message||String(e))}return;}
+  const admin=event.target.closest("[data-schedule-admin-decision]");
+  if(admin){event.preventDefault();event.stopImmediatePropagation();const approved=admin.dataset.scheduleAdminDecision==="approved";const note=prompt(approved?"Optional Admin note:":"Reason for not approving (optional):","")??"";try{unwrap(await sb.rpc("owner_decide_schedule_substitution_v125",{p_request_id:Number(admin.dataset.requestId),p_decision:admin.dataset.scheduleAdminDecision,p_note:note||null}));toast(approved?"Substitution approved":"Substitution rejected");await adminApprovalCard()}catch(e){alert(e?.message||String(e))}}
+},true);
+document.addEventListener("submit",async(event)=>{
+  const form=event.target;if(!(form instanceof HTMLFormElement)||form.id!=="scheduleSubstitutionForm")return;
+  event.preventDefault();event.stopImmediatePropagation();const fd=new FormData(form);const btn=form.querySelector("button[type=submit]");if(btn)btn.disabled=true;
+  try{unwrap(await sb.rpc("resident_request_schedule_substitution_v125",{p_request_type:fd.get("request_type"),p_scheduled_date:fd.get("scheduled_date"),p_substitute_id:fd.get("substitute_id"),p_note:fd.get("note")||null}));toast("Substitution request sent to the selected resident");await renderSchedule()}catch(e){alert(e?.message||String(e));if(btn)btn.disabled=false}
+},true);
+new MutationObserver(()=>{installResidentNav();void adminApprovalCard()}).observe(document.documentElement,{childList:true,subtree:true});
+window.addEventListener("hashchange",()=>setTimeout(refreshContext,80));
+sb.auth.onAuthStateChange(()=>{profile=null;setTimeout(refreshContext,100)});
+setInterval(()=>{void adminApprovalCard()},12000);
+refreshContext();
