@@ -1,0 +1,89 @@
+       e.from("assessment_schedules").select("id,title,starts_at,ends_at,location,assessment_type").eq("is_active", !0).eq("residency_year", i.residency_year).gte("ends_at", new Date().toISOString()).order("starts_at").limit(1),
+-      isStandardResidencyYear(i.residency_year) ? e.rpc("get_logbook_minimum_progress_v1084", { p_resident_id: null }) : Promise.resolve({ data: [] }),
++      isStandardResidencyYear(i.residency_year) ? e.rpc("get_logbook_minimum_progress_v1096", { p_resident_id: null }) : Promise.resolve({ data: [] }),
+     ]);
+     const latest = assessmentsResult.data?.[0];
+     const upcoming = scheduleResult.data?.[0];
+@@ -2290,7 +2310,7 @@
+         ${dashboardTile("My chapters", String(chaptersResult.data?.length || 0), "Cumulative curriculum access", "chapters")}
+         ${evidenceDashboardTile(String(knowledgeResult.count || 0), String(skillLevelsResult.count || 0))}
+         ${dashboardTile("Logbook activity", String(logsResult.count || 0), "Supervised performances", "logbook")}
+-        ${dashboardTile("Minimum requirements", isStandardResidencyYear(i.residency_year) ? `${minimumSummary.met}/${minimumSummary.required || 0}` : "—", isStandardResidencyYear(i.residency_year) ? (minimumSummary.missing ? `${minimumSummary.missing} verified case${minimumSummary.missing===1?"":"s"} missing` : minimumSummary.required ? "All current minimums met" : "No minimums configured") : "Not applicable to this training status", "logbook-minimum-requirements", minimumSummary.missing ? "warning-tile" : minimumSummary.required ? "success-tile" : "")}
++        ${dashboardTile("Minimum requirements", isStandardResidencyYear(i.residency_year) ? `${minimumSummary.met}/${minimumSummary.required || 0}` : "—", isStandardResidencyYear(i.residency_year) ? (minimumSummary.missing ? `${minimumSummary.missing} case${minimumSummary.missing===1?"":"s"} missing across targets` : minimumSummary.required ? "All current minimums met" : "No minimums configured") : "Not applicable to this training status", "logbook-minimum-requirements", minimumSummary.missing ? "warning-tile" : minimumSummary.required ? "success-tile" : "")}
+         ${dashboardTile(upcoming && new Date(upcoming.starts_at).getTime() <= Date.now() && Date.now() <= new Date(upcoming.ends_at).getTime() ? "CURRENT ASSESSMENT" : "Next assessment", upcoming ? o(d(upcoming.starts_at)) : "—", upcoming ? upcoming.title : "No upcoming window", "assessments", upcoming ? (new Date(upcoming.starts_at).getTime() <= Date.now() && Date.now() <= new Date(upcoming.ends_at).getTime() ? "current-assessment-tile" : "accent-tile") : "")}
+         ${dashboardTile("Latest outcome", latest ? `${o(latest.total_score)}/30` : "—", resultMeta, "assessments", i.progression_status === "reassessment_required" ? "warning-tile" : latest?.overall_pass ? "success-tile" : "")}
+       </div>`;
+@@ -2428,36 +2448,52 @@
+     ${dashboardTile("Message cleanup", "Clean", "Clear message copies without changing resident logbooks", "message-cleanup")}
+   </div>`;
+ }
+-async function ownerLogbookRequirementsPage() {
++async function ownerLogbookRequirementsPage(yearOverride = null) {
+   if (s.p.role !== "owner") return g("dashboard");
+   t("#title").textContent = "Minimum requirements";
++  const year = Math.max(1, Math.min(5, Number(yearOverride || window.ownerRequirementYear || 1)));
++  window.ownerRequirementYear = year;
+   const rows = u(await e.rpc("owner_get_logbook_requirements_v1083")) || [];
+-  const values = new Map(rows.map((row) => [`${String(row.intervention_name)}~${Number(row.residency_year)}`, Number(row.minimum_required) || 0]));
+-  const body = PRIOR_EXPERIENCE_INTERVENTIONS.map((name) => `
+-    <tr>
+-      <th scope="row"><span class="minimum-manual-name">${o(name)}</span></th>
+-      ${n.map((year) => `<td><input class="minimum-requirement-input" type="number" min="0" max="9999" step="1" inputmode="numeric" value="${o(values.get(`${name}~${year}`) ?? 0)}" data-logbook-minimum data-intervention="${o(name)}" data-residency-year="${year}" aria-label="${o(name)} minimum for Year ${year}"></td>`).join("")}
+-    </tr>`).join("");
++  const values = new Map(rows.map((row) => [
++    `${String(row.intervention_name)}~${Number(row.residency_year)}~${String(row.participation_mode)}`,
++    row,
++  ]));
++  const modes = [
++    ["attended", "Attend"],
++    ["assisted", "Assisted"],
++    ["solo_guided", "Direct guidance"],
++    ["solo_unguided", "Unassisted"],
++    ["supervised", "Supervise"],
++  ];
++  const body = PRIOR_EXPERIENCE_INTERVENTIONS.map((name) => {
++    const cells = modes.map(([mode,label]) => {
++      const row = values.get(`${name}~${year}~${mode}`) || {};
++      const note = String(row.timing_note || "");
++      return `<td><input class="minimum-requirement-input" type="number" min="0" max="9999" step="1" inputmode="numeric" value="${o(Number(row.minimum_required) || 0)}" data-logbook-minimum data-intervention="${o(name)}" data-residency-year="${year}" data-participation-mode="${o(mode)}" data-timing-note="${o(note)}" aria-label="${o(name)} · ${o(label)} · Year ${year}">${note ? `<small class="minimum-timing-note">${o(note)}</small>` : ""}</td>`;
++    }).join("");
++    return `<tr><th scope="row"><span class="minimum-manual-name">${o(name)}</span></th>${cells}</tr>`;
++  }).join("");
+ 
+   a.innerHTML = h(
+     "Minimum manual-intervention requirements",
+-    "Owner-only targets for the minimum number of verified cases required in each residency year.",
++    "Set separate Year targets for attendance, assisted performance, direct guidance, unassisted performance and supervision.",
+     '<div class="inline-actions"><button class="btn secondary" type="button" data-go="owner-logbook-center">Back to Logbooks</button></div>',
+   ) + `
++    <section class="minimum-year-tabs" aria-label="Residency year">${n.map((item)=>`<button type="button" class="${item===year?"active":""}" data-minimum-requirement-year="${item}">Year ${item}</button>`).join("")}</section>
+     <form id="ownerLogbookRequirementsForm" class="card minimum-requirements-card">
+       <div class="minimum-requirements-note">
+-        <div><b>How it works</b><span>Enter the minimum verified case count for each manual intervention and residency year.</span></div>
+-        <div class="minimum-zero-key"><strong>0</strong><span>= no minimum requirement</span></div>
++        <div><b>Year ${year}</b><span>Each number is checked independently. A resident must satisfy every non-zero target.</span></div>
++        <div class="minimum-zero-key"><strong>0</strong><span>= no requirement</span></div>
+       </div>
+       <div class="table-scroll minimum-requirements-scroll">
+-        <table class="table minimum-requirements-table">
+-          <thead><tr><th>Manual intervention</th>${n.map((year) => `<th>Year ${year}</th>`).join("")}</tr></thead>
++        <table class="table minimum-requirements-table minimum-requirements-mode-table">
++          <thead><tr><th>Manual intervention</th>${modes.map(([,label])=>`<th>${o(label)}</th>`).join("")}</tr></thead>
+           <tbody>${body}</tbody>
+         </table>
+       </div>
+       <div class="minimum-requirements-footer">
+-        <p>These targets do not alter or delete resident logbook records. They can be changed later by the Admin.</p>
+-        <button class="btn" type="submit">Save minimum requirements</button>
++        <p><b>Direct guidance</b> = performed solo under direct guidance. The Year-2 TTE unassisted target carries a second-half-of-year note.</p>
++        <button class="btn" type="submit">Save Year ${year} requirements</button>
+       </div>
+     </form>`;
+ }
+@@ -2475,31 +2511,41 @@
+   const requiredOnly = options.requiredOnly !== false;
+   const myScopes = new Set((options.myScopes || []).map(String));
+   const scopeStatus = new Map((options.scopeReviews || []).map((row) => [String(row.intervention_name), row]));
+-  const visible = (rows || []).filter((row) => !requiredOnly || Number(row.minimum_required || 0) > 0);
+-  if (!visible.length) return '<div class="panel-empty">No minimum procedural requirements are configured for this residency year.</div>';
+-  return `<div class="table-scroll"><table class="table resident-minimum-table"><thead><tr><th>Manual intervention</th><th>Minimum</th><th>Verified</th><th>Pending</th><th>Missing</th><th>Status</th><th>Assigned assessors</th></tr></thead><tbody>${visible.map((row) => {
