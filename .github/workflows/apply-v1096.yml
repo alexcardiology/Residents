@@ -18,12 +18,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct verified frontend files
+      - name: Apply verified frontend patch
         shell: bash
         run: |
           set -euo pipefail
-          cat appjs.b64.part* | base64 -d | gzip -d > assets/app.js
-          cat stylecss.b64.part* | base64 -d | gzip -d > assets/style.css
+          cat v1096.patch.part* > /tmp/v1096.patch
+          git apply --check /tmp/v1096.patch
+          git apply /tmp/v1096.patch
+
           node --check assets/app.js
           grep -q 'get_logbook_minimum_progress_v1096' assets/app.js
           grep -q 'Ablation' assets/app.js
@@ -33,7 +35,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/app.js assets/style.css app.html
+          git add assets/app.js assets/style.css
           git rm -f v1096.patch.part* v1096.patch.ready appjs.b64.part* stylecss.b64.part* v1096.full.ready .github/workflows/apply-v1096.yml || true
           git commit -m "Deploy v1.0.96 logbook minimum requirements"
           git push
