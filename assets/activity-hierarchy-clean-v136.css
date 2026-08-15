@@ -1,0 +1,93 @@
+/* v1.0.136 · four standardized logbook modes + clean hierarchy cards */
+
+.participation-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.participation-options .standard-participation-option {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #d9e2ec;
+  border-radius: 15px;
+  background: #fff;
+}
+.participation-options .standard-participation-option:has(input:checked) {
+  border-color: #8fb5df;
+  box-shadow: 0 0 0 2px rgba(41, 113, 191, .08);
+  background: #f7fbff;
+}
+.participation-options .standard-mode-icon {
+  display: inline-flex;
+  width: 27px;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #eef4fa;
+  font-size: .92rem;
+  flex: 0 0 27px;
+}
+.participation-options .standard-participation-option > span:last-child {
+  font-weight: 800;
+  color: #10263f;
+}
+
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-person-card {
+  min-height: 54px;
+  padding: 9px 10px;
+  gap: 10px;
+  background: #fff;
+  border-color: #dce4ec;
+  box-shadow: none;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-person-copy {
+  min-width: 0;
+  display: block;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-person-copy b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .94rem;
+  line-height: 1.15;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-person-copy small,
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-rank-chip,
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-inline-rank-select {
+  display: none !important;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-slot.rank-invalid,
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-slot:has(.audit-person-card) {
+  background: #fff !important;
+  border-color: #d8e1ea !important;
+  box-shadow: none !important;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-slot.rank-invalid::before,
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-slot.rank-invalid::after {
+  display: none !important;
+  content: none !important;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-slot {
+  min-height: 66px;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-person-avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+}
+#auditHierarchyOverlay.hierarchy-clean-v136 .audit-remove-slot {
+  margin-left: auto;
+}
+
+@media (max-width: 700px) {
+  .participation-options {
+    grid-template-columns: 1fr;
+  }
+  .participation-options .standard-participation-option {
+    min-height: 54px;
+  }
+}
