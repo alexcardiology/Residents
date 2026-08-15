@@ -1,0 +1,30 @@
+/* v1.0.123 — Prior Experience requests live only in Logbook Requests */
+.prior-review-logbook-only .section-head{align-items:flex-start;gap:12px}
+.prior-review-logbook-only .section-head p{max-width:760px}
+.prior-request-stage{display:grid;gap:2px;min-width:180px}
+.prior-request-stage>span{color:#8a6670;font-size:.5rem;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.prior-request-stage>b{color:#24384d;font-size:.7rem;line-height:1.2}
+.prior-request-stage>small{color:#738295;font-size:.58rem;font-weight:650;line-height:1.25}
+.prior-request-senior-summary{display:grid;gap:5px;margin-top:7px;padding-top:7px;border-top:1px solid #e6ebf0}
+.prior-request-senior-summary>span{color:#748395;font-size:.5rem;font-weight:850;text-transform:uppercase;letter-spacing:.04em}
+.prior-request-senior-chips{display:flex;flex-wrap:wrap;gap:5px}
+.prior-request-senior-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;background:#f0f3f6;color:#5f7082;font-size:.54rem;font-weight:800;line-height:1.2}
+.prior-request-senior-chip b{display:grid;place-items:center;width:14px;height:14px;border-radius:50%;font-size:.5rem}
+.prior-request-senior-chip.approved{background:#e8f7ef;color:#12613d}
+.prior-request-senior-chip.approved b{background:#198754;color:#fff}
+.prior-request-senior-chip.pending{background:#fff3d9;color:#8b610e}
+.prior-request-senior-chip.pending b{background:#d79b20;color:#fff}
+.prior-request-senior-chip.rejected{background:#fde9ed;color:#8e2033}
+.prior-request-senior-chip.rejected b{background:#b72c42;color:#fff}
+.prior-request-senior-empty{color:#84909d;font-size:.55rem;font-weight:650}
+.prior-review-senior-verification-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 12px;border:1px solid #dce5ec;border-radius:12px;background:#f8fafc}
+.prior-review-senior-verification-strip>div:first-child span,.prior-review-senior-verification-strip>div:first-child b{display:block}
+.prior-review-senior-verification-strip>div:first-child span{color:#8a6670;font-size:.52rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+.prior-review-senior-verification-strip>div:first-child b{margin-top:2px;color:#273b50;font-size:.68rem}
+html.admin-red-theme .prior-review-senior-verification-strip{border-color:#ead8dd;background:#fff9fa}
+@media(max-width:720px){
+  .prior-review-logbook-only .table-scroll{overflow-x:auto}
+  .prior-review-logbook-only table{min-width:620px}
+  .prior-review-senior-verification-strip{align-items:flex-start;flex-direction:column}
+  .prior-request-stage{min-width:150px}
+}
