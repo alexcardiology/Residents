@@ -1,0 +1,195 @@
+#accountSwitchButton{display:none}
+
+@media (max-width:850px){
+  #accountSwitchButton:not([hidden]){
+    display:inline-grid;
+    width:42px;
+    height:42px;
+    flex:0 0 42px;
+    place-items:center;
+    margin-left:8px;
+    padding:0;
+    border:1px solid #d8e2ee;
+    border-radius:12px;
+    background:#fff;
+    color:#0a2747;
+    font-size:1.25rem;
+    font-weight:900;
+    box-shadow:0 4px 12px rgba(8,28,53,.06);
+  }
+  #accountSwitchButton:active{transform:translateY(1px)}
+}
+
+.account-switch-dialog{
+  width:min(92vw,430px);
+  max-width:430px;
+  padding:0;
+  border:0;
+  border-radius:22px;
+  background:#fff;
+  box-shadow:0 30px 80px rgba(4,20,38,.3);
+}
+.account-switch-dialog::backdrop{
+  background:rgba(5,20,38,.58);
+  backdrop-filter:blur(2px);
+}
+.account-switch-shell{padding:20px}
+.account-switch-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+.account-switch-head small{
+  color:#1c73c9;
+  font-size:.67rem;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.account-switch-head h2{
+  margin:3px 0 4px;
+  color:#08203b;
+  font-size:1.45rem;
+}
+.account-switch-head p{
+  margin:0;
+  color:#6a7a8c;
+  font-size:.78rem;
+  line-height:1.35;
+}
+.account-switch-close{
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  border:1px solid #d8e2ee;
+  border-radius:10px;
+  background:#f8fbfe;
+  color:#0a2747;
+  font-size:1.25rem;
+  font-weight:800;
+}
+.account-switch-message{
+  margin:0 0 12px;
+  padding:10px 12px;
+  border:1px solid #f1d49c;
+  border-radius:11px;
+  background:#fff8e9;
+  color:#865807;
+  font-size:.76rem;
+  line-height:1.35;
+}
+.account-switch-list{display:grid;gap:10px}
+.account-switch-card{
+  display:grid;
+  grid-template-columns:44px minmax(0,1fr) auto;
+  align-items:center;
+  gap:11px;
+  padding:12px;
+  border:1px solid #dce5ef;
+  border-radius:15px;
+  background:#fbfdff;
+}
+.account-switch-card.is-current{
+  border-color:#b7d8f6;
+  background:#eef7ff;
+}
+.account-switch-avatar{
+  width:44px;
+  height:44px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#e7eef6;
+  color:#0b294b;
+  font-weight:900;
+}
+.account-switch-copy{min-width:0}
+.account-switch-copy strong{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#09223f;
+  font-size:.92rem;
+}
+.account-switch-copy small{
+  display:block;
+  margin-top:3px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#6f7f90;
+  font-size:.66rem;
+}
+.account-current-badge{
+  padding:5px 8px;
+  border-radius:999px;
+  background:#dff4e8;
+  color:#0a7b43;
+  font-size:.67rem;
+  font-weight:800;
+}
+.account-switch-action,
+.account-login-submit{
+  min-height:36px;
+  padding:7px 12px;
+  border:0;
+  border-radius:10px;
+  background:#1976d2;
+  color:#fff;
+  font-size:.76rem;
+  font-weight:800;
+}
+.account-switch-login{
+  grid-column:1/-1;
+  display:grid;
+  gap:8px;
+  margin-top:2px;
+  padding-top:10px;
+  border-top:1px solid #e5ebf2;
+}
+.account-switch-login[hidden]{display:none!important}
+.account-switch-login label>span{
+  display:block;
+  margin-bottom:5px;
+  color:#47596b;
+  font-size:.68rem;
+  font-weight:800;
+}
+.account-password-wrap{position:relative}
+.account-password-wrap input{
+  width:100%;
+  min-height:42px;
+  padding:9px 44px 9px 11px;
+  border:1px solid #ccd8e5;
+  border-radius:10px;
+  font:inherit;
+}
+.account-password-eye{
+  position:absolute;
+  right:5px;
+  top:50%;
+  width:34px;
+  height:34px;
+  transform:translateY(-50%);
+  border:0;
+  background:transparent;
+  color:#53687c;
+}
+.account-switch-shell footer{
+  margin-top:13px;
+  color:#7a8795;
+  font-size:.64rem;
+  line-height:1.35;
+}
+
+@media (max-width:390px){
+  #accountSwitchButton:not([hidden]){
+    width:39px;
+    height:39px;
+    flex-basis:39px;
+    margin-left:6px;
+  }
+  .account-switch-shell{padding:16px}
+}
