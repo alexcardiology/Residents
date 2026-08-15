@@ -1,5 +1,28 @@
 import { sb } from "./supabase.js";
 
+// Load the private Admin/Assessor account switcher without touching the main app bundle.
+(function ensureAccountSwitcherShell() {
+  if (!document.querySelector('link[data-account-switcher-style]')) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "assets/account-switcher.css?v=1.0.104";
+    link.dataset.accountSwitcherStyle = "1";
+    document.head.appendChild(link);
+  }
+  if (!document.querySelector("#accountSwitchButton")) {
+    const button = document.createElement("button");
+    button.id = "accountSwitchButton";
+    button.type = "button";
+    button.hidden = true;
+    button.setAttribute("aria-label", "Switch user");
+    button.title = "Switch user";
+    button.textContent = "⇄";
+    const refresh = document.querySelector("#mobileHeaderRefresh");
+    if (refresh?.parentElement) refresh.parentElement.insertBefore(button, refresh);
+  }
+  void import("./account-switcher.js?v=1.0.104");
+})();
+
 // Route El Médico questions through the schedule-name-aware wrapper.
 // All other Edge Function calls continue unchanged.
 if (!window.__elMedicoScheduleNameWrapper) {
