@@ -1,0 +1,80 @@
+/* v1.0.121 — universal Admin navigation + red-surface readability */
+html.admin-red-theme .admin-global-back-row{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  margin:0 0 12px;
+}
+html.admin-red-theme .admin-global-back{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:38px;
+  padding:8px 13px;
+  border:1px solid #dfc4cb;
+  border-radius:11px;
+  background:#fffafb;
+  color:#64111f;
+  box-shadow:0 4px 12px rgba(71,8,20,.055);
+  font:inherit;
+  font-size:.72rem;
+  font-weight:850;
+  cursor:pointer;
+  transition:transform .14s ease,border-color .14s ease,background .14s ease;
+}
+html.admin-red-theme .admin-global-back:hover{
+  transform:translateY(-1px);
+  border-color:#c88f9d;
+  background:#fff3f5;
+}
+html.admin-red-theme .admin-global-back .admin-back-arrow{
+  font-size:1rem;
+  line-height:1;
+}
+
+/* Applied dynamically only to elements whose effective visible surface is red/burgundy. */
+html.admin-red-theme .admin-on-red-surface{
+  color:#fff !important;
+}
+html.admin-red-theme .admin-on-red-surface::before,
+html.admin-red-theme .admin-on-red-surface::after{
+  color:inherit !important;
+}
+
+/* Hard guarantees for the core Admin red chrome. */
+html.admin-red-theme .shell aside,
+html.admin-red-theme .shell aside button,
+html.admin-red-theme .shell aside a,
+html.admin-red-theme .shell aside span,
+html.admin-red-theme .shell aside strong,
+html.admin-red-theme .shell aside small,
+html.admin-red-theme .audit-hierarchy-head,
+html.admin-red-theme .audit-hierarchy-head h1,
+html.admin-red-theme .audit-hierarchy-head h2,
+html.admin-red-theme .audit-hierarchy-head h3,
+html.admin-red-theme .audit-hierarchy-head p,
+html.admin-red-theme .audit-hierarchy-head span,
+html.admin-red-theme .audit-hierarchy-head small,
+html.admin-red-theme .assessor-rank-head,
+html.admin-red-theme .assessor-rank-head h2,
+html.admin-red-theme .assessor-rank-head p,
+html.admin-red-theme .assessor-rank-head small,
+html.admin-red-theme .audit-save-button,
+html.admin-red-theme .assessor-rank-account-strip button,
+html.admin-red-theme .assessor-rank-foot button,
+html.admin-red-theme .account-switch-action,
+html.admin-red-theme .account-login-submit{
+  color:#fff !important;
+}
+
+/* Primary Admin buttons use white text whenever the red theme supplies the background. */
+html.admin-red-theme .btn:not(.secondary):not(.warning):not(.success):not(.danger),
+html.admin-red-theme form button:not(.secondary):not(.success-button):not(.danger-button),
+html.admin-red-theme button.primary{
+  color:#fff;
+}
+
+@media(max-width:760px){
+  html.admin-red-theme .admin-global-back-row{margin-bottom:9px}
+  html.admin-red-theme .admin-global-back{min-height:36px;padding:7px 11px;font-size:.68rem}
+}
