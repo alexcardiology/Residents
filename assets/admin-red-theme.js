@@ -46,3 +46,15 @@ sb.auth.onAuthStateChange((event) => {
     void resolveAndApplyTheme();
   }
 });
+
+if (!document.querySelector('link[data-audit-hierarchy-style]')) {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "assets/audit-hierarchy.css?v=1.0.116";
+  link.dataset.auditHierarchyStyle = "1";
+  document.head.appendChild(link);
+}
+
+void import("./audit-hierarchy.js?v=1.0.116").catch((error) => {
+  console.warn("Audit hierarchy tools could not load", error);
+});
