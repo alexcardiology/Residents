@@ -1,0 +1,131 @@
+name: Mobile drawer cards v1.0.98
+
+on:
+  push:
+    paths:
+      - '.deploy-v1098'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply mobile header refresh and drawer card styling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('assets/style.css')
+          text = p.read_text(encoding='utf-8')
+          marker = 'v1.0.98 — Mobile refresh header + card-style drawer'
+          css = r'''
+
+/* =========================================================
+   v1.0.98 — Mobile refresh header + card-style drawer
+========================================================= */
+#mobileHeaderRefresh{
+  display:none;
+}
+
+@media (max-width:850px){
+  /* Mobile header: refresh replaces the profile/initial chip. */
+  .workspace > header #profileChip{
+    display:none !important;
+  }
+
+  #mobileHeaderRefresh{
+    display:inline-grid !important;
+    place-items:center;
+    width:42px;
+    height:42px;
+    min-width:42px;
+    padding:0;
+    margin-left:auto;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:#fff;
+    color:var(--navy);
+    font-size:1.45rem;
+    font-weight:800;
+    line-height:1;
+    box-shadow:0 4px 14px rgba(8,28,53,.06);
+  }
+
+  #mobileHeaderRefresh:active{
+    transform:rotate(20deg) scale(.96);
+    background:#eef5fb;
+  }
+
+  /* Drawer: keep exactly the existing tabs/order, only change presentation. */
+  .shell > aside #nav{
+    display:grid;
+    gap:9px;
+    margin-top:10px;
+  }
+
+  .shell > aside #nav > button{
+    width:100%;
+    min-height:50px;
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    gap:9px;
+    padding:10px 14px;
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:14px;
+    background:rgba(255,255,255,.055);
+    color:#eef5ff;
+    text-align:left;
+    font-weight:700;
+    box-shadow:none;
+  }
+
+  .shell > aside #nav > button:hover,
+  .shell > aside #nav > button:active{
+    background:rgba(255,255,255,.11);
+    border-color:rgba(255,255,255,.30);
+  }
+
+  .shell > aside #nav > button.active,
+  .shell > aside #nav > button[aria-current='page']{
+    background:rgba(255,255,255,.13);
+    border-color:rgba(255,255,255,.38);
+  }
+
+  .shell > aside #nav > button .nav-badge{
+    margin-left:auto;
+  }
+
+  .shell > aside #logout{
+    width:100%;
+    min-height:50px;
+    margin-top:12px;
+    padding:10px 14px;
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:14px;
+    background:rgba(255,255,255,.055);
+    color:#ffd6df;
+    text-align:left;
+    font-weight:750;
+  }
+
+  .shell > aside #logout:hover,
+  .shell > aside #logout:active{
+    background:rgba(255,255,255,.11);
+    border-color:rgba(255,255,255,.30);
+  }
+}
+'''
+          if marker not in text:
+              p.write_text(text + css, encoding='utf-8')
+          PY
+          git rm -f .deploy-v1098 .github/workflows/mobile-drawer-v1098.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/style.css
+          git commit -m 'Style mobile drawer cards and refresh header v1.0.98'
+          git push
