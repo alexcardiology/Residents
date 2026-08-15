@@ -46,12 +46,14 @@
 #auditHierarchyOverlay.hierarchy-clean-v136 .audit-person-copy {
   min-width: 0;
   display: block;
+  flex: 1 1 auto;
 }
 #auditHierarchyOverlay.hierarchy-clean-v136 .audit-person-copy b {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-size: .94rem;
   line-height: 1.15;
 }
@@ -81,6 +83,7 @@
 }
 #auditHierarchyOverlay.hierarchy-clean-v136 .audit-remove-slot {
   margin-left: auto;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 700px) {
