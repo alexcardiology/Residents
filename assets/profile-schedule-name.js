@@ -1,5 +1,14 @@
 import { sb } from "./supabase.js";
 
+// Route El Médico questions through the schedule-name-aware wrapper.
+// All other Edge Function calls continue unchanged.
+if (!window.__elMedicoScheduleNameWrapper) {
+  const invoke = sb.functions.invoke.bind(sb.functions);
+  sb.functions.invoke = (functionName, options) =>
+    invoke(functionName === "duty-bot" ? "duty-bot-smart" : functionName, options);
+  window.__elMedicoScheduleNameWrapper = true;
+}
+
 let currentUserId = "";
 let currentRole = "";
 let cachedScheduleName = "";
