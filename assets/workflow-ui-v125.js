@@ -2,15 +2,15 @@ import { sb } from "./supabase.js";
 
 const ICONS=[
   {re:/^attended$/i,cls:"mode-attended",icon:"👁",label:"Attended"},
-  {re:/^(performed\s+assisted|performed\s+with\s+assistance|with\s+assistance)$/i,cls:"mode-assisted",icon:"🤝",label:"Performed assisted"},
+  {re:/^(performed\s+assisted|performed\s+with\s+assistance|with\s+assistance|solo\s+under\s+guidance|performed\s+solo\s+under\s+guidance)$/i,cls:"mode-assisted",icon:"🤝",label:"Performed assisted"},
   {re:/^(performed\s+unassisted|performed\s+solo\s+without\s+guidance|solo\s+without\s+guidance)$/i,cls:"mode-unassisted",icon:"🩺",label:"Performed unassisted"},
-  {re:/^(supervise|supervised)$/i,cls:"mode-supervise",icon:"👥",label:"Supervised"}
+  {re:/^(supervise|supervised|supervised\s+another\s+trainee)$/i,cls:"mode-supervise",icon:"👥",label:"Supervised"}
 ];
 let fieldCache=null,fieldLoading=false,enhanceTimer=0;
 const esc=(value)=>String(value??"").replace(/[&<>'"]/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
 function activityMatch(text){const clean=String(text||"").replace(/\s+/g," ").trim();return ICONS.find(item=>item.re.test(clean))}
 function normalizeVisibleTerms(root=document){
-  root.querySelectorAll("th,.tag,.requirement-mode-label,.minimum-mode-label,.activity-mode-label-target").forEach(node=>{
+  root.querySelectorAll("th,td,.tag,.requirement-mode-label,.minimum-mode-label,.activity-mode-label-target").forEach(node=>{
     if(node.querySelector(".activity-mode-icon"))return;
     const text=String(node.textContent||"").replace(/\s+/g," ").trim(),replacement=activityMatch(text);
     if(replacement&&text!==replacement.label)node.textContent=replacement.label;
@@ -22,7 +22,7 @@ function normalizeVisibleTerms(root=document){
   });
 }
 function applyIcons(root=document){
-  root.querySelectorAll("th,.tag,.requirement-mode-label,.minimum-mode-label,.activity-mode-label-target").forEach(node=>{
+  root.querySelectorAll("th,td,.tag,.requirement-mode-label,.minimum-mode-label,.activity-mode-label-target").forEach(node=>{
     if(node.dataset.activityIconV125==="1")return;
     const raw=String(node.textContent||"").replace(/Achievement\s*\/\s*Target/ig,"").replace(/Achievement/ig,"").replace(/Target/ig,"").replace(/\s+/g," ").trim(),match=activityMatch(raw);
     if(!match)return;
