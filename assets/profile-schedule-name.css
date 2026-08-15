@@ -1,0 +1,67 @@
+/* Resident faculty schedule name */
+.faculty-schedule-name-field {
+  position: relative;
+  padding: 14px 15px 13px;
+  border: 1px solid #e4c95d;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fffdf4 0%, #fff9df 100%);
+  box-shadow: 0 5px 16px rgba(118, 91, 0, .06);
+}
+
+.faculty-schedule-name-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+  color: #10233c;
+  font-weight: 850;
+}
+
+.faculty-schedule-name-title b {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #0b2746;
+  color: #ffd84a;
+  font-size: .68rem;
+  letter-spacing: .07em;
+}
+
+.faculty-schedule-name-field input {
+  border-color: #dbc665 !important;
+  background: #fff !important;
+  font-weight: 750;
+}
+
+.faculty-schedule-name-field input:focus {
+  border-color: #c69d00 !important;
+  box-shadow: 0 0 0 3px rgba(232, 191, 26, .16) !important;
+}
+
+.faculty-schedule-name-field small {
+  display: block;
+  margin-top: 7px;
+  color: #6c5a16;
+  line-height: 1.4;
+  font-size: .77rem;
+}
+
+.faculty-schedule-name-field.is-empty {
+  border-style: dashed;
+}
+
+@media (max-width: 680px) {
+  .faculty-schedule-name-field {
+    padding: 12px 13px;
+    border-radius: 14px;
+  }
+
+  .faculty-schedule-name-title {
+    align-items: flex-start;
+  }
+
+  .faculty-schedule-name-title b {
+    margin-top: 1px;
+  }
+}
