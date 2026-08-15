@@ -9,6 +9,7 @@ on:
       - "app.html"
       - "assets/**"
       - "mobile/**"
+      - "mobile-assets/**"
       - "download.html"
       - "package.json"
       - "capacitor.config.json"
@@ -19,8 +20,13 @@ permissions:
 
 jobs:
   android:
-    name: Android APK
+    name: Android release APK
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,22 +51,49 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Build installable APK
+      - name: Generate branded Android icon and splash assets
+        run: npm run assets:android
+
+      - name: Build unsigned release APK
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
           cd ..
-          cp android/app/build/outputs/apk/debug/app-debug.apk resident-training-android.apk
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk resident-training-android-unsigned.apk
 
-      - name: Upload workflow artifact
+      - name: Upload unsigned release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: resident-training-android
+          name: resident-training-android-unsigned
+          path: resident-training-android-unsigned.apk
+          if-no-files-found: error
+
+      - name: Sign production release APK
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > resident-training-release.p12
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$BUILD_TOOLS/zipalign" -f -v 4 resident-training-android-unsigned.apk resident-training-android-aligned.apk
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks resident-training-release.p12 \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass "env:ANDROID_KEYSTORE_PASSWORD" \
+            --key-pass "env:ANDROID_KEY_PASSWORD" \
+            --out resident-training-android.apk \
+            resident-training-android-aligned.apk
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs resident-training-android.apk
+
+      - name: Upload signed release artifact
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: resident-training-android-signed
           path: resident-training-android.apk
           if-no-files-found: error
 
-      - name: Publish stable Android download
+      - name: Publish stable signed Android download
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -70,7 +103,7 @@ jobs:
             gh release create mobile-latest resident-training-android.apk \
               --target "$GITHUB_SHA" \
               --title "Resident Training Mobile" \
-              --notes "Android beta build for the Resident Training & Assessment mobile app. This APK opens the live training portal and uses the same Supabase data as the web version."
+              --notes "Production-signed Android build for Resident Training & Assessment."
           fi
 
   ios-project:
@@ -93,6 +126,9 @@ jobs:
           rm -rf ios
           npx cap add ios
           npx cap sync ios
+
+      - name: Generate branded iOS icon and splash assets
+        run: npm run assets:ios
 
       - name: Package iOS source project
         run: zip -qry resident-training-ios-project.zip ios
