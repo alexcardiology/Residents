@@ -1,0 +1,16 @@
+/* v1.0.133 — Admin readability rule: every light surface uses dark text. Only explicit deep burgundy/red surfaces use white. */
+html.admin-red-theme main,
+html.admin-red-theme main *{color:#111827!important}
+html.admin-red-theme main :is(input,select,textarea,option){color:#111827!important}
+html.admin-red-theme main ::placeholder{color:#6b7280!important;opacity:1}
+/* Explicitly deep red/burgundy surfaces and controls */
+html.admin-red-theme main :is(.admin-deep-red,.burgundy-surface,.audit-hierarchy-head,.audit-save-button,.danger-button,button.primary,.btn:not(.secondary),form button:not(.secondary):not(.schedule-inline-cancel):not(.schedule-reconsider-button):not(.schedule-el-medico-button):not(.schedule-bulk-secondary):not(.schedule-bulk-danger),.schedule-actions .reject,.schedule-submit,.schedule-bulk-danger.reset),
+html.admin-red-theme main :is(.admin-deep-red,.burgundy-surface,.audit-hierarchy-head,.audit-save-button,.danger-button,button.primary,.btn:not(.secondary),form button:not(.secondary):not(.schedule-inline-cancel):not(.schedule-reconsider-button):not(.schedule-el-medico-button):not(.schedule-bulk-secondary):not(.schedule-bulk-danger),.schedule-actions .reject,.schedule-submit,.schedule-bulk-danger.reset) *{color:#fff!important}
+/* Keep green approval buttons readable without allowing pale cards to inherit white text. */
+html.admin-red-theme main .schedule-actions .approve,
+html.admin-red-theme main .schedule-actions .approve *{color:#fff!important}
+html.admin-red-theme main :is(.secondary,.btn.secondary,.admin-global-back,.schedule-reconsider-button,.schedule-el-medico-button,.schedule-inline-cancel,.schedule-bulk-secondary,.schedule-bulk-danger:not(.reset)),
+html.admin-red-theme main :is(.secondary,.btn.secondary,.admin-global-back,.schedule-reconsider-button,.schedule-el-medico-button,.schedule-inline-cancel,.schedule-bulk-secondary,.schedule-bulk-danger:not(.reset)) *{color:#111827!important}
+html.admin-red-theme main :is(.tag.success,.schedule-status.approved,.schedule-el-medico-informed){color:#11603d!important}
+html.admin-red-theme main :is(.tag.warning,.schedule-status.pending){color:#765000!important}
+html.admin-red-theme main :is(.tag.danger,.schedule-status.rejected){color:#8b1f34!important}
