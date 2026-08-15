@@ -14,6 +14,7 @@ const ACCOUNTS = [
 ];
 const ALLOWED = new Set(ACCOUNTS.map((account) => account.email.toLowerCase()));
 const VAULT_KEY = "cardiology-account-switch-sessions-v1";
+const REMEMBER_KEY = "cardiology-account-switch-remember-v1";
 
 const button = document.querySelector("#accountSwitchButton");
 let currentEmail = "";
@@ -27,8 +28,11 @@ const safeJson = (value, fallback = {}) => {
 const readVault = () => safeJson(localStorage.getItem(VAULT_KEY) || "{}", {});
 const writeVault = (vault) => localStorage.setItem(VAULT_KEY, JSON.stringify(vault));
 const clearVault = () => localStorage.removeItem(VAULT_KEY);
+const rememberEnabled = () => localStorage.getItem(REMEMBER_KEY) !== "0";
+const setRememberEnabled = (enabled) => localStorage.setItem(REMEMBER_KEY, enabled ? "1" : "0");
 
 function rememberSession(session) {
+  if (!rememberEnabled()) return;
   const email = String(session?.user?.email || "").toLowerCase();
   if (!ALLOWED.has(email) || !session?.access_token || !session?.refresh_token) return;
   const vault = readVault();
@@ -78,7 +82,7 @@ function ensureDialog() {
 function accountCard(account, vault) {
   const email = account.email.toLowerCase();
   const isCurrent = email === currentEmail;
-  const remembered = Boolean(vault[email]?.access_token && vault[email]?.refresh_token);
+  const remembered = rememberEnabled() && Boolean(vault[email]?.access_token && vault[email]?.refresh_token);
   return `
     <section class="account-switch-card ${isCurrent ? "is-current" : ""}" data-account-card="${email}">
       <div class="account-switch-avatar">${account.label.slice(0, 1).toUpperCase()}</div>
@@ -107,6 +111,7 @@ function renderDialog(message = "") {
   const modal = ensureDialog();
   const vault = readVault();
   const shell = modal.querySelector(".account-switch-shell");
+  const remembered = rememberEnabled();
   shell.innerHTML = `
     <header class="account-switch-head">
       <div>
@@ -117,12 +122,27 @@ function renderDialog(message = "") {
       <button type="button" class="account-switch-close" aria-label="Close">×</button>
     </header>
     ${message ? `<div class="account-switch-message">${message}</div>` : ""}
+    <label class="account-remember-option">
+      <input type="checkbox" data-remember-accounts ${remembered ? "checked" : ""}>
+      <span><b>Remember both accounts on this device</b><small>Keep one-tap switching available after normal log out and the next sign-in.</small></span>
+    </label>
     <div class="account-switch-list">
       ${ACCOUNTS.map((account) => accountCard(account, vault)).join("")}
     </div>
-    <footer>For security, the other account asks for its password once on each device. Passwords are never saved.</footer>`;
+    <footer>Passwords are never saved. If Supabase invalidates or revokes a saved session, that account will ask for its password once to reconnect.</footer>`;
 
   shell.querySelector(".account-switch-close")?.addEventListener("click", () => modal.close());
+  shell.querySelector("[data-remember-accounts]")?.addEventListener("change", async (event) => {
+    const enabled = Boolean(event.currentTarget.checked);
+    setRememberEnabled(enabled);
+    if (!enabled) {
+      clearVault();
+      renderDialog("Remember me is off. Saved account-switch sessions were removed from this browser.");
+      return;
+    }
+    await rememberCurrentSession();
+    renderDialog("Remember me is on. Your account-switch sessions will remain available on this device.");
+  });
   shell.querySelectorAll("[data-switch-email]").forEach((action) => {
     action.addEventListener("click", () => handleAccountAction(action.dataset.switchEmail));
   });
@@ -146,7 +166,7 @@ function renderDialog(message = "") {
 async function handleAccountAction(email) {
   if (busy || !email || email === currentEmail) return;
   const vault = readVault();
-  if (!vault[email]?.access_token || !vault[email]?.refresh_token) {
+  if (!rememberEnabled() || !vault[email]?.access_token || !vault[email]?.refresh_token) {
     const form = ensureDialog().querySelector(`[data-login-email="${email}"]`);
     if (form) {
       form.hidden = false;
@@ -244,10 +264,8 @@ async function init() {
     }
   });
 
-  document.addEventListener("click", (event) => {
-    const target = event.target instanceof Element ? event.target.closest("#logout") : null;
-    if (target) clearVault();
-  }, true);
+  // Deliberately do not clear the saved account-switch vault on normal logout.
+  // This is what lets the other remembered account remain available after the next sign-in.
 }
 
 void init();
