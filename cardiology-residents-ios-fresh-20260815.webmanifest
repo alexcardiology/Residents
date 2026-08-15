@@ -1,0 +1,19 @@
+{
+  "id": "/Residents/cardio-residents-ios-fresh-20260815/",
+  "name": "Cardiology Residents",
+  "short_name": "Cardiology Residents",
+  "description": "Cardiology residents curriculum, logbook, reviews and assessment portal.",
+  "start_url": "/Residents/index.html?iosapp=fresh20260815",
+  "scope": "/Residents/",
+  "display": "standalone",
+  "background_color": "#081c35",
+  "theme_color": "#081c35",
+  "icons": [
+    {
+      "src": "/Residents/mobile-assets/cardio-residents-touch-fresh-20260815.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
