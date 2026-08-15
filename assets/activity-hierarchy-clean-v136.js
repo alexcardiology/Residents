@@ -6,6 +6,12 @@ const MODE_OPTIONS = [
 ];
 
 let timer = 0;
+const TEXT_REPLACEMENTS = [
+  [/Performed with assistance/gi, "Performed assisted"],
+  [/Performed solo under guidance/gi, "Performed assisted"],
+  [/Performed solo without guidance/gi, "Performed unassisted"],
+  [/Supervised another trainee/gi, "Supervised"],
+];
 
 function standardizeParticipationSelector() {
   const container = document.querySelector("#logbookForm .participation-options");
@@ -22,18 +28,24 @@ function standardizeParticipationSelector() {
 }
 
 function normalizeParticipationText(root = document) {
-  const replacements = new Map([
-    ["Performed with assistance", "Performed assisted"],
-    ["Performed solo under guidance", "Performed assisted"],
-    ["Performed solo without guidance", "Performed unassisted"],
-    ["Supervised another trainee", "Supervised"],
-    ["Supervise", "Supervised"],
-  ]);
-  root.querySelectorAll("td,th,.tag,.activity-mode-label-target,.minimum-mode-label,.requirement-mode-label").forEach((node) => {
-    if (node.children.length && !node.matches("th")) return;
+  root.querySelectorAll("th").forEach((node) => {
     const text = String(node.textContent || "").replace(/\s+/g, " ").trim();
-    const next = replacements.get(text);
-    if (next) node.textContent = next;
+    if (text === "Supervise") node.textContent = "Supervised";
+  });
+
+  const scopes = [root.querySelector?.("#content"), root.querySelector?.("#modalBody")].filter(Boolean);
+  scopes.forEach((scope) => {
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      const parent = node.parentElement;
+      if (!parent || ["SCRIPT", "STYLE", "TEXTAREA", "OPTION"].includes(parent.tagName)) return;
+      let value = node.nodeValue || "";
+      let next = value;
+      TEXT_REPLACEMENTS.forEach(([pattern, replacement]) => { next = next.replace(pattern, replacement); });
+      if (next !== value) node.nodeValue = next;
+    });
   });
 }
 
