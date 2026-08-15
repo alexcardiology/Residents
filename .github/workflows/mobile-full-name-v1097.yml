@@ -1,0 +1,66 @@
+name: Mobile full user name v1.0.97
+
+on:
+  push:
+    paths:
+      - '.deploy-v1097'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show full signed-in name on mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >> assets/style.css <<'CSS'
+
+/* =========================================================
+   v1.0.97 — Show full signed-in user's name in mobile header
+========================================================= */
+@media (max-width:700px){
+  #profileChip{
+    display:flex !important;
+    align-items:center;
+    gap:7px;
+    min-width:0;
+    max-width:min(48vw,240px);
+    padding:4px 2px 4px 5px;
+    text-align:right;
+  }
+  #profileChip span:last-child{
+    display:block !important;
+    min-width:0;
+    max-width:190px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:.78rem;
+    font-weight:800;
+    line-height:1.1;
+    color:var(--navy);
+  }
+  #profileChip .nav-avatar{
+    width:31px;
+    height:31px;
+    flex:0 0 31px;
+  }
+}
+@media (max-width:390px){
+  #profileChip{max-width:47vw; gap:5px;}
+  #profileChip span:last-child{font-size:.72rem; max-width:145px;}
+  #profileChip .nav-avatar{width:29px;height:29px;flex-basis:29px;}
+}
+CSS
+          sed -i 's/assets\/style.css?v=1.0.96/assets\/style.css?v=1.0.97/g' app.html
+          sed -i 's/assets\/app.js?v=1.0.96/assets\/app.js?v=1.0.97/g' app.html || true
+          git rm -f .deploy-v1097 .github/workflows/mobile-full-name-v1097.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.html assets/style.css
+          git commit -m 'Show full signed-in user name in mobile header'
+          git push
