@@ -8,7 +8,6 @@
 .assessor-field-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid #d9e2ea;border-radius:9px;background:#fff;color:#24384c;font-size:.62rem;font-weight:850;box-shadow:0 2px 7px rgba(18,47,73,.05)}
 .assessor-field-badge.professor:before{content:'★';color:#8a1930;font-size:.62rem}.assessor-field-badge.faculty:before{content:'✓';color:#1a7a50;font-size:.62rem}
 
-/* Prior Experience reviewer: true phone-first dialog rather than a desktop table squeezed into a modal. */
 #modal.prior-review-compact{width:min(610px,calc(100vw - 18px))!important;max-width:610px!important;max-height:calc(100dvh - 14px)!important;margin:auto!important;padding:0!important;overflow:hidden!important;border:0!important;border-radius:18px!important;box-shadow:0 24px 70px rgba(8,28,53,.24)}
 #modal.prior-review-compact #modalBody{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
 #modal.prior-review-compact .prior-review-modal{box-sizing:border-box;width:100%!important;max-width:100%!important;min-width:0!important;max-height:calc(100dvh - 14px)!important;padding:15px 16px 12px!important;overflow-x:hidden!important;overflow-y:auto!important;background:linear-gradient(180deg,#fff 0,#fbfdff 100%)}
@@ -31,6 +30,10 @@
 #modal.prior-review-compact .prior-count-table th:not(:first-child){height:88px!important;width:11.8%!important;padding:4px 2px!important;vertical-align:middle!important;font-size:.49rem!important;line-height:1!important;writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);white-space:nowrap!important;letter-spacing:.01em}
 #modal.prior-review-compact .prior-count-table th:last-child,#modal.prior-review-compact .prior-count-table td:last-child{width:12%!important}
 #modal.prior-review-compact .prior-count-table th:last-child{writing-mode:horizontal-tb;transform:none;height:auto!important;white-space:normal!important}
+#modal.prior-review-compact .prior-count-table[data-audit-four-modes="1"] th:first-child,#modal.prior-review-compact .prior-count-table[data-audit-four-modes="1"] td:first-child{width:36%!important}
+#modal.prior-review-compact .prior-count-table[data-audit-four-modes="1"] th:not(:first-child),#modal.prior-review-compact .prior-count-table[data-audit-four-modes="1"] td:not(:first-child){width:16%!important}
+#modal.prior-review-compact .prior-count-table[data-audit-four-modes="1"] th:last-child{height:88px!important;writing-mode:vertical-rl!important;text-orientation:mixed!important;transform:rotate(180deg)!important;white-space:nowrap!important}
+.audit-inline-note{display:block;margin-top:3px;color:#748496;font-size:.48rem;font-weight:500;line-height:1.2}
 #modal.prior-review-compact .prior-system-target-report{margin:8px 0!important;padding:9px!important;border-radius:11px!important}
 #modal.prior-review-compact .prior-system-report-head{gap:7px;margin-bottom:6px}.prior-review-compact .prior-system-report-head h3{font-size:.76rem}.prior-review-compact .prior-system-report-head p{font-size:.52rem;line-height:1.3}
 #modal.prior-review-compact .prior-target-report-scroll{overflow:hidden!important}
@@ -44,8 +47,6 @@
 #modal.prior-review-compact label{font-size:.64rem!important}#modal.prior-review-compact textarea{min-height:74px!important;padding:9px 10px!important;font-size:.68rem!important}
 #modal.prior-review-compact .actions{position:sticky;bottom:-12px;z-index:9;display:grid!important;grid-template-columns:repeat(3,1fr);gap:7px!important;margin:9px -2px 0!important;padding:8px 2px 2px!important;background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}
 #modal.prior-review-compact .actions button{min-width:0!important;min-height:40px!important;padding:8px 6px!important;font-size:.68rem!important}
-
-/* Make target tables outside the modal compact too. */
 .prior-target-report-table th .activity-mode-icon,.resident-requirements-table th .activity-mode-icon,.minimum-requirements-mode-table th .activity-mode-icon{display:grid;margin:0 auto 4px}
 
 @media(max-width:620px){
@@ -53,6 +54,7 @@
   #modal.prior-review-compact .prior-review-modal{max-height:calc(100dvh - 6px)!important;padding:10px 8px 8px!important}
   #modal.prior-review-compact .prior-review-modal:before{top:-10px;margin:-10px -8px 8px}
   #modal.prior-review-compact .prior-count-table th:not(:first-child),#modal.prior-review-compact .prior-target-report-table th:nth-child(n+2):nth-child(-n+5){height:78px!important}
+  #modal.prior-review-compact .prior-count-table[data-audit-four-modes="1"] th:last-child{height:78px!important}
   #modal.prior-review-compact .prior-count-table th,#modal.prior-review-compact .prior-count-table td{font-size:.56rem!important;padding:4px 2px!important}
   #modal.prior-review-compact .prior-system-report-head{flex-direction:column}
 }
