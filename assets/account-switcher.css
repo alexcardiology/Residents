@@ -1,10 +1,44 @@
 #accountSwitchButton{display:none}
 
+#accountSwitchButton:not([hidden]){
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:42px;
+  margin-left:10px;
+  padding:0 14px;
+  border:1px solid #d8e2ee;
+  border-radius:12px;
+  background:#fff;
+  color:#0a2747;
+  font-size:.78rem;
+  font-weight:850;
+  line-height:1;
+  white-space:nowrap;
+  cursor:pointer;
+  box-shadow:0 4px 12px rgba(8,28,53,.06);
+  transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease,background .15s ease;
+}
+#accountSwitchButton:hover{
+  border-color:#b7cce1;
+  background:#f8fbfe;
+  box-shadow:0 7px 18px rgba(8,28,53,.1);
+}
+#accountSwitchButton:active{transform:translateY(1px)}
+.account-switch-button-icon{
+  font-size:1.12rem;
+  font-weight:900;
+  line-height:1;
+}
+.account-switch-button-text{display:inline-block}
+
 @media (max-width:850px){
   #accountSwitchButton:not([hidden]){
     display:inline-grid;
     width:42px;
     height:42px;
+    min-height:42px;
     flex:0 0 42px;
     place-items:center;
     margin-left:8px;
@@ -17,7 +51,8 @@
     font-weight:900;
     box-shadow:0 4px 12px rgba(8,28,53,.06);
   }
-  #accountSwitchButton:active{transform:translateY(1px)}
+  .account-switch-button-text{display:none}
+  .account-switch-button-icon{font-size:1.25rem}
 }
 
 .account-switch-dialog{
@@ -188,6 +223,7 @@
   #accountSwitchButton:not([hidden]){
     width:39px;
     height:39px;
+    min-height:39px;
     flex-basis:39px;
     margin-left:6px;
   }
