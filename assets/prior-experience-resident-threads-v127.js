@@ -1,0 +1,85 @@
+import { sb } from "./supabase.js";
+
+const esc=(v)=>String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[c]);
+const unwrap=(r)=>{if(r?.error)throw r.error;return r?.data};
+const modal=(html)=>{const body=document.querySelector("#modalBody"),dialog=document.querySelector("#modal");if(!body||!dialog)return;body.innerHTML=html;dialog.showModal()};
+function toast(text){const n=document.querySelector("#toast");if(!n)return;n.textContent=text;n.style.display="block";setTimeout(()=>n.style.display="none",3000)}
+function statusTag(status){const s=String(status||"pending");return `<span class="tag ${s==="approved"?"success":s==="rejected"?"danger":"warning"}">${s==="approved"?"Approved":s==="rejected"?"Rejected":"Pending"}</span>`}
+function targetModes(row){
+  const modes=[
+    ["attended","👁","Attended"],
+    ["assisted","🤝","Performed assisted"],
+    ["solo_unguided","🩺","Performed unassisted"],
+    ["supervised","👥","Supervised"],
+  ];
+  return `<div class="prior-thread-targets">${modes.map(([key,icon,label])=>{const t=(row?.targets||[]).find(x=>x.participation_mode===key);return `<span class="prior-thread-target ${t?.met?"met":t?"missing":"na"}"><b>${icon}</b><small>${label}</small><strong>${t?`${Number(t.achievement)||0}/${Number(t.target)||0}`:"—"}</strong></span>`}).join("")}</div>`;
+}
+function activeRows(){return [...(window.priorExperienceReviewRows?.values?.()||[])];}
+function groupFaculty(rows){
+  const map=new Map();
+  rows.filter(r=>r.review_kind==="scope_verification"&&r.assessor_level==="faculty").forEach(r=>{const k=String(r.logbook_id);if(!map.has(k))map.set(k,[]);map.get(k).push(r)});
+  return map;
+}
+function rebuildQueue(){
+  const title=String(document.querySelector("#title")?.textContent||"").trim().toLowerCase();
+  if(title!=="logbook requests")return;
+  const section=document.querySelector(".prior-review-queue"); if(!section)return;
+  const rows=activeRows(); const faculty=groupFaculty(rows); if(!faculty.size)return;
+  if(section.dataset.residentThreadsV127==="1")return;
+  const nonFaculty=rows.filter(r=>!(r.review_kind==="scope_verification"&&r.assessor_level==="faculty"));
+  const body=section.querySelector("tbody"); if(!body)return;
+  const threadRows=[...faculty.values()].map(group=>{
+    const first=group[0]; const rec=group.filter(r=>r.reconsideration_status==="requested").length;
+    return `<tr class="prior-thread-queue-row"><td><b>${esc(first.resident_name)}</b><small>Year ${esc(first.residency_year)}</small></td><td><div class="prior-request-stage"><span>Stage 2</span><b>First-level resident thread</b><small>${group.length} manual${group.length===1?"":"s"} currently need your decision</small></div></td><td>${rec?`<span class="tag warning">${rec} reconsideration${rec===1?"":"s"}</span>`:`<span class="tag warning">${group.length} pending manual${group.length===1?"":"s"}</span>`}</td><td><button class="btn small" data-prior-resident-thread="${esc(first.logbook_id)}">Open resident thread</button></td></tr>`;
+  });
+  const otherRows=nonFaculty.map(row=>`<tr><td><b>${esc(row.resident_name)}</b><small>Year ${esc(row.residency_year)}</small></td><td><div class="prior-request-stage"><span>${row.assessor_level==="professor"?"Stage 3":"Stage 1"}</span><b>${row.assessor_level==="professor"?"Professor field audit":"Senior verification"}</b><small>${esc(row.scope_name||"Prior Experience")}</small></div></td><td>${row.reconsideration_status==="requested"?`<span class="tag warning">Reconsideration requested</span>`:`<span class="tag warning">Pending verification</span>`}</td><td><button class="btn small" data-prior-review-open="${esc(row.review_kind)}~${esc(row.review_id)}">${row.reconsideration_status==="requested"?"Review reconsideration":"Review evidence"}</button></td></tr>`);
+  body.innerHTML=[...threadRows,...otherRows].join("");
+  section.dataset.residentThreadsV127="1";
+  const badge=section.querySelector(".section-head .inline-badge"); if(badge)badge.textContent=String(faculty.size+nonFaculty.length);
+}
+async function getThread(logbookId){return unwrap(await sb.rpc("get_prior_experience_faculty_thread_v127",{p_logbook_id:Number(logbookId)}))||[]}
+async function getTargets(logbookId){return unwrap(await sb.rpc("get_prior_experience_target_report_v124",{p_logbook_id:Number(logbookId)}))||[]}
+function reconsiderButton(row){
+  const key=`scope_verification~${row.review_id}`;
+  return `<div class="prior-thread-reconsider"><span>Resident requested reconsideration</span><p>${esc(row.reconsideration_reason||"No reason provided")}</p><button type="button" class="btn small reclaim-button" data-prior-review-open="${esc(key)}">Review reconsideration</button></div>`;
+}
+function manualCard(row,target){
+  const below=target && !target.overall_met;
+  const status=String(row.status||"pending");
+  const completed=["approved","rejected"].includes(status) && row.reconsideration_status!=="requested";
+  return `<article class="prior-thread-manual ${below?"below-target":""}" data-thread-review-card="${row.review_id}"><div class="prior-thread-manual-head"><div><span class="prior-thread-field">${esc(row.field_label||"Field")}</span><h3>${esc(row.scope_name)}</h3></div>${statusTag(status)}</div>${targetModes(target)}${completed?`<div class="prior-thread-decision-history"><span>Recorded decision</span><b>${status==="approved"?"Approved":"Rejected"}</b>${row.note?`<p>${esc(row.note)}</p>`:'<p>No comment recorded.</p>'}</div>`:row.reconsideration_status==="requested"?reconsiderButton(row):`<label class="prior-thread-comment">Decision / comment for this manual<textarea maxlength="3000" data-thread-note placeholder="${below?"Clinical opinion / exception justification required to approve":"Optional for approval; required for rejection"}"></textarea></label>${below?'<small class="prior-thread-rule">Below target · approval requires your clinical justification.</small>':''}<div class="prior-thread-actions"><button type="button" class="btn danger" data-thread-decision="rejected" data-review-id="${row.review_id}">Reject</button><button type="button" class="btn success-button" data-thread-decision="approved" data-review-id="${row.review_id}" data-below-target="${below?"1":"0"}">Approve</button></div>`}</article>`;
+}
+async function openThread(logbookId){
+  try{
+    modal('<div class="modal prior-resident-thread"><div class="modal-head"><div><span class="eyebrow">First-level Prior Experience audit</span><h2>Loading resident thread…</h2></div><button type="button" data-close>×</button></div></div>');
+    const [rows,targets]=await Promise.all([getThread(logbookId),getTargets(logbookId)]);
+    if(!rows.length){modal('<div class="modal prior-resident-thread"><div class="modal-head"><div><h2>No assigned manuals</h2><p>This resident no longer has a first-level manual assigned to you.</p></div><button type="button" data-close>×</button></div></div>');return;}
+    const first=rows[0]; const targetMap=new Map(targets.map(r=>[String(r.intervention_name),r]));
+    const pending=rows.filter(r=>r.status==="pending"||r.reconsideration_status==="requested").length;
+    modal(`<div class="modal prior-resident-thread" data-thread-logbook="${logbookId}"><div class="modal-head"><div><span class="eyebrow">First-level Prior Experience audit</span><h2>${esc(first.resident_name)}</h2><p>Year ${esc(first.residency_year)} · One resident thread. Record a separate decision for each manual below.</p></div><button type="button" data-close>×</button></div><section class="prior-thread-summary"><div><span>Resident thread</span><b>${rows.length} assigned manual${rows.length===1?"":"s"}</b></div><span class="tag ${pending?"warning":"success"}">${pending?`${pending} awaiting action`:"All your manual decisions completed"}</span></section><div class="prior-thread-manual-list">${rows.map(row=>manualCard(row,targetMap.get(String(row.scope_name)))).join("")}</div><div class="actions"><button type="button" class="btn secondary" data-close>Close</button></div></div>`);
+  }catch(error){alert(error?.message||String(error))}
+}
+async function submitDecision(button){
+  const card=button.closest("[data-thread-review-card]"); if(!card)return;
+  const decision=button.dataset.threadDecision; const note=String(card.querySelector("[data-thread-note]")?.value||"").trim(); const below=button.dataset.belowTarget==="1";
+  if(decision==="rejected"&&!note)return alert("Write a comment before rejecting this manual.");
+  if(decision==="approved"&&below&&!note)return alert("This manual is below target. Write your clinical opinion / exception justification before approving.");
+  button.disabled=true;
+  try{
+    unwrap(await sb.rpc("review_prior_experience_v1069",{p_review_kind:"scope_verification",p_review_id:Number(button.dataset.reviewId),p_decision:decision,p_note:note||null}));
+    toast(`${decision==="approved"?"Approved":"Rejected"} · manual decision saved`);
+    const logbookId=Number(document.querySelector(".prior-resident-thread")?.dataset.threadLogbook||0);
+    if(logbookId)await openThread(logbookId);
+  }catch(error){alert(error?.message||String(error));button.disabled=false}
+}
+
+document.addEventListener("click",async(event)=>{
+  const thread=event.target.closest("[data-prior-resident-thread]");
+  if(thread){event.preventDefault();event.stopImmediatePropagation();await openThread(thread.dataset.priorResidentThread);return;}
+  const decision=event.target.closest("[data-thread-decision]");
+  if(decision){event.preventDefault();event.stopImmediatePropagation();await submitDecision(decision);}
+},true);
+new MutationObserver(()=>setTimeout(rebuildQueue,20)).observe(document.documentElement,{childList:true,subtree:true});
+window.addEventListener("hashchange",()=>setTimeout(rebuildQueue,100));
+setInterval(rebuildQueue,1200);
+rebuildQueue();
