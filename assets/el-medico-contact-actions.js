@@ -61,8 +61,8 @@ const cacheContact = (scheduleName, contact) => {
 
 /*
  * Route El Médico through the combined function. It resolves duty + contact
- * details before returning, so the contact icons are already cached before
- * the reply cards are inserted into the DOM.
+ * details before returning, so the contact details are available before the
+ * reply bubble is constructed.
  */
 const originalInvoke = sb.functions.invoke.bind(sb.functions);
 sb.functions.invoke = async (functionName, options) => {
@@ -97,6 +97,45 @@ const insertActions = (card, nameNode, name, contact) => {
   return true;
 };
 
+const enrichCardFromInlineCache = (card) => {
+  if (!card || card.dataset.elMedicoContactChecked === "1") return false;
+  const nameNode = card.querySelector(":scope > div > strong, :scope > header strong, strong");
+  const name = String(nameNode?.textContent || "").trim();
+  if (!name) return false;
+  const contact = inlineContacts.get(name);
+  if (!contact || !insertActions(card, nameNode, name, contact)) return false;
+  card.dataset.elMedicoContactChecked = "1";
+  return true;
+};
+
+/*
+ * Critical zero-lag path:
+ * app.js builds each El Médico reply in a detached element and then calls
+ * dutyBotTranscript.appendChild(reply). Enrich that detached reply BEFORE the
+ * native appendChild runs. Therefore the browser's very first paint already
+ * contains the WhatsApp and call buttons; no MutationObserver repaint is
+ * needed for normal enriched responses.
+ */
+const enrichDetachedDutyReply = (node) => {
+  if (!node || node.nodeType !== 1) return;
+  const cards = node.matches?.(".duty-assignment-card")
+    ? [node]
+    : [...(node.querySelectorAll?.(".duty-assignment-card") || [])];
+  cards.forEach(enrichCardFromInlineCache);
+};
+
+const nativeAppendChild = Node.prototype.appendChild;
+Node.prototype.appendChild = function patchedElMedicoAppendChild(node) {
+  try {
+    if (this?.nodeType === 1 && this.id === "dutyBotTranscript") {
+      enrichDetachedDutyReply(node);
+    }
+  } catch (error) {
+    console.warn("El Médico pre-paint contact enrichment skipped", error);
+  }
+  return nativeAppendChild.call(this, node);
+};
+
 async function enrichVisibleDutyCards() {
   if (lookupInProgress) return;
   const cards = [...document.querySelectorAll(".duty-assignment-card:not([data-el-medico-contact-checked])")];
@@ -112,7 +151,7 @@ async function enrichVisibleDutyCards() {
     return;
   }
 
-  /* Fast path: contacts arrived in the same El Médico response. */
+  /* Fast path for any card that did not travel through appendChild above. */
   const unresolved = [];
   cardRows.forEach((row) => {
     const contact = inlineContacts.get(row.name);
@@ -124,7 +163,7 @@ async function enrichVisibleDutyCards() {
   });
   if (!unresolved.length) return;
 
-  /* Backward-compatible fallback for any old/non-enriched response. */
+  /* Backward-compatible fallback for an old/non-enriched response only. */
   const names = [...new Set(unresolved.map((row) => row.name))];
   lookupInProgress = true;
   try {
@@ -149,7 +188,7 @@ async function enrichVisibleDutyCards() {
   }
 }
 
-/* MutationObserver runs immediately after the reply is painted; no timer. */
+/* Fallback only: normal new replies are enriched before their first paint. */
 const content = document.querySelector("#content") || document.body;
 new MutationObserver(enrichVisibleDutyCards).observe(content, { childList: true, subtree: true });
 enrichVisibleDutyCards();
