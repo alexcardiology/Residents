@@ -1,0 +1,192 @@
+name: Deploy El Médico contact actions v1.0.100
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.deploy-v1100'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add WhatsApp and call actions to El Médico results
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          js_path = Path('assets/app.js')
+          css_path = Path('assets/style.css')
+          html_path = Path('app.html')
+          js = js_path.read_text(encoding='utf-8')
+
+          helper = r'''function dutyPhoneLinks(value) {
+            const raw = String(value || "").trim();
+            if (!raw) return null;
+            let digits = raw.replace(/\D/g, "");
+            if (!digits) return null;
+            if (digits.startsWith("00")) digits = digits.slice(2);
+            let international = digits;
+            if (digits.startsWith("0")) international = `20${digits.slice(1)}`;
+            const tel = `+${international}`;
+            return { whatsapp: international, tel };
+          }
+
+          function dutyContactActions(assignment) {
+            const links = dutyPhoneLinks(assignment?.whatsapp);
+            if (!links) return "";
+            const name = assignment?.residentFullName || assignment?.resident || "resident";
+            return `<span class="duty-contact-actions">
+              <a class="duty-contact-btn whatsapp" href="https://wa.me/${o(links.whatsapp)}" target="_blank" rel="noopener" title="WhatsApp" aria-label="Send WhatsApp to ${o(name)}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.7a8.5 8.5 0 0 1-12.6 7.4L3.5 20.5l1.4-4.3A8.5 8.5 0 1 1 20.5 11.7Zm-8.4-6.3a6.3 6.3 0 0 0-5.4 9.5l.2.4-.8 2.4 2.5-.8.4.2a6.3 6.3 0 1 0 3.1-11.7Zm3.5 8.7c-.2-.1-1.2-.6-1.4-.7-.2-.1-.4-.1-.5.1l-.6.8c-.1.2-.3.2-.5.1a5.2 5.2 0 0 1-2.6-2.3c-.2-.3.2-.5.5-.9.1-.1.1-.3 0-.5l-.6-1.4c-.1-.3-.3-.3-.5-.3h-.4c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 2 0 1.2.9 2.4 1 2.5.1.2 1.8 2.8 4.4 3.9.6.3 1.1.4 1.5.5.6.2 1.2.2 1.7.1.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.4-.3Z"/></svg>
+              </a>
+              <a class="duty-contact-btn call" href="tel:${o(links.tel)}" title="Call" aria-label="Call ${o(name)}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 2.8 10 7.1c.3.5.2 1.1-.2 1.5L8.4 10a14.4 14.4 0 0 0 5.6 5.6l1.4-1.4c.4-.4 1-.5 1.5-.2l4.3 2.8c.5.3.7.9.5 1.4l-.9 2.6c-.2.6-.8 1-1.4 1C9.9 21.8 2.2 14.1 2.2 4.6c0-.6.4-1.2 1-1.4l2.6-.9c.5-.2 1.1 0 1.4.5Z"/></svg>
+              </a>
+            </span>`;
+          }
+
+          async function enrichDutyAssignmentsWithContacts(assignments = []) {
+            const rows = Array.isArray(assignments) ? assignments : [];
+            const names = [...new Set(rows.map((row) => String(row?.resident || "").trim()).filter(Boolean))];
+            if (!names.length) return rows;
+            try {
+              const { data, error } = await e.functions.invoke("duty-contact", { body: { names } });
+              if (error) throw error;
+              const contacts = new Map((data?.contacts || []).map((item) => [String(item.scheduleName || "").trim(), item]));
+              return rows.map((row) => {
+                const contact = contacts.get(String(row?.resident || "").trim());
+                return contact ? { ...row, residentFullName: contact.displayName || row.resident, whatsapp: contact.whatsapp || "" } : row;
+              });
+            } catch (error) {
+              console.warn("El Médico contact lookup unavailable", error);
+              return rows;
+            }
+          }
+
+          function dutyAssignmentCards(assignments = []) {
+            if (!assignments.length) return "";
+            return `<div class="duty-assignment-list">${assignments.map((assignment) => `
+              <article class="duty-assignment-card">
+                <header class="duty-assignment-head"><div><strong>${o(assignment.residentFullName || assignment.resident || "—")}</strong><span>${assignment.scheduleType === "daytime" ? "Day assignment" : "24-hour duty"}</span></div>${dutyContactActions(assignment)}</header>
+                <dl>
+                  <div><dt>Hospital</dt><dd>${o(assignment.hospital || "—")}</dd></div>
+                  <div><dt>Service</dt><dd>${o(assignment.service || assignment.role || assignment.unit || "—")}</dd></div>
+                  <div><dt>Date</dt><dd>${o(assignment.date || "—")}</dd></div>
+                  <div><dt>Shift</dt><dd>${o(assignment.shift || "—")}</dd></div>
+                  <div><dt>Source</dt><dd>${o(assignment.source || "Approved schedule")}</dd></div>
+                </dl>
+              </article>`).join("")}</div>`;
+          }'''
+
+          pattern = r'function dutyAssignmentCards\(assignments = \[\]\) \{.*?\n\}\n\nfunction addDutyBotMessage'
+          updated, count = re.subn(pattern, helper + '\n\nfunction addDutyBotMessage', js, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'Could not replace dutyAssignmentCards (matches={count})')
+          js = updated
+
+          old = 'addDutyBotMessage("bot", `${data?.answer || "No matching approved assignment was found."}${sourceWarning}`, data?.assignments || []);'
+          new = 'const enrichedAssignments = await enrichDutyAssignmentsWithContacts(data?.assignments || []);\n    addDutyBotMessage("bot", `${data?.answer || "No matching approved assignment was found."}${sourceWarning}`, enrichedAssignments);'
+          if old not in js:
+              raise SystemExit('Could not find El Médico answer render line')
+          js = js.replace(old, new, 1)
+          js_path.write_text(js, encoding='utf-8')
+
+          css = css_path.read_text(encoding='utf-8')
+          marker = 'v1.0.100 — El Médico contact actions'
+          if marker not in css:
+              css += r'''
+
+/* =========================================================
+   v1.0.100 — El Médico contact actions
+========================================================= */
+.duty-assignment-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.duty-assignment-head > div{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.duty-contact-actions{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex:0 0 auto;
+}
+.duty-contact-btn{
+  width:34px;
+  height:34px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  border:1px solid transparent;
+  text-decoration:none;
+  transition:transform .15s ease,box-shadow .15s ease,filter .15s ease;
+}
+.duty-contact-btn svg{
+  width:18px;
+  height:18px;
+  fill:currentColor;
+}
+.duty-contact-btn.whatsapp{
+  color:#128c4a;
+  background:#e8f8ee;
+  border-color:#bfe9cf;
+}
+.duty-contact-btn.call{
+  color:#0b5fa5;
+  background:#eaf3fb;
+  border-color:#c9dfef;
+}
+.duty-contact-btn:hover{
+  transform:translateY(-1px);
+  box-shadow:0 5px 12px rgba(12,37,64,.12);
+}
+.duty-contact-btn:active{
+  transform:translateY(0) scale(.96);
+}
+@media(max-width:680px){
+  .duty-contact-btn{
+    width:32px;
+    height:32px;
+  }
+  .duty-contact-btn svg{
+    width:17px;
+    height:17px;
+  }
+}
+'''
+          css_path.write_text(css, encoding='utf-8')
+
+          html = html_path.read_text(encoding='utf-8')
+          html = re.sub(r'assets/style\.css\?v=1\.0\.\d+', 'assets/style.css?v=1.0.100', html)
+          html = re.sub(r'assets/app\.js\?v=1\.0\.\d+', 'assets/app.js?v=1.0.100', html)
+          html_path.write_text(html, encoding='utf-8')
+          PY
+
+          node --check assets/app.js
+          grep -q 'enrichDutyAssignmentsWithContacts' assets/app.js
+          grep -q 'duty-contact' assets/app.js
+          grep -q 'duty-contact-actions' assets/style.css
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.html assets/app.js assets/style.css
+          git rm -f .deploy-v1100 .github/workflows/el-medico-contact-actions-v1100.yml
+          git commit -m 'Add WhatsApp and call actions to El Médico results v1.0.100'
+          git push
