@@ -27,6 +27,6 @@ html.admin-red-theme main :is(.secondary,.btn.secondary,.schedule-reconsider-but
 html.admin-red-theme main :is(.tag.success,.schedule-status.approved,.schedule-el-medico-informed){color:#11603d!important}
 html.admin-red-theme main :is(.tag.warning,.schedule-status.pending){color:#765000!important}
 html.admin-red-theme main :is(.tag.danger,.schedule-status.rejected){color:#8b1f34!important}
-/* Deliberately dark/red surfaces retain white type. */
-html.admin-red-theme main :is(.audit-hierarchy-head,.admin-deep-red,.burgundy-surface,.danger-button,.success-button),
-html.admin-red-theme main :is(.audit-hierarchy-head,.admin-deep-red,.burgundy-surface,.danger-button,.success-button) *{color:#fff!important}
+/* Deliberately dark/red surfaces retain white type, including surfaces detected by admin-global-ui.js. */
+html.admin-red-theme main :is(.admin-on-red-surface,.audit-hierarchy-head,.admin-deep-red,.burgundy-surface,.danger-button,.success-button),
+html.admin-red-theme main :is(.admin-on-red-surface,.audit-hierarchy-head,.admin-deep-red,.burgundy-surface,.danger-button,.success-button) *{color:#fff!important}
