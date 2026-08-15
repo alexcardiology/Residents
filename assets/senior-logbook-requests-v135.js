@@ -1,7 +1,7 @@
 import { sb } from "./supabase.js";
 
 const esc=(value)=>String(value??"").replace(/[&<>'"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[c]);
-let loading=false;
+let loading=false,lastSignature="";
 
 function toast(text){
   const node=document.querySelector("#toast");
@@ -35,15 +35,23 @@ function requestCard(row){
     </div>
   </article>`;
 }
-async function loadRequests(){
+async function loadRequests(force=false){
   if(loading)return;
   const title=String(document.querySelector("#title")?.textContent||"").trim().toLowerCase();
-  if(title!=="logbook requests")return;
+  if(title!=="logbook requests"){
+    document.querySelector("#seniorAssignedRequestsV135")?.remove();
+    document.querySelector("#seniorRequestJumpV135")?.remove();
+    lastSignature="";
+    return;
+  }
   loading=true;
   try{
     const {data,error}=await sb.rpc("get_my_senior_logbook_requests_v135");
     if(error)throw error;
     const rows=Array.isArray(data)?data:[];
+    const signature=rows.map(row=>`${row.id}:${row.senior_status}:${row.case_count}:${row.created_at}`).join("|");
+    if(!force&&signature===lastSignature&&document.querySelector("#seniorAssignedRequestsV135"))return;
+    lastSignature=signature;
     document.querySelector("#seniorAssignedRequestsV135")?.remove();
     document.querySelector("#seniorRequestJumpV135")?.remove();
     if(!rows.length)return;
@@ -81,7 +89,8 @@ document.addEventListener("click",async(event)=>{
     const {error}=await sb.rpc("review_logbook_entry_v1051",{p_entry_id:card.dataset.seniorEntry,p_decision:decision,p_note:note||null});
     if(error)throw error;
     toast(decision==="approved"?"Senior verification approved":"Logbook request rejected");
-    await loadRequests();
+    lastSignature="";
+    await loadRequests(true);
     setTimeout(()=>location.reload(),300);
   }catch(error){
     alert(error?.message||String(error));
@@ -89,8 +98,9 @@ document.addEventListener("click",async(event)=>{
   }
 },true);
 
-const schedule=()=>setTimeout(loadRequests,120);
+let scheduleTimer=0;
+const schedule=()=>{clearTimeout(scheduleTimer);scheduleTimer=setTimeout(()=>loadRequests(false),180)};
 new MutationObserver(schedule).observe(document.querySelector("#content")||document.body,{childList:true,subtree:true});
 window.addEventListener("hashchange",schedule);
-setInterval(loadRequests,7000);
-loadRequests();
+setInterval(()=>loadRequests(false),7000);
+loadRequests(true);
