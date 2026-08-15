@@ -40,7 +40,17 @@ const normalize = (value: unknown) =>
 const normalizePerson = (value: unknown) =>
   normalize(value).replace(/^(?:(?:professor|prof|doctor|dr)\s+)+/i, "").trim();
 const splitAliases = (value: unknown) =>
-  String(value || "").split(/[,;|\n]+/).map((item) => item.trim()).filter(Boolean);
+  String(value || "").split(/[,;|/\n]+/).map((item) => item.trim()).filter(Boolean);
+const scheduleAliases = (value: unknown) => {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+  const aliases = splitAliases(raw);
+  const paren = raw.match(/^(.*?)\((.*?)\)(.*)$/);
+  if (paren) {
+    aliases.push(`${paren[1]}${paren[3]}`.trim(), `${paren[1]}${paren[2]}${paren[3]}`.trim());
+  }
+  return [...new Set(aliases.map((item) => item.replace(/\s+/g, " ").trim()).filter(Boolean))];
+};
 const recordField = (record: AirtableRecord, name: string, fieldId: string) =>
   record.fields[fieldId] ?? record.fields[name];
 
@@ -96,30 +106,40 @@ Deno.serve(async (request) => {
     const service = createClient(url, serviceKey);
     const [{ data: profiles, error: profileError }, residents] = await Promise.all([
       service.from("profiles")
-        .select("display_name,username,whatsapp,is_active")
+        .select("display_name,username,whatsapp,faculty_schedule_name,is_active,role")
         .eq("is_active", true)
-        .not("whatsapp", "is", null),
+        .eq("role", "resident"),
       airtableResidents().catch(() => []),
     ]);
     if (profileError) throw profileError;
 
-    const profileRows = (profiles || []).filter((row) => String(row.whatsapp || "").trim());
+    const profileRows = profiles || [];
     const contacts = names.map((scheduleName) => {
       const key = normalizePerson(scheduleName);
+
+      let profile = profileRows.find((row) =>
+        scheduleAliases(row.faculty_schedule_name).some((alias) => normalizePerson(alias) === key)
+      );
+
       const resident = residents.find((row) => row.aliases.some((alias) => normalizePerson(alias) === key));
-      const candidateNames = [scheduleName, resident?.scheduleName, resident?.fullName, ...(resident?.aliases || [])]
-        .filter(Boolean)
-        .map(normalizePerson);
-      const profile = profileRows.find((row) => {
-        const display = normalizePerson(row.display_name);
-        const username = normalizePerson(row.username);
-        return candidateNames.includes(display) || candidateNames.includes(username);
-      });
+      if (!profile) {
+        const candidateNames = [scheduleName, resident?.scheduleName, resident?.fullName, ...(resident?.aliases || [])]
+          .filter(Boolean)
+          .map(normalizePerson);
+        profile = profileRows.find((row) => {
+          const display = normalizePerson(row.display_name);
+          const username = normalizePerson(row.username);
+          const profileScheduleNames = scheduleAliases(row.faculty_schedule_name).map(normalizePerson);
+          return candidateNames.includes(display) || candidateNames.includes(username) || profileScheduleNames.some((alias) => candidateNames.includes(alias));
+        });
+      }
+
       if (!profile) return null;
       return {
         scheduleName,
         displayName: String(profile.display_name || resident?.fullName || scheduleName),
         whatsapp: String(profile.whatsapp || "").trim(),
+        facultyScheduleName: String(profile.faculty_schedule_name || scheduleName).trim(),
       };
     }).filter(Boolean);
 
