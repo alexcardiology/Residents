@@ -4,7 +4,35 @@
 .assessor-field-strip>small{color:#374151!important;font-size:.58rem;font-weight:900}
 .assessor-field-badge{color:#111827!important;background:#fff!important;border-color:#d8e0e8!important;text-shadow:none!important}
 
-/* Light-background rule: never render white/pale text on these surfaces. */
+/* Global status chips use light backgrounds + dark readable text. */
+.tag.warning{color:#6b4600!important;background:#fff1cc!important;border-color:#e4c47b!important;text-shadow:none!important}
+.tag.success{color:#125236!important;background:#e9f7ef!important;border-color:#b9dfc9!important;text-shadow:none!important}
+.tag.danger{color:#7f1d2d!important;background:#fdecef!important;border-color:#efc3cb!important;text-shadow:none!important}
+.tag.neutral{color:#374151!important;background:#eef2f5!important;border-color:#d8e0e6!important;text-shadow:none!important}
+
+/* Prior Experience light cards never use white/pale text. */
+.prior-experience-alert,
+.prior-experience-alert p,
+.prior-experience-alert b,
+.prior-experience-alert span:not(.btn),
+.prior-verification-card,
+.prior-verification-card h2,
+.prior-verification-card h3,
+.prior-verification-card h4,
+.prior-verification-card p,
+.prior-verification-card td,
+.prior-verification-card th,
+.prior-audit-step,
+.prior-audit-step b,
+.prior-audit-step small,
+.prior-audit-field-progress,
+.prior-audit-field-progress h4,
+.prior-professor-stage,
+.prior-professor-stage b,
+.prior-professor-stage small{color:#111827!important}
+.prior-experience-alert small,.prior-verification-card small{color:#4b5563!important}
+
+/* Light-background rule inside review modal. */
 #modal.prior-review-compact .prior-review-modal,
 #modal.prior-review-compact .prior-review-modal .card,
 #modal.prior-review-compact .prior-review-senior-verification-strip,
@@ -16,9 +44,7 @@
 #modal.prior-review-compact th,
 #modal.prior-review-compact td,
 #modal.prior-review-compact label,
-#modal.prior-review-compact textarea{
-  color:#111827!important;
-}
+#modal.prior-review-compact textarea{color:#111827!important}
 #modal.prior-review-compact .prior-review-senior-verification-strip,
 #modal.prior-review-compact .prior-summary-head,
 #modal.prior-review-compact .prior-system-target-report,
@@ -28,10 +54,6 @@
 #modal.prior-review-compact small,
 #modal.prior-review-compact .prior-system-report-head p,
 #modal.prior-review-compact .prior-request-senior-empty{color:#4b5563!important}
-#modal.prior-review-compact .tag.warning{color:#6b4600!important;background:#fff1cc!important;border-color:#e4c47b!important}
-#modal.prior-review-compact .tag.success{color:#125236!important;background:#e9f7ef!important;border-color:#b9dfc9!important}
-#modal.prior-review-compact .tag.danger{color:#7f1d2d!important;background:#fdecef!important;border-color:#efc3cb!important}
-#modal.prior-review-compact .tag.neutral{color:#374151!important;background:#eef2f5!important;border-color:#d8e0e6!important}
 #modal.prior-review-compact .prior-request-senior-chip.approved{color:#125236!important;background:#e9f7ef!important}
 #modal.prior-review-compact .prior-request-senior-chip.pending{color:#6b4600!important;background:#fff1cc!important}
 #modal.prior-review-compact .prior-request-senior-chip.rejected{color:#7f1d2d!important;background:#fdecef!important}
