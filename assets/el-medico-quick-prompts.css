@@ -1,0 +1,46 @@
+.el-medico-quick-card .duty-quick-prompts{
+  display:grid;
+  gap:7px;
+}
+
+.el-medico-quick-card .duty-quick-prompts button{
+  min-height:42px !important;
+  padding:8px 12px !important;
+  border-radius:12px !important;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.el-medico-quick-card .duty-quick-prompts button span{
+  font-size:.82rem !important;
+  line-height:1.15 !important;
+  text-align:left;
+}
+
+.el-medico-quick-card .duty-quick-prompts button b{
+  flex:0 0 auto;
+  font-size:1.2rem;
+  line-height:1;
+}
+
+@media (max-width:850px){
+  .el-medico-quick-card{
+    padding:13px !important;
+  }
+  .el-medico-quick-card .el-medico-quick-title{
+    margin-bottom:9px !important;
+  }
+  .el-medico-quick-card .duty-quick-prompts{
+    gap:6px;
+  }
+  .el-medico-quick-card .duty-quick-prompts button{
+    min-height:38px !important;
+    padding:7px 10px !important;
+    border-radius:10px !important;
+  }
+  .el-medico-quick-card .duty-quick-prompts button span{
+    font-size:.76rem !important;
+  }
+}
