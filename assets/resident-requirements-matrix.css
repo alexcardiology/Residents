@@ -1,0 +1,291 @@
+/* Resident minimum-requirement matrix: one intervention per row.
+   Default = targets only. Toggle ON = Achievement + Target subcolumns beneath each activity group. */
+
+.resident-requirements-matrix {
+  margin: 14px 0 18px;
+}
+
+.resident-requirements-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+  padding: 13px 15px;
+  border: 1px solid #dbe5ef;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #f8fbfe, #fff);
+}
+
+.resident-requirements-toolbar-copy {
+  min-width: 0;
+}
+
+.resident-requirements-toolbar-copy b {
+  display: block;
+  color: #0b2747;
+  font-size: .92rem;
+}
+
+.resident-requirements-toolbar-copy span {
+  display: block;
+  margin-top: 3px;
+  color: #718196;
+  font-size: .7rem;
+  line-height: 1.35;
+}
+
+.resident-achievements-toggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, auto) 46px;
+  align-items: center;
+  gap: 11px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.resident-achievements-toggle-copy {
+  text-align: right;
+}
+
+.resident-achievements-toggle-copy b {
+  display: block;
+  color: #102b49;
+  font-size: .76rem;
+  line-height: 1.2;
+}
+
+.resident-achievements-toggle-copy small {
+  display: block;
+  margin-top: 3px;
+  color: #7b8b9d;
+  font-size: .62rem;
+  line-height: 1.2;
+}
+
+.resident-achievements-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.resident-achievements-switch {
+  width: 46px;
+  height: 26px;
+  position: relative;
+  display: block;
+  border-radius: 999px;
+  background: #d8e1eb;
+  box-shadow: inset 0 0 0 1px #c8d3df;
+  transition: background .18s ease, box-shadow .18s ease;
+}
+
+.resident-achievements-switch::after {
+  content: "";
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(25, 43, 65, .22);
+  transition: transform .18s ease;
+}
+
+.resident-achievements-toggle input:checked + .resident-achievements-switch {
+  background: #1976d2;
+  box-shadow: inset 0 0 0 1px #1268bc;
+}
+
+.resident-achievements-toggle input:checked + .resident-achievements-switch::after {
+  transform: translateX(20px);
+}
+
+.resident-achievements-toggle input:focus-visible + .resident-achievements-switch {
+  outline: 3px solid rgba(25, 118, 210, .17);
+  outline-offset: 2px;
+}
+
+.resident-requirements-table-scroll {
+  border: 1px solid #dce5ef;
+  border-radius: 15px;
+  overflow: auto;
+  background: #fff;
+}
+
+.resident-requirements-matrix-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0;
+  table-layout: fixed;
+}
+
+.resident-requirements-matrix-table th,
+.resident-requirements-matrix-table td {
+  padding: 12px 10px;
+  border-right: 1px solid #e3e9f0;
+  border-bottom: 1px solid #e3e9f0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.resident-requirements-matrix-table tr:last-child > * {
+  border-bottom: 0;
+}
+
+.resident-requirements-matrix-table tr > *:last-child {
+  border-right: 0;
+}
+
+.resident-requirement-group-head th {
+  color: #fff;
+  background: #0b2747;
+  font-size: .69rem;
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: .01em;
+}
+
+.resident-intervention-head {
+  width: 28%;
+  min-width: 190px;
+  text-align: left !important;
+  padding-left: 15px !important;
+}
+
+.resident-mode-head {
+  min-width: 120px;
+}
+
+.resident-requirement-subhead th {
+  padding: 7px 6px;
+  background: #edf3f9;
+  color: #536a82;
+  font-size: .61rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.resident-requirement-subhead .resident-achievement-head {
+  background: #e8f2fc;
+  color: #1765ad;
+}
+
+.resident-requirement-subhead .resident-target-head {
+  background: #f3f6f9;
+  color: #53687e;
+}
+
+.resident-intervention-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left !important;
+  padding-left: 15px !important;
+  background: #fbfdff;
+  color: #0b2747;
+  font-size: .82rem;
+  font-weight: 800;
+  box-shadow: 1px 0 0 #e3e9f0;
+}
+
+.resident-requirements-matrix-table tbody tr:hover .resident-intervention-cell,
+.resident-requirements-matrix-table tbody tr:hover td {
+  background-color: #f8fbfe;
+}
+
+.resident-requirements-matrix-table.targets-only td {
+  background: #fff;
+}
+
+.resident-requirements-matrix-table.show-achievements {
+  min-width: 1080px;
+}
+
+.resident-requirements-matrix-table.show-achievements .resident-intervention-head {
+  width: 22%;
+}
+
+.resident-achievement-cell {
+  background: #fbfdff;
+}
+
+.resident-target-cell {
+  background: #fff;
+}
+
+.resident-target-number,
+.resident-achievement-number {
+  min-width: 34px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 4px 8px;
+  border-radius: 9px;
+  font-size: .82rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.resident-target-number {
+  color: #102b49;
+  background: #edf1f5;
+}
+
+.resident-achievement-number {
+  color: #1765ad;
+  background: #eaf4fd;
+}
+
+.resident-achievement-number.is-met {
+  color: #147447;
+  background: #e5f6ed;
+}
+
+.resident-achievement-number.is-progress {
+  color: #1765ad;
+  background: #eaf4fd;
+}
+
+.resident-achievement-number.is-zero {
+  color: #758597;
+  background: #f1f4f7;
+}
+
+.resident-requirement-none {
+  color: #a5b0bc;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .resident-requirements-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .resident-achievements-toggle {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) 46px;
+  }
+
+  .resident-achievements-toggle-copy {
+    text-align: left;
+  }
+
+  .resident-requirements-matrix-table th,
+  .resident-requirements-matrix-table td {
+    padding: 10px 8px;
+  }
+
+  .resident-intervention-head,
+  .resident-intervention-cell {
+    min-width: 170px;
+  }
+}
