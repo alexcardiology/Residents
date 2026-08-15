@@ -1,0 +1,250 @@
+/* v1.0.118 — Prior Experience hierarchical audit workflow */
+.prior-audit-stepper {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 8px;
+  margin: 10px 0 18px;
+}
+
+.prior-audit-step {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid #dfe6ed;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.prior-audit-step > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #64758a;
+  background: #e9eef3;
+  font-size: .68rem;
+  font-weight: 900;
+}
+
+.prior-audit-step b,
+.prior-audit-step small {
+  display: block;
+}
+
+.prior-audit-step b {
+  color: #1d3045;
+  font-size: .69rem;
+  line-height: 1.2;
+}
+
+.prior-audit-step small {
+  margin-top: 2px;
+  color: #7a8999;
+  font-size: .56rem;
+  line-height: 1.3;
+}
+
+.prior-audit-step.complete {
+  border-color: #b9e0ca;
+  background: #f0faf4;
+}
+
+.prior-audit-step.complete > span {
+  color: #fff;
+  background: #198754;
+}
+
+.prior-audit-step.current {
+  border-color: #d6b3bb;
+  background: #fff7f8;
+  box-shadow: inset 0 0 0 1px rgba(108,20,37,.06);
+}
+
+.prior-audit-step.current > span {
+  color: #fff;
+  background: #741629;
+}
+
+.prior-hierarchy-verification > h4 {
+  margin: 14px 0 8px;
+  color: #27394d;
+  font-size: .76rem;
+}
+
+.prior-audit-fields-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.prior-audit-field-progress {
+  overflow: hidden;
+  border: 1px solid #dde5ec;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.prior-audit-field-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border-bottom: 1px solid #e5ebf0;
+  background: linear-gradient(180deg,#fbfcfe,#f7f9fb);
+}
+
+.prior-audit-field-title span:first-child {
+  display: block;
+  color: #8a6670;
+  font-size: .52rem;
+  font-weight: 900;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.prior-audit-field-title h4 {
+  margin: 2px 0 0;
+  color: #4a0d19;
+  font-size: .88rem;
+}
+
+.prior-audit-field-progress .table-scroll {
+  margin: 0;
+}
+
+.prior-audit-field-progress table {
+  margin: 0;
+}
+
+.prior-audit-score {
+  display: inline-flex;
+  min-width: 42px;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #9a6500;
+  background: #fff1d4;
+  font-size: .64rem;
+  font-weight: 900;
+}
+
+.prior-audit-score.complete {
+  color: #0c6a40;
+  background: #e4f6ec;
+}
+
+.prior-audit-reviewers {
+  display: grid;
+  gap: 5px;
+}
+
+.prior-audit-reviewer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prior-audit-reviewer > b {
+  color: #33475b;
+  font-size: .63rem;
+}
+
+.prior-audit-reviewer > small {
+  flex-basis: 100%;
+  color: #748293;
+  font-size: .56rem;
+}
+
+.prior-audit-waiting {
+  color: #7d8997;
+  font-size: .62rem;
+  font-weight: 650;
+}
+
+.prior-professor-stage {
+  display: grid;
+  grid-template-columns: minmax(190px,.75fr) minmax(0,1.25fr);
+  align-items: start;
+  gap: 12px;
+  padding: 11px 13px;
+  border-top: 1px solid #e5ebf0;
+  background: #fcfafb;
+}
+
+.prior-professor-stage > div:first-child b,
+.prior-professor-stage > div:first-child small {
+  display: block;
+}
+
+.prior-professor-stage > div:first-child b {
+  color: #661225;
+  font-size: .69rem;
+}
+
+.prior-professor-stage > div:first-child small {
+  margin-top: 3px;
+  color: #7d8997;
+  font-size: .56rem;
+  line-height: 1.35;
+}
+
+.prior-audit-setup-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 9px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid #f1d29a;
+  border-radius: 10px;
+  color: #7c5200;
+  background: #fff8e9;
+  font-size: .61rem;
+}
+
+.prior-audit-setup-warning span {
+  color: #8b6a28;
+}
+
+.prior-modal-audit-rule {
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  border: 1px solid #d9e3ec;
+  border-radius: 10px;
+  color: #51657a;
+  background: #f7fafc;
+  font-size: .64rem;
+  line-height: 1.4;
+}
+
+.prior-modal-audit-rule.professor {
+  border-color: #dfbec5;
+  color: #661225;
+  background: #fff7f8;
+}
+
+.prior-audit-empty {
+  padding: 12px;
+  border: 1px dashed #d9e1e9;
+  border-radius: 12px;
+  color: #708095;
+  background: #fafbfd;
+  font-size: .65rem;
+  text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .prior-audit-stepper { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width: 650px) {
+  .prior-audit-stepper { grid-template-columns: 1fr; }
+  .prior-professor-stage { grid-template-columns: 1fr; }
+  .prior-audit-field-title { align-items: flex-start; }
+}
