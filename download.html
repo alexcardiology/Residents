@@ -4,13 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#081c35">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="mobile-assets/pwa-icon.svg" type="image/svg+xml">
   <title>Download Resident Training</title>
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#10233c;background:#eef3f8}
     *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 20% 0%,#183f67 0,#081c35 42%,#061426 100%);padding:24px}
     .wrap{max-width:920px;margin:0 auto;padding:48px 0}.brand{display:flex;align-items:center;gap:14px;color:#fff;margin-bottom:34px}.logo{width:56px;height:56px;border-radius:18px;background:#fff;color:#081c35;display:grid;place-items:center;font-size:28px;font-weight:900}.brand strong{display:block;font-size:20px}.brand small{opacity:.72}
     .hero{color:#fff;max-width:680px;margin-bottom:28px}.hero h1{font-size:clamp(36px,7vw,64px);line-height:1.02;margin:0 0 14px;letter-spacing:-.04em}.hero p{font-size:18px;line-height:1.65;color:#c9d6e4;margin:0}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:#fff;border-radius:26px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2);position:relative;overflow:hidden}.card.recommended{outline:3px solid rgba(255,255,255,.4)}.badge{display:none;position:absolute;right:18px;top:18px;background:#e8f3ff;color:#0b6abf;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800}.card.recommended .badge{display:block}.icon{width:58px;height:58px;border-radius:18px;background:#eef4f9;display:grid;place-items:center;font-size:29px;margin-bottom:18px}.card h2{margin:0 0 8px;font-size:25px}.card p{margin:0 0 22px;color:#65768a;line-height:1.55}.btn{width:100%;display:flex;justify-content:center;align-items:center;gap:8px;border:0;border-radius:15px;padding:14px 16px;font-weight:850;font-size:16px;text-decoration:none;cursor:pointer;background:#0b6abf;color:#fff}.btn:hover{filter:brightness(.96)}.btn.disabled{background:#e5eaf0;color:#8896a7;cursor:not-allowed}.note{font-size:12px!important;margin-top:12px!important;margin-bottom:0!important}.footer{color:#9eb0c3;margin-top:22px;font-size:13px;line-height:1.6}.footer a{color:#d6e7fa}.status{display:inline-flex;gap:8px;align-items:center;margin-top:18px;color:#d6e7fa;font-size:13px}.dot{width:8px;height:8px;border-radius:50%;background:#55d58a;box-shadow:0 0 0 5px rgba(85,213,138,.12)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:#fff;border-radius:26px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2);position:relative;overflow:hidden}.card.recommended{outline:3px solid rgba(255,255,255,.4)}.badge{display:none;position:absolute;right:18px;top:18px;background:#e8f3ff;color:#0b6abf;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800}.card.recommended .badge{display:block}.icon{width:58px;height:58px;border-radius:18px;background:#eef4f9;display:grid;place-items:center;font-size:29px;margin-bottom:18px}.card h2{margin:0 0 8px;font-size:25px}.card p{margin:0 0 22px;color:#65768a;line-height:1.55}.btn{width:100%;display:flex;justify-content:center;align-items:center;gap:8px;border:0;border-radius:15px;padding:14px 16px;font-weight:850;font-size:16px;text-decoration:none;cursor:pointer;background:#0b6abf;color:#fff}.btn:hover{filter:brightness(.96)}.note{font-size:12px!important;margin-top:12px!important;margin-bottom:0!important}.footer{color:#9eb0c3;margin-top:22px;font-size:13px;line-height:1.6}.footer a{color:#d6e7fa}.status{display:inline-flex;gap:8px;align-items:center;margin-top:18px;color:#d6e7fa;font-size:13px}.dot{width:8px;height:8px;border-radius:50%;background:#55d58a;box-shadow:0 0 0 5px rgba(85,213,138,.12)}
+    .ios-guide{display:none;margin-top:16px;padding:16px;border-radius:16px;background:#f4f8fc;border:1px solid #dbe6f0;color:#41566e}.ios-guide.show{display:block}.ios-guide strong{display:block;color:#10233c;margin-bottom:8px}.ios-guide ol{margin:8px 0 0 20px;padding:0}.ios-guide li{margin:7px 0;line-height:1.45}.free{display:inline-flex;margin-left:6px;padding:4px 8px;border-radius:999px;background:#e9f9ef;color:#168448;font-size:11px;font-weight:900;vertical-align:middle}
     @media(max-width:700px){body{padding:18px}.wrap{padding:26px 0}.grid{grid-template-columns:1fr}.hero h1{font-size:42px}.card{padding:24px}.brand{margin-bottom:26px}}
   </style>
 </head>
@@ -19,7 +22,7 @@
     <div class="brand"><div class="logo">♥</div><div><strong>Cardiology</strong><small>Resident Training &amp; Assessment</small></div></div>
     <section class="hero">
       <h1>Take your training portal with you.</h1>
-      <p>Use the same account, curriculum, logbook, reviews and assessments from your phone. The mobile app opens the live portal, so your data stays synchronized with the website.</p>
+      <p>Use the same account, curriculum, logbook, reviews and assessments from your phone. Android installs as a native APK; iPhone can be installed free as a Home Screen web app.</p>
       <div class="status"><span class="dot"></span>Connected to the live training portal</div>
     </section>
 
@@ -28,7 +31,7 @@
         <span class="badge">Recommended for this device</span>
         <div class="icon">🤖</div>
         <h2>Android</h2>
-        <p>Download the APK directly and install Resident Training on your Android phone or tablet.</p>
+        <p>Download the signed APK directly and install Resident Training on your Android phone or tablet.</p>
         <a class="btn" href="https://github.com/drmohamedalaa90/Residents/releases/download/mobile-latest/resident-training-android.apk">Download for Android</a>
         <p class="note">Android may ask you to allow installation from your browser the first time.</p>
       </article>
@@ -36,19 +39,33 @@
       <article class="card" id="iosCard">
         <span class="badge">Recommended for this device</span>
         <div class="icon"></div>
-        <h2>iPhone &amp; iPad</h2>
-        <p>The native iOS app is prepared. Apple requires signed distribution through TestFlight or the App Store before it can install on an iPhone.</p>
-        <span class="btn disabled" aria-disabled="true">TestFlight publishing pending</span>
-        <p class="note">This button will become the TestFlight install button after Apple Developer signing is connected.</p>
+        <h2>iPhone &amp; iPad <span class="free">FREE</span></h2>
+        <p>Install Resident Training on your Home Screen now without an Apple Developer subscription. It opens in its own app-style window and uses the same live portal and account.</p>
+        <button class="btn" id="iosInstallBtn" type="button">Install FREE on iPhone</button>
+        <div class="ios-guide" id="iosGuide">
+          <strong>Install from Safari:</strong>
+          <ol>
+            <li>Open this page in <b>Safari</b>.</li>
+            <li>Tap the <b>Share</b> button.</li>
+            <li>Choose <b>Add to Home Screen</b>.</li>
+            <li>Turn on <b>Open as Web App</b>.</li>
+            <li>Tap <b>Add</b>. Resident Training will appear on your Home Screen.</li>
+          </ol>
+        </div>
+        <p class="note">No Apple Developer payment is needed for this free Home Screen version. We can switch the iPhone card to TestFlight/App Store later.</p>
       </article>
     </section>
 
-    <p class="footer">Already on a computer? You can keep using the <a href="index.html">web portal</a>. Android builds are generated automatically from the current Resident Training code.</p>
+    <p class="footer">Already on a computer? You can keep using the <a href="index.html">web portal</a>. Both mobile options use the same live Resident Training data.</p>
   </main>
   <script>
     const ua=navigator.userAgent||"";
     if(/Android/i.test(ua)) document.querySelector('#androidCard')?.classList.add('recommended');
     if(/iPhone|iPad|iPod/i.test(ua)) document.querySelector('#iosCard')?.classList.add('recommended');
+    document.querySelector('#iosInstallBtn')?.addEventListener('click',()=>{
+      document.querySelector('#iosGuide')?.classList.add('show');
+      document.querySelector('#iosGuide')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+    });
   </script>
 </body>
 </html>
