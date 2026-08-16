@@ -15,6 +15,37 @@ function fmtDate(value){
   if(Number.isNaN(d.getTime()))return String(value);
   return d.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"});
 }
+function clearDuplicateSuppression(){
+  document.querySelectorAll(".message-row.senior-request-duplicate-v135").forEach((row)=>row.classList.remove("senior-request-duplicate-v135"));
+  document.querySelectorAll('[data-logbook-tab="received"] .nav-badge[data-senior-base-count]').forEach((badge)=>{
+    const base=Number(badge.dataset.seniorBaseCount||badge.textContent||0);
+    badge.textContent=String(base);
+    badge.hidden=base===0;
+    delete badge.dataset.seniorBaseCount;
+  });
+}
+function suppressDuplicateMailboxRows(rows){
+  clearDuplicateSuppression();
+  if(!Array.isArray(rows)||!rows.length)return;
+  const ids=new Set(rows.map((row)=>String(row.id||"")).filter(Boolean));
+  const suppressed=new Set();
+  document.querySelectorAll('[data-mail-panel="received"] .message-row').forEach((row)=>{
+    const approve=row.querySelector('[data-quick-logbook-approve]');
+    const reject=row.querySelector('[data-inbox-logbook-reject]');
+    const entryId=String(approve?.getAttribute("data-quick-logbook-approve")||reject?.getAttribute("data-inbox-logbook-reject")||"");
+    if(!entryId||!ids.has(entryId))return;
+    row.classList.add("senior-request-duplicate-v135");
+    suppressed.add(entryId);
+  });
+  const badge=document.querySelector('[data-logbook-tab="received"] .nav-badge');
+  if(badge){
+    const base=Number(badge.textContent||0);
+    badge.dataset.seniorBaseCount=String(base);
+    const adjusted=Math.max(0,base-suppressed.size);
+    badge.textContent=String(adjusted);
+    badge.hidden=adjusted===0;
+  }
+}
 function requestCard(row){
   return `<article class="senior-request-card" data-senior-entry="${esc(row.id)}">
     <div class="senior-request-main">
@@ -41,6 +72,7 @@ async function loadRequests(force=false){
   if(title!=="logbook requests"){
     document.querySelector("#seniorAssignedRequestsV135")?.remove();
     document.querySelector("#seniorRequestJumpV135")?.remove();
+    clearDuplicateSuppression();
     lastSignature="";
     return;
   }
@@ -49,6 +81,7 @@ async function loadRequests(force=false){
     const {data,error}=await sb.rpc("get_my_senior_logbook_requests_v135");
     if(error)throw error;
     const rows=Array.isArray(data)?data:[];
+    suppressDuplicateMailboxRows(rows);
     const signature=rows.map(row=>`${row.id}:${row.senior_status}:${row.case_count}:${row.created_at}`).join("|");
     if(!force&&signature===lastSignature&&document.querySelector("#seniorAssignedRequestsV135"))return;
     lastSignature=signature;
@@ -73,6 +106,7 @@ async function loadRequests(force=false){
     jump.addEventListener("click",()=>panel.scrollIntoView({behavior:"smooth",block:"start"}));
     const leadActions=lead?.querySelector(".actions");
     if(leadActions)leadActions.prepend(jump);else lead?.appendChild(jump);
+    suppressDuplicateMailboxRows(rows);
   }catch(error){console.warn("Senior requests",error)}finally{loading=false}
 }
 
