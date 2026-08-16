@@ -1,0 +1,98 @@
+import { sb } from "./supabase.js";
+
+const MODE_KEY = "cardiology-dual-role-mode";
+let currentUserId = "";
+let dualAssessor = false;
+let primaryRole = "";
+let residencyYear = null;
+
+function effectiveMode() {
+  return dualAssessor && localStorage.getItem(MODE_KEY) === "assessor" ? "assessor" : "resident";
+}
+
+function adaptProfile(data) {
+  if (!dualAssessor || effectiveMode() !== "assessor" || !data) return data;
+  if (Array.isArray(data)) {
+    return data.map((row) => row && String(row.id || "") === currentUserId ? { ...row, role: "assessor" } : row);
+  }
+  if (typeof data === "object" && String(data.id || "") === currentUserId) {
+    return { ...data, role: "assessor" };
+  }
+  return data;
+}
+
+function patchProfileBuilder(builder) {
+  if (!builder || builder.__dualRolePatched) return builder;
+  Object.defineProperty(builder, "__dualRolePatched", { value: true, configurable: true });
+  for (const method of ["single", "maybeSingle"]) {
+    if (typeof builder[method] !== "function") continue;
+    const original = builder[method].bind(builder);
+    builder[method] = async (...args) => {
+      const result = await original(...args);
+      if (result && !result.error) result.data = adaptProfile(result.data);
+      return result;
+    };
+  }
+  return builder;
+}
+
+async function initializeCapability() {
+  try {
+    const { data: sessionData } = await sb.auth.getSession();
+    currentUserId = String(sessionData?.session?.user?.id || "");
+    if (!currentUserId) return;
+    const { data, error } = await sb.rpc("get_my_role_capabilities");
+    if (error || !data) return;
+    primaryRole = String(data.primary_role || "");
+    residencyYear = Number(data.residency_year) || null;
+    dualAssessor = primaryRole === "resident" && residencyYear === 4 && data.assessor === true;
+    if (!dualAssessor) localStorage.removeItem(MODE_KEY);
+  } catch (error) {
+    console.warn("Dual-role capability could not be loaded", error);
+  }
+}
+
+await initializeCapability();
+
+if (dualAssessor) {
+  const originalFrom = sb.from.bind(sb);
+  sb.from = (table, ...rest) => {
+    const builder = originalFrom(table, ...rest);
+    return table === "profiles" ? patchProfileBuilder(builder) : builder;
+  };
+}
+
+function addSwitcher() {
+  if (!dualAssessor || document.querySelector("#dualRoleSwitcher")) return;
+  const header = document.querySelector(".workspace > header");
+  if (!header) return;
+  const button = document.createElement("button");
+  button.id = "dualRoleSwitcher";
+  button.type = "button";
+  button.className = "dual-role-switcher";
+  const assessorMode = effectiveMode() === "assessor";
+  button.innerHTML = `<span aria-hidden="true">⇄</span><span>${assessorMode ? "Switch to Resident view" : "Switch to Assessor view"}</span>`;
+  button.title = assessorMode
+    ? "Return to your Year 4 resident training view"
+    : "Open your assessor tools for Years 1–3";
+  button.addEventListener("click", () => {
+    localStorage.setItem(MODE_KEY, assessorMode ? "resident" : "assessor");
+    location.hash = "#dashboard";
+    location.reload();
+  });
+  const profileChip = document.querySelector("#profileChip");
+  if (profileChip) profileChip.insertAdjacentElement("afterend", button);
+  else header.appendChild(button);
+}
+
+const style = document.createElement("style");
+style.textContent = `
+  .dual-role-switcher{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 14px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;color:#0f2742;font-weight:800;white-space:nowrap;cursor:pointer}
+  .dual-role-switcher:hover{background:#f8fafc;border-color:#94a3b8}
+  @media(max-width:850px){.dual-role-switcher{font-size:.72rem;padding:0 9px;min-height:38px}.dual-role-switcher span:first-child{display:none}}
+`;
+document.head.appendChild(style);
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(addSwitcher, 0));
+else setTimeout(addSwitcher, 0);
+new MutationObserver(addSwitcher).observe(document.documentElement, { childList: true, subtree: true });
