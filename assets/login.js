@@ -1,5 +1,19 @@
 import { sb, AUTH_PERSISTENCE_KEY } from "./supabase.js?v=1.0.92";
 
+function detectPlatform() {
+  try {
+    const cap = window.Capacitor;
+    const native = cap?.isNativePlatform?.() === true;
+    const platform = cap?.getPlatform?.();
+    if (native && platform === "android") return "android_app";
+    if (native && platform === "ios") return "ios_app";
+  } catch (_) {}
+  if (window.navigator.standalone === true || window.matchMedia?.("(display-mode: standalone)")?.matches === true) {
+    return /Android/i.test(navigator.userAgent || "") ? "android_app" : "ios_app";
+  }
+  return "web";
+}
+
 async function loadActiveProfile(userId) {
   const { data: profile, error } = await sb
     .from("profiles")
@@ -67,6 +81,15 @@ async function authenticate(form) {
       await sb.auth.signOut();
       throw new Error("Account inactive. Please contact the training team.");
     }
+
+    try {
+      await sb.rpc("record_user_activity", {
+        p_event: "login",
+        p_login_method: "email",
+        p_platform: detectPlatform(),
+        p_path: location.pathname,
+      });
+    } catch (_) {}
 
     location.replace("app.html#dashboard");
   } catch (error) {
