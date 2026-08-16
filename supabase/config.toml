@@ -3,3 +3,5 @@ project_id="dwkkhqmifmmxubtuaqbd"
 verify_jwt=true
 [functions.duty-bot]
 verify_jwt=true
+[functions.duty-bot-public]
+verify_jwt=false
