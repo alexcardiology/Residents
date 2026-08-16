@@ -32,7 +32,7 @@ function controlMarkup() {
     <div class="feature-admin-copy">
       <small>ACCESS CONTROL</small>
       <h3>Resident assessments</h3>
-      <p>Allow or hide the My assessments section for all residents. Assessor and Admin assessment tools are not affected.</p>
+      <p>Controls whether residents can use My assessments. When disabled, residents still see the section marked Coming Soon. Assessor and Admin tools are unaffected.</p>
     </div>
     <label class="feature-switch-wrap" data-resident-assessment-switch-label>
       <span class="feature-status ${state.enabled ? "allowed" : "blocked"}" data-resident-assessment-status>${state.enabled ? "Allowed" : "Not allowed"}</span>
@@ -76,47 +76,50 @@ function syncAdminControl() {
   }
 }
 
-function markHidden(node) {
-  if (!node || node.dataset.residentAssessmentAccessHidden === "1") return;
-  node.dataset.residentAssessmentAccessHidden = "1";
-  node.hidden = true;
+function addSoonBadgeToAssessmentNav() {
+  if (!isResident()) return;
+  const button = document.querySelector('#nav [data-go="assessments"]');
+  if (!button) return;
+
+  /* Undo the old hide behaviour if an earlier cached pass marked this control. */
+  if (button.dataset.residentAssessmentAccessHidden === "1") {
+    button.hidden = false;
+    delete button.dataset.residentAssessmentAccessHidden;
+  }
+
+  button.querySelector(".feature-nav-soon")?.remove();
+  if (!state.enabled) {
+    const badge = document.createElement("span");
+    badge.className = "feature-nav-soon";
+    badge.textContent = "Soon";
+    button.appendChild(badge);
+  }
 }
 
-function restoreHidden() {
-  document.querySelectorAll('[data-resident-assessment-access-hidden="1"]').forEach((node) => {
-    node.hidden = false;
-    delete node.dataset.residentAssessmentAccessHidden;
-  });
-}
-
-function unavailableMarkup() {
+function comingSoonMarkup() {
   return `<section class="feature-coming-soon" data-resident-assessment-access-blocked="1">
-    <div class="feature-coming-soon-icon" aria-hidden="true">🔒</div>
+    <div class="feature-coming-soon-icon" aria-hidden="true">⏳</div>
     <div>
-      <small>NOT CURRENTLY AVAILABLE</small>
-      <h2>My assessments</h2>
-      <p>The assessment section is currently hidden by the training program Admin.</p>
+      <small>COMING SOON</small>
+      <h2>Assessments</h2>
+      <p>Your assessment section is being prepared and will be available soon.</p>
     </div>
   </section>`;
 }
 
 function gateResidentAssessments() {
   if (!isResident()) return;
+  addSoonBadgeToAssessmentNav();
 
-  if (state.enabled) {
-    restoreHidden();
-    return;
-  }
-
-  document.querySelectorAll('#nav [data-go="assessments"], #content [data-go="assessments"]').forEach(markHidden);
-
+  if (state.enabled) return;
   if (route() !== RESIDENT_ROUTE) return;
+
   const content = document.querySelector("#content");
   if (!content) return;
   const title = document.querySelector("#title");
   if (title) title.textContent = "My assessments";
   if (!content.querySelector('[data-resident-assessment-access-blocked="1"]')) {
-    content.innerHTML = unavailableMarkup();
+    content.innerHTML = comingSoonMarkup();
   }
 }
 
