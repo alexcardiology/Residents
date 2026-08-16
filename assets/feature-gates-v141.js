@@ -11,6 +11,11 @@ const FEATURES = {
     adminRoute: "owner-logbook-center",
     description: "Controls access to the prior experience logbook and its review workflow.",
   },
+  minimum_requirements: {
+    label: "Minimum requirements",
+    adminRoute: "owner-logbook-requirements",
+    description: "Controls resident access to year-specific minimum procedural requirements and progress.",
+  },
 };
 
 const state = {
@@ -19,6 +24,7 @@ const state = {
   flags: {
     chapters: false,
     prior_experience_logbook: false,
+    minimum_requirements: false,
   },
   ready: false,
   painting: false,
@@ -38,8 +44,8 @@ function toast(message) {
   }, 2800);
 }
 
-function soonCard(title, body, compact = false) {
-  return `<section class="feature-coming-soon ${compact ? "compact" : ""}" data-feature-gate-ui="1">
+function soonCard(title, body, compact = false, marker = "") {
+  return `<section class="feature-coming-soon ${compact ? "compact" : ""}" data-feature-gate-ui="1" ${marker ? `${marker}="1"` : ""}>
     <div class="feature-coming-soon-icon" aria-hidden="true">⏳</div>
     <div>
       <small>COMING SOON</small>
@@ -53,7 +59,7 @@ function addSoonBadgeToChaptersNav() {
   const button = document.querySelector('#nav [data-go="chapters"]');
   if (!button) return;
   button.querySelector(".feature-nav-soon")?.remove();
-  if (!state.flags.chapters) {
+  if (!state.flags.chapters && !isOwner()) {
     const badge = document.createElement("span");
     badge.className = "feature-nav-soon";
     badge.textContent = "Soon";
@@ -65,13 +71,14 @@ function gateChapters() {
   addSoonBadgeToChaptersNav();
   if (route() !== "chapters" || state.flags.chapters || isOwner()) return;
   const content = document.querySelector("#content");
-  if (!content || content.dataset.featureChaptersGate === "1") return;
-  content.dataset.featureChaptersGate = "1";
+  if (!content || content.querySelector('[data-feature-chapters-soon="1"]')) return;
   const title = document.querySelector("#title");
   if (title) title.textContent = "My chapters";
   content.innerHTML = soonCard(
     "Chapters",
     "Your curriculum chapters are being prepared and will be available soon.",
+    false,
+    "data-feature-chapters-soon",
   );
 }
 
@@ -129,6 +136,58 @@ function gatePriorExperience() {
   const lead = content.querySelector(":scope > .lead");
   if (lead) lead.after(notice);
   else content.prepend(notice);
+}
+
+function clearMinimumRequirementsGate() {
+  document.querySelectorAll('#content [data-feature-minimum-hidden="1"]').forEach((node) => {
+    node.hidden = false;
+    delete node.dataset.featureMinimumHidden;
+  });
+  document.querySelector('[data-feature-minimum-soon="1"]')?.remove();
+}
+
+function gateMinimumRequirements() {
+  if (state.flags.minimum_requirements || isOwner()) {
+    clearMinimumRequirementsGate();
+    return;
+  }
+
+  const currentRoute = route();
+  const content = document.querySelector("#content");
+  if (!content) return;
+
+  if (currentRoute === "logbook-minimum-requirements") {
+    if (content.querySelector('[data-feature-minimum-route-soon="1"]')) return;
+    const title = document.querySelector("#title");
+    if (title) title.textContent = "My minimum requirements";
+    content.innerHTML = soonCard(
+      "My minimum requirements",
+      "Your year-specific minimum procedural requirements are being prepared and will be available soon.",
+      false,
+      "data-feature-minimum-route-soon",
+    );
+    return;
+  }
+
+  if (currentRoute !== "logbook") return;
+  const banner = content.querySelector(".minimum-access-banner");
+  if (!banner) return;
+
+  if (banner.dataset.featureMinimumHidden !== "1") {
+    banner.hidden = true;
+    banner.dataset.featureMinimumHidden = "1";
+  }
+  if (content.querySelector('[data-feature-minimum-soon="1"]')) return;
+
+  const notice = document.createElement("div");
+  notice.dataset.featureMinimumSoon = "1";
+  notice.dataset.featureGateUi = "1";
+  notice.innerHTML = soonCard(
+    "My minimum requirements",
+    "Your year-specific minimum procedural requirements will be available soon.",
+    true,
+  );
+  banner.before(notice);
 }
 
 function adminControlMarkup(key) {
@@ -206,9 +265,37 @@ function paint() {
   try {
     gateChapters();
     gatePriorExperience();
+    gateMinimumRequirements();
     ensureAdminControl();
   } finally {
     state.painting = false;
+  }
+}
+
+function applyFlags(rows = []) {
+  let changed = false;
+  rows.forEach((row) => {
+    if (!(row.feature_key in state.flags)) return;
+    const next = Boolean(row.enabled);
+    if (state.flags[row.feature_key] !== next) changed = true;
+    state.flags[row.feature_key] = next;
+  });
+  return changed;
+}
+
+async function refreshFlags() {
+  if (!state.user) return;
+  try {
+    const { data, error } = await sb.from("portal_feature_flags").select("feature_key,enabled");
+    if (error) throw error;
+    const changed = applyFlags(data || []);
+    if (changed && !isOwner()) {
+      location.reload();
+      return;
+    }
+    paint();
+  } catch (error) {
+    console.warn("Feature flags could not be refreshed", error);
   }
 }
 
@@ -224,9 +311,7 @@ async function loadState() {
     ]);
     if (flagsError) throw flagsError;
     state.profile = profile || null;
-    (flags || []).forEach((row) => {
-      if (row.feature_key in state.flags) state.flags[row.feature_key] = Boolean(row.enabled);
-    });
+    applyFlags(flags || []);
   } catch (error) {
     console.warn("Feature gates could not be loaded", error);
   } finally {
@@ -257,5 +342,6 @@ const observer = new MutationObserver(() => {
 observer.observe(document.querySelector("#shell") || document.body, { childList: true, subtree: true });
 window.addEventListener("hashchange", () => setTimeout(paint, 60));
 setInterval(paint, 6000);
+setInterval(() => void refreshFlags(), 12000);
 
 void loadState();
