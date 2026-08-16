@@ -113,17 +113,31 @@ function gatePriorExperience() {
   const content = document.querySelector("#content");
   if (!content) return;
 
-  /* The disabled Prior Experience feature should disappear completely from the
-     resident workspace. Do not replace the priority banner with another banner. */
-  document.querySelectorAll('#content [data-feature-prior-soon="1"]').forEach((node) => node.remove());
+  if (currentRoute === "logbook") {
+    const banner = content.querySelector(".prior-experience-alert");
+    if (!banner) return;
 
-  content.querySelectorAll('.prior-experience-alert, [class*="prior-"], [id*="prior"], [class*="prior_"], [id*="prior_"]').forEach((node) => {
+    banner.classList.add("feature-prior-hidden-v141");
+    banner.dataset.featurePriorInlineHidden = "1";
+    banner.style.setProperty("display", "none", "important");
+
+    if (!content.querySelector('[data-feature-prior-soon="1"]')) {
+      const notice = document.createElement("div");
+      notice.dataset.featurePriorSoon = "1";
+      notice.dataset.featureGateUi = "1";
+      notice.innerHTML = soonCard(
+        "Prior Experience Logbook",
+        "Your prior-experience logbook is being prepared and will be available soon.",
+        true,
+      );
+      banner.before(notice);
+    }
+    return;
+  }
+
+  content.querySelectorAll('[class*="prior-"], [id*="prior"], [class*="prior_"], [id*="prior_"]').forEach((node) => {
     if (node.closest('[data-feature-gate-ui="1"]')) return;
     node.classList.add("feature-prior-hidden-v141");
-    if (node.classList.contains("prior-experience-alert")) {
-      node.dataset.featurePriorInlineHidden = "1";
-      node.style.setProperty("display", "none", "important");
-    }
   });
 
   content.querySelectorAll("button, a, [role='button']").forEach((node) => {
@@ -137,7 +151,7 @@ function clearMinimumRequirementsGate() {
     node.hidden = false;
     delete node.dataset.featureMinimumHidden;
   });
-  document.querySelector('[data-feature-minimum-soon="1"]')?.remove();
+  document.querySelectorAll('[data-feature-minimum-soon="1"]').forEach((node) => node.remove());
 }
 
 function gateMinimumRequirements() {
