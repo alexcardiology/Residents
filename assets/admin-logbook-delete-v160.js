@@ -10,12 +10,43 @@ function ensureStyle() {
   const style = document.createElement("style");
   style.id = "adminLogbookDeleteStyleV160";
   style.textContent = `
-    .admin-logbook-delete-v160{margin-left:8px!important;background:#fff1f2!important;color:#111827!important;border:1px solid #fecdd3!important;font-weight:800!important}
-    .admin-logbook-delete-v160:hover{background:#ffe4e6!important;color:#111827!important;border-color:#fda4af!important}
-    .admin-logbook-delete-v160[disabled]{opacity:.55!important;cursor:wait!important;color:#111827!important}
+    html.admin-red-theme .admin-logbook-delete-v160,
+    body.admin-red-theme .admin-logbook-delete-v160,
+    .admin-logbook-delete-v160{
+      margin-left:8px!important;
+      background:#fff1f2!important;
+      color:#111827!important;
+      -webkit-text-fill-color:#111827!important;
+      border:1px solid #fecdd3!important;
+      font-weight:800!important;
+      text-shadow:none!important;
+    }
+    html.admin-red-theme .admin-logbook-delete-v160:hover,
+    body.admin-red-theme .admin-logbook-delete-v160:hover,
+    .admin-logbook-delete-v160:hover{
+      background:#ffe4e6!important;
+      color:#111827!important;
+      -webkit-text-fill-color:#111827!important;
+      border-color:#fda4af!important;
+    }
+    html.admin-red-theme .admin-logbook-delete-v160[disabled],
+    body.admin-red-theme .admin-logbook-delete-v160[disabled],
+    .admin-logbook-delete-v160[disabled]{
+      opacity:.55!important;
+      cursor:wait!important;
+      color:#111827!important;
+      -webkit-text-fill-color:#111827!important;
+    }
     .logbook-history-table-card td[data-label="Actions"]{white-space:nowrap}
   `;
   document.head.appendChild(style);
+}
+
+function forceBlackDeleteText(button) {
+  if (!button) return;
+  button.style.setProperty("color", "#111827", "important");
+  button.style.setProperty("-webkit-text-fill-color", "#111827", "important");
+  button.style.setProperty("text-shadow", "none", "important");
 }
 
 function addDeleteButtons() {
@@ -26,13 +57,19 @@ function addDeleteButtons() {
     const details = row.querySelector("[data-logbook-detail]");
     if (!details) return;
     const entryId = String(details.getAttribute("data-logbook-detail") || "").trim();
-    if (!entryId || row.querySelector("[data-owner-delete-logbook-entry]")) return;
+    if (!entryId) return;
+    const existing = row.querySelector("[data-owner-delete-logbook-entry]");
+    if (existing) {
+      forceBlackDeleteText(existing);
+      return;
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn small admin-logbook-delete-v160";
     button.dataset.ownerDeleteLogbookEntry = entryId;
     button.textContent = "Delete";
     button.title = "Admin only: permanently delete this logbook entry";
+    forceBlackDeleteText(button);
     details.insertAdjacentElement("afterend", button);
   });
 }
@@ -68,6 +105,7 @@ async function deleteEntry(button) {
   button.disabled = true;
   const oldText = button.textContent;
   button.textContent = "Deleting…";
+  forceBlackDeleteText(button);
   try {
     const { error } = await sb.rpc("owner_delete_resident_logbook_entry_v160", { p_entry_id: entryId });
     if (error) throw error;
@@ -84,6 +122,7 @@ async function deleteEntry(button) {
     alert(`Could not delete this logbook entry: ${error?.message || error}`);
     button.disabled = false;
     button.textContent = oldText;
+    forceBlackDeleteText(button);
   } finally {
     deleteBusy = false;
   }
