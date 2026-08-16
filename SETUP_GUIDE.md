@@ -2,7 +2,7 @@
 
 1. In Supabase **SQL Editor**, run `supabase/schema.sql`, then `supabase/seed.sql`.
 2. In **Authentication → Providers → Email**, keep email/password enabled and disable public sign-up.
-3. In **Authentication → URL Configuration**, set Site URL to `https://drmohamedalaa90.github.io/Residents/` and add `https://drmohamedalaa90.github.io/Residents/**` as a redirect URL.
+3. In **Authentication → URL Configuration**, set Site URL to `https://alexcardiology.github.io/Residents/` and add `https://alexcardiology.github.io/Residents/**` as a redirect URL.
 4. Only after running the schema, open **Authentication → Users → Add user**. Create `drmohamedalaa90@gmail.com` with a strong password and **Auto Confirm User** enabled. Confirm its `profiles.role` is `owner`.
 5. Deploy the secure account function from this folder:
    ```bash
@@ -18,8 +18,8 @@
    ```
    The token needs `data.records:read` access to the `Bot_Assignments` and `Residents` tables. Only records whose Status is `Approved` are shown in the portal.
    The function also reads the public-view CSV for Google Sheet `185wfhkbv3s7M5gj7J04-zb_6UhCgK1pA1qjN7O9dLBY`, tab `569773954`. Keep that tab available to anyone with the link as Viewer. Google itself enforces editing access; the portal shows the **Modify schedule** button only to `drmohamedalaa90@gmail.com`.
-7. Upload/commit all files to `drmohamedalaa90/Residents` on `main`. In **Repository Settings → Pages**, choose **GitHub Actions**.
-8. Visit `https://drmohamedalaa90.github.io/Residents/`, sign in, open **Duty Bot**, and test “Who is in Miri ER today?”. Then create one test resident, observer and assessor and verify their normal portal permissions.
+7. Upload/commit all files to `alexcardiology/Residents` on `main`. In **Repository Settings → Pages**, choose **GitHub Actions**.
+8. Visit `https://alexcardiology.github.io/Residents/`, sign in, open **Duty Bot**, and test “Who is in Miri ER today?”. Then create one test resident, observer and assessor and verify their normal portal permissions.
 
 Never place a database password, secret key, service-role key, GitHub password, or user password in this repository. The included browser key is intentionally public and protected by Row Level Security.
 

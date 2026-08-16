@@ -4,7 +4,7 @@ The mobile app is a Capacitor 8 native wrapper around the live Resident Training
 
 ## Live web source
 
-`https://drmohamedalaa90.github.io/Residents/`
+`https://alexcardiology.github.io/Residents/`
 
 Both Android and iOS therefore use the same Supabase accounts and data as the website, and normal web updates are visible inside the installed app without creating a second database.
 
@@ -12,7 +12,7 @@ Both Android and iOS therefore use the same Supabase accounts and data as the we
 
 `.github/workflows/mobile-build.yml` builds an installable Android APK whenever the main portal frontend or mobile configuration changes. The stable public download URL is:
 
-`https://github.com/drmohamedalaa90/Residents/releases/download/mobile-latest/resident-training-android.apk`
+`https://github.com/alexcardiology/Residents/releases/download/mobile-latest/resident-training-android.apk`
 
 The initial automated package is a beta/debug-signed APK. Before broad long-term distribution, configure a private Android release keystore in GitHub Actions so future versions can update an already installed app without uninstalling it.
 

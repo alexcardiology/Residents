@@ -3,7 +3,7 @@
   "appName": "Cardiology Residents",
   "webDir": "mobile/web",
   "server": {
-    "url": "https://drmohamedalaa90.github.io/Residents/",
+    "url": "https://alexcardiology.github.io/Residents/",
     "cleartext": false
   }
 }
