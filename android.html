@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#081c35">
+  <title>Cardiology Residents · Android</title>
+  <link rel="icon" type="image/png" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1">
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#10233c;background:#061426}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;padding:24px;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#193f67 0,#081c35 44%,#04111f 100%)}
+    .shell{width:min(100%,520px);text-align:center;color:#fff}
+    .badge{display:inline-flex;margin-bottom:18px;padding:6px 11px;border-radius:999px;background:rgba(84,208,151,.14);border:1px solid rgba(84,208,151,.35);color:#9ce4bd;font-size:12px;font-weight:900;letter-spacing:.05em}
+    .icon{width:128px;height:128px;margin:0 auto 20px;border-radius:29px;overflow:hidden;background:#081c35;box-shadow:0 22px 64px rgba(0,0,0,.42)}
+    .icon img{width:100%;height:100%;display:block;object-fit:cover}
+    h1{margin:0;font-size:clamp(36px,9vw,50px);line-height:1.02;letter-spacing:-.04em}
+    .lead{margin:12px auto 23px;color:#cbd8e6;font-size:16px;line-height:1.55}
+    .card{padding:24px;border-radius:25px;background:#fff;color:#10233c;text-align:left;box-shadow:0 22px 64px rgba(0,0,0,.25)}
+    .card h2{margin:0 0 8px;font-size:21px}.card p{margin:0;color:#64758a;line-height:1.55;font-size:14px}
+    .download{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:20px;padding:15px 18px;border-radius:15px;background:#0b6abf;color:#fff;text-decoration:none;font-size:17px;font-weight:900;box-shadow:0 8px 22px rgba(11,106,191,.22)}
+    .download:active{transform:translateY(1px)}
+    ol{margin:20px 0 0;padding-left:22px;color:#32465d;font-size:14px;line-height:1.5}li{margin:9px 0}
+    .note,.warn{margin-top:16px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.45}.note{background:#eaf8ef;color:#187744}.warn{display:none;background:#fff3dd;color:#805300}
+    .portal{display:flex;justify-content:center;margin-top:12px;padding:12px;border-radius:14px;background:#edf3f8;color:#173b78;text-decoration:none;font-weight:850}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <span class="badge">ANDROID ONLY</span>
+    <div class="icon"><img src="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1" alt="Cardiology Residents"></div>
+    <h1>Cardiology Residents</h1>
+    <p class="lead">The Android installer for the live Resident Training &amp; Assessment app.</p>
+    <section class="card">
+      <h2>Install on Android</h2>
+      <p>Download the current signed APK. Future builds published to the stable release use this same Android download address.</p>
+      <a class="download" href="https://github.com/alexcardiology/Residents/releases/download/mobile-latest/resident-training-android.apk">↓ Download Android APK</a>
+      <ol>
+        <li>Tap <b>Download Android APK</b>.</li>
+        <li>Open the downloaded file.</li>
+        <li>If Android asks, allow this browser to install apps.</li>
+        <li>Tap <b>Install</b> or <b>Update</b>.</li>
+      </ol>
+      <div class="note">This installs the same Cardiology Residents app and connects to the same live accounts and data.</div>
+      <div class="warn" id="deviceWarning">This page is intended for Android phones and tablets.</div>
+      <a class="portal" href="/Residents/index.html">Open web portal instead</a>
+    </section>
+  </main>
+  <script>
+    const ua=navigator.userAgent||'';
+    if(!/Android/i.test(ua)) document.getElementById('deviceWarning').style.display='block';
+  </script>
+</body>
+</html>
