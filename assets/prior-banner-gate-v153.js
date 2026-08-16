@@ -14,6 +14,23 @@ function restoreBanner() {
     node.style.removeProperty("display");
     delete node.dataset.priorBannerGateHidden;
   });
+  document.querySelectorAll('[data-prior-banner-gate-soon="1"]').forEach((node) => node.remove());
+}
+
+function ensureComingSoon(banner) {
+  if (!banner || banner.parentElement?.querySelector('[data-feature-prior-soon="1"], [data-prior-banner-gate-soon="1"]')) return;
+  const notice = document.createElement("section");
+  notice.className = "feature-coming-soon compact";
+  notice.dataset.featureGateUi = "1";
+  notice.dataset.priorBannerGateSoon = "1";
+  notice.innerHTML = `
+    <div class="feature-coming-soon-icon" aria-hidden="true">⏳</div>
+    <div>
+      <small>COMING SOON</small>
+      <h2>Prior Experience Logbook</h2>
+      <p>Your prior-experience logbook is being prepared and will be available soon.</p>
+    </div>`;
+  banner.before(notice);
 }
 
 function paint() {
@@ -23,14 +40,12 @@ function paint() {
     return;
   }
 
-  /* On the resident E-logbook page the disabled feature should simply disappear,
-     not consume space with either the old priority banner or a replacement notice. */
   if (route() === "logbook") {
     document.querySelectorAll("#content .prior-experience-alert").forEach((node) => {
       node.dataset.priorBannerGateHidden = "1";
       node.style.setProperty("display", "none", "important");
+      ensureComingSoon(node);
     });
-    document.querySelectorAll('#content [data-feature-prior-soon="1"]').forEach((node) => node.remove());
   }
 }
 
