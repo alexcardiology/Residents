@@ -58,3 +58,7 @@ if (!document.querySelector('link[data-audit-hierarchy-style]')) {
 void import("./audit-hierarchy.js?v=1.0.116").catch((error) => {
   console.warn("Audit hierarchy tools could not load", error);
 });
+
+void import("./logbook-48h-limit-v158.js?v=1.0.158").catch((error) => {
+  console.warn("48-hour logbook date rule could not load", error);
+});
