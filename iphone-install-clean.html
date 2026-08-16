@@ -4,37 +4,46 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#081c35">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Cardiology Residents">
-  <title>Cardiology Residents</title>
-  <link rel="apple-touch-icon" sizes="180x180" href="/Residents/apple-touch-icon-v4.png">
+  <title>Install Cardiology Residents on iPhone</title>
+  <link rel="manifest" href="/Residents/cardiology-residents-ios-20260816.webmanifest?v=1">
+  <link rel="icon" type="image/png" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1">
   <style>
     :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#fff;background:#061426}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 20% 0%,#183f67 0,#081c35 43%,#061426 100%);padding:22px;display:grid;place-items:center}.shell{width:min(100%,520px);text-align:center}.icon{width:132px;height:132px;margin:0 auto 22px;border-radius:30px;overflow:hidden;box-shadow:0 22px 60px rgba(0,0,0,.38)}.icon img{width:100%;height:100%;display:block}h1{font-size:42px;line-height:1.05;margin:0 0 12px;letter-spacing:-.035em}p{font-size:17px;line-height:1.55;color:#cbd8e6;margin:0 auto 22px}.card{background:#fff;color:#10233c;border-radius:24px;padding:22px;text-align:left}.card strong{font-size:18px}.card ol{padding-left:22px;margin:14px 0 0}.card li{margin:11px 0;line-height:1.45}.ok{margin-top:16px;padding:12px 14px;border-radius:14px;background:#eaf8ef;color:#187744;font-size:14px}.portal{display:flex;justify-content:center;margin-top:16px;padding:13px;border-radius:14px;background:#0b6abf;color:#fff;text-decoration:none;font-weight:800}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 20% 0%,#193f67 0,#081c35 44%,#04111f 100%);padding:22px;display:grid;place-items:center}.shell{width:min(100%,520px);text-align:center}.icon{width:136px;height:136px;margin:0 auto 22px;border-radius:30px;overflow:hidden;box-shadow:0 22px 64px rgba(0,0,0,.42);background:#081c35}.icon img{width:100%;height:100%;display:block;object-fit:cover}h1{font-size:clamp(38px,10vw,52px);line-height:1.03;letter-spacing:-.04em;margin:0 0 12px}.lead{font-size:17px;line-height:1.55;color:#cbd8e6;margin:0 auto 22px}.card{background:#fff;color:#10233c;border-radius:25px;padding:23px;text-align:left;box-shadow:0 22px 64px rgba(0,0,0,.25)}.card strong{font-size:19px}.card ol{padding-left:23px;margin:14px 0 0}.card li{margin:11px 0;line-height:1.45}.ok,.warn{margin-top:16px;padding:12px 14px;border-radius:14px;font-size:14px;line-height:1.45}.ok{background:#eaf8ef;color:#187744}.warn{display:none;background:#fff3dd;color:#805300}.portal{display:flex;justify-content:center;margin-top:16px;padding:13px;border-radius:14px;background:#0b6abf;color:#fff;text-decoration:none;font-weight:800}.fresh{display:inline-flex;margin-bottom:18px;padding:6px 11px;border-radius:999px;background:rgba(84,208,151,.14);border:1px solid rgba(84,208,151,.35);color:#9ce4bd;font-size:12px;font-weight:850;letter-spacing:.02em}
   </style>
-  <script>
-    if (window.navigator.standalone === true) {
-      location.replace('/Residents/index.html?iphone=webclip-v4');
-    }
-  </script>
 </head>
 <body>
   <main class="shell">
-    <div class="icon"><img src="/Residents/apple-touch-icon-v4.png" alt="Cardiology Residents icon"></div>
+    <span class="fresh">iPHONE INSTALL · 16 AUG 2026</span>
+    <div class="icon"><img src="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1" alt="Cardiology Residents icon"></div>
     <h1>Cardiology Residents</h1>
-    <p>Install Cardiology Residents on your iPhone as a Home Screen web app.</p>
+    <p class="lead">This clean installer uses one iPhone web-app identity and a new uncached RGB Home Screen icon path.</p>
     <section class="card">
-      <strong>Add from Safari</strong>
+      <strong>Install from Safari</strong>
       <ol>
         <li>Open this page in <b>Safari</b>.</li>
-        <li>Tap <b>Share</b> → <b>Add to Home Screen</b>.</li>
-        <li>Leave <b>Open as Web App</b> ON.</li>
-        <li>Confirm the new navy metallic-heart / red ECG icon, then tap <b>Add</b>.</li>
+        <li>Tap <b>Share</b>.</li>
+        <li>Choose <b>Add to Home Screen</b>.</li>
+        <li>Keep <b>Open as Web App</b> ON.</li>
+        <li>Check that the Cardiology Residents logo is visible, then tap <b>Add</b>.</li>
       </ol>
-      <div class="ok">When launched from the Home Screen, the icon opens the normal Cardiology Residents login portal automatically.</div>
+      <div class="ok">The installed icon opens the normal Cardiology Residents login portal and uses the same live account and data.</div>
+      <div class="warn" id="browserWarning">You appear to be in a browser other than Safari. For the most reliable iPhone install, use Share → Open in Safari first.</div>
       <a class="portal" href="/Residents/index.html">Open portal</a>
     </section>
   </main>
+  <script>
+    const ua=navigator.userAgent||'';
+    const isiOS=/iPhone|iPad|iPod/i.test(ua);
+    const isSafari=/Safari/i.test(ua)&&!/CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua);
+    if(isiOS&&!isSafari) document.getElementById('browserWarning').style.display='block';
+    if(window.navigator.standalone===true) location.replace('/Residents/index.html?source=ios-home-screen-20260816');
+  </script>
 </body>
 </html>
