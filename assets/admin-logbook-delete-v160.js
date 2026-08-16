@@ -10,9 +10,9 @@ function ensureStyle() {
   const style = document.createElement("style");
   style.id = "adminLogbookDeleteStyleV160";
   style.textContent = `
-    .admin-logbook-delete-v160{margin-left:8px!important;background:#fff1f2!important;color:#b42338!important;border:1px solid #fecdd3!important;font-weight:800!important}
-    .admin-logbook-delete-v160:hover{background:#b42338!important;color:#fff!important;border-color:#b42338!important}
-    .admin-logbook-delete-v160[disabled]{opacity:.55!important;cursor:wait!important}
+    .admin-logbook-delete-v160{margin-left:8px!important;background:#fff1f2!important;color:#111827!important;border:1px solid #fecdd3!important;font-weight:800!important}
+    .admin-logbook-delete-v160:hover{background:#ffe4e6!important;color:#111827!important;border-color:#fda4af!important}
+    .admin-logbook-delete-v160[disabled]{opacity:.55!important;cursor:wait!important;color:#111827!important}
     .logbook-history-table-card td[data-label="Actions"]{white-space:nowrap}
   `;
   document.head.appendChild(style);
