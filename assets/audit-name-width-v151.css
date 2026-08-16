@@ -1,0 +1,53 @@
+/* v1.0.151 — give assessor names the full usable width of audit hierarchy cards. */
+
+/* The separate academic-rank manager remains the place to edit ranks; do not let the
+   inline rank selector squeeze names in the draggable assessor bank. */
+.audit-assessor-list .audit-inline-rank-select {
+  display: none !important;
+}
+
+.audit-assessor-list .audit-person-card {
+  grid-template-columns: 34px minmax(0, 1fr) auto !important;
+  column-gap: 10px !important;
+}
+
+.audit-assessor-list .audit-person-copy,
+.audit-slot .audit-person-copy {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.audit-assessor-list .audit-person-copy b,
+.audit-slot .audit-person-copy b {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+/* A little more room for the bank on desktop so normal full faculty names fit on one line. */
+@media (min-width: 761px) {
+  .audit-hierarchy-body {
+    grid-template-columns: minmax(340px, 390px) minmax(0, 1fr) !important;
+  }
+
+  .audit-assessor-bank-head,
+  .audit-assessor-list {
+    min-width: 0 !important;
+  }
+
+  .audit-assessor-list .audit-person-copy b {
+    font-size: .76rem !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .audit-assessor-list .audit-person-copy b,
+  .audit-slot .audit-person-copy b {
+    font-size: .72rem !important;
+  }
+}
