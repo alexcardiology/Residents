@@ -1,0 +1,159 @@
+/* Compact Admin Minimum Requirements page so the editable table is visible much sooner. */
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) {
+  padding-top: 14px !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .admin-global-back-row {
+  margin: 0 0 6px !important;
+  min-height: 0 !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .admin-global-back-row .admin-global-back {
+  min-height: 34px !important;
+  padding: 6px 12px !important;
+  border-radius: 10px !important;
+  font-size: .72rem !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .lead {
+  align-items: center !important;
+  margin: 0 0 8px !important;
+  gap: 10px !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .lead h2 {
+  font-size: clamp(1.28rem, 2.2vw, 1.65rem) !important;
+  line-height: 1.05 !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .lead p {
+  margin-top: 3px !important;
+  font-size: .68rem !important;
+  line-height: 1.25 !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .lead .btn,
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .lead button {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: .7rem !important;
+  border-radius: 10px !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control {
+  min-height: 0 !important;
+  margin: 0 0 10px !important;
+  padding: 9px 14px !important;
+  border-radius: 13px !important;
+  gap: 12px !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control .feature-admin-copy small {
+  font-size: .47rem !important;
+  line-height: 1 !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control .feature-admin-copy h3 {
+  margin: 2px 0 !important;
+  font-size: .82rem !important;
+  line-height: 1.05 !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control .feature-admin-copy p {
+  font-size: .6rem !important;
+  line-height: 1.2 !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control .feature-status {
+  min-width: 72px !important;
+  padding: 5px 8px !important;
+  font-size: .54rem !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control .feature-switch-track {
+  width: 44px !important;
+  height: 26px !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control .feature-switch-track span {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control .feature-switch input:checked + .feature-switch-track span {
+  transform: translateX(18px) !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-year-tabs {
+  gap: 7px !important;
+  margin: 0 0 8px !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-year-tabs button {
+  min-height: 40px !important;
+  padding: 0 10px !important;
+  border-radius: 11px !important;
+  font-size: .78rem !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-year-tabs button.active {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--year-fill), 0 7px 14px rgba(19,38,63,.13) !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-year-tabs button.active::after {
+  width: 6px !important;
+  height: 6px !important;
+  right: 9px !important;
+  top: 8px !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note {
+  min-height: 0 !important;
+  margin-bottom: 8px !important;
+  padding: 8px 12px !important;
+  border-left-width: 4px !important;
+  border-radius: 11px !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note > div:first-child b {
+  margin-bottom: 1px !important;
+  font-size: .82rem !important;
+  line-height: 1.05 !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note p,
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note span {
+  font-size: .62rem !important;
+  line-height: 1.2 !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-zero-key {
+  padding: 5px 8px !important;
+  min-height: 0 !important;
+  font-size: .58rem !important;
+}
+
+html.admin-red-theme #ownerLogbookRequirementsForm .minimum-zero-key strong {
+  padding: 4px 7px !important;
+  font-size: .66rem !important;
+}
+
+@media (max-width: 760px) {
+  html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) {
+    padding-top: 8px !important;
+  }
+  html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .lead {
+    align-items: flex-start !important;
+  }
+  html.admin-red-theme #content:has(#ownerLogbookRequirementsForm) > .feature-admin-control {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+  html.admin-red-theme #ownerLogbookRequirementsForm .minimum-year-tabs button {
+    min-height: 38px !important;
+    min-width: 82px !important;
+    font-size: .72rem !important;
+  }
+}
