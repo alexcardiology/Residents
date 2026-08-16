@@ -1,0 +1,63 @@
+/* v1.0.149 — Admin cards: the feature/action name is always the dominant title.
+   Status/value text underneath is intentionally secondary. */
+
+html.admin-red-theme main .admin-logbook-tool > span,
+html.admin-red-theme main .dashboard-tile > span {
+  color: #172b40 !important;
+  font-size: 1.02rem !important;
+  font-weight: 900 !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.018em !important;
+  text-transform: none !important;
+}
+
+html.admin-red-theme main .admin-logbook-tool > strong,
+html.admin-red-theme main .dashboard-tile > strong {
+  margin-top: 1px !important;
+  color: #66778a !important;
+  font-size: .78rem !important;
+  font-weight: 850 !important;
+  line-height: 1.18 !important;
+  letter-spacing: 0 !important;
+}
+
+html.admin-red-theme main .admin-logbook-tool > small,
+html.admin-red-theme main .dashboard-tile > small {
+  margin-top: 2px;
+  color: #7a8795 !important;
+  font-size: .66rem !important;
+  font-weight: 650 !important;
+  line-height: 1.38 !important;
+}
+
+/* Keep semantic tile identity on the MAIN title, not on the secondary value. */
+html.admin-red-theme main .admin-logbook-tool.accent > span,
+html.admin-red-theme main .dashboard-tile.accent-tile > span { color: #165aa7 !important; }
+html.admin-red-theme main .admin-logbook-tool.hierarchy > span { color: #7a172b !important; }
+html.admin-red-theme main .admin-logbook-tool.rank > span { color: #8a5c0e !important; }
+html.admin-red-theme main .admin-logbook-tool.warning > span,
+html.admin-red-theme main .dashboard-tile.warning-tile > span { color: #8b5c08 !important; }
+html.admin-red-theme main .dashboard-tile.success-tile > span { color: #116a49 !important; }
+
+/* The unified Logbook centre cards can be slightly more assertive because they are navigation actions. */
+html.admin-red-theme main .admin-logbook-tool {
+  gap: 4px;
+}
+html.admin-red-theme main .admin-logbook-tool > span {
+  font-size: 1.08rem !important;
+}
+
+@media (max-width: 760px) {
+  html.admin-red-theme main .admin-logbook-tool > span,
+  html.admin-red-theme main .dashboard-tile > span {
+    font-size: .92rem !important;
+  }
+  html.admin-red-theme main .admin-logbook-tool > strong,
+  html.admin-red-theme main .dashboard-tile > strong {
+    font-size: .72rem !important;
+  }
+  html.admin-red-theme main .admin-logbook-tool > small,
+  html.admin-red-theme main .dashboard-tile > small {
+    font-size: .62rem !important;
+  }
+}
