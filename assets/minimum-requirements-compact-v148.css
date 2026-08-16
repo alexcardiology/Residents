@@ -109,35 +109,9 @@ html.admin-red-theme #ownerLogbookRequirementsForm .minimum-year-tabs button.act
   top: 8px !important;
 }
 
+/* The selected year and zero-rule are already obvious from the tabs/table, so remove the redundant note strip. */
 html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note {
-  min-height: 0 !important;
-  margin-bottom: 8px !important;
-  padding: 8px 12px !important;
-  border-left-width: 4px !important;
-  border-radius: 11px !important;
-}
-
-html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note > div:first-child b {
-  margin-bottom: 1px !important;
-  font-size: .82rem !important;
-  line-height: 1.05 !important;
-}
-
-html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note p,
-html.admin-red-theme #ownerLogbookRequirementsForm .minimum-requirements-note span {
-  font-size: .62rem !important;
-  line-height: 1.2 !important;
-}
-
-html.admin-red-theme #ownerLogbookRequirementsForm .minimum-zero-key {
-  padding: 5px 8px !important;
-  min-height: 0 !important;
-  font-size: .58rem !important;
-}
-
-html.admin-red-theme #ownerLogbookRequirementsForm .minimum-zero-key strong {
-  padding: 4px 7px !important;
-  font-size: .66rem !important;
+  display: none !important;
 }
 
 @media (max-width: 760px) {
