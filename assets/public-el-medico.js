@@ -27,7 +27,7 @@ async function askElMedico(question) {
   if (input) input.disabled = true;
 
   try {
-    const { data, error } = await sb.functions.invoke("duty-bot-public", {
+    const { data, error } = await sb.functions.invoke("duty-bot-public-v2", {
       body: { question: cleanQuestion },
     });
     if (error) throw error;
