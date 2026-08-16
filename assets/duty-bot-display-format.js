@@ -1,6 +1,3 @@
-const keyboardNavigationUrl = new URL("./keyboard-navigation-v147.js", document.currentScript?.src || location.href).href;
-void import(keyboardNavigationUrl);
-
 const BOT_SELECTOR = ".duty-message-bot p";
 const CARD_SELECTOR = ".duty-assignment-card";
 
