@@ -13,54 +13,12 @@ function effectiveMode() {
 function adaptProfile(data) {
   if (!dualAssessor || effectiveMode() !== "assessor" || !data) return data;
   if (Array.isArray(data)) {
-    return data.map((row) => row && String(row.id || "") === currentUserId
-      ? { ...row, role: "assessor", primary_role: primaryRole, dual_role_residency_year: residencyYear }
-      : row);
+    return data.map((row) => row && String(row.id || "") === currentUserId ? { ...row, role: "assessor" } : row);
   }
   if (typeof data === "object" && String(data.id || "") === currentUserId) {
-    return { ...data, role: "assessor", primary_role: primaryRole, dual_role_residency_year: residencyYear };
+    return { ...data, role: "assessor" };
   }
   return data;
-}
-
-function adaptResult(result) {
-  if (!result || result.error) return result;
-  return { ...result, data: adaptProfile(result.data) };
-}
-
-const wrappedBuilders = new WeakMap();
-function wrapProfileBuilder(builder) {
-  if (!builder || (typeof builder !== "object" && typeof builder !== "function")) return builder;
-  if (wrappedBuilders.has(builder)) return wrappedBuilders.get(builder);
-
-  const proxy = new Proxy(builder, {
-    get(target, prop, receiver) {
-      if (prop === "then") {
-        return (onFulfilled, onRejected) => target.then(
-          (result) => onFulfilled ? onFulfilled(adaptResult(result)) : adaptResult(result),
-          onRejected,
-        );
-      }
-      if (prop === "catch") {
-        return (onRejected) => target.catch(onRejected);
-      }
-      if (prop === "finally") {
-        return (onFinally) => target.finally(onFinally);
-      }
-
-      const value = Reflect.get(target, prop, target);
-      if (typeof value !== "function") return value;
-      return (...args) => {
-        const next = value.apply(target, args);
-        if (next && (typeof next === "object" || typeof next === "function") && typeof next.then === "function") {
-          return wrapProfileBuilder(next);
-        }
-        return next;
-      };
-    },
-  });
-  wrappedBuilders.set(builder, proxy);
-  return proxy;
 }
 
 async function initializeCapability() {
@@ -68,7 +26,6 @@ async function initializeCapability() {
     const { data: sessionData } = await sb.auth.getSession();
     currentUserId = String(sessionData?.session?.user?.id || "");
     if (!currentUserId) return;
-
     const { data, error } = await sb.rpc("get_my_role_capabilities");
     if (error || !data) return;
     primaryRole = String(data.primary_role || "");
@@ -82,11 +39,35 @@ async function initializeCapability() {
 
 await initializeCapability();
 
+// Supabase query builders return a NEW builder after select/eq/etc. The old implementation
+// only patched the first object, so app.js still received the real resident role. This proxy
+// wraps the full profiles query chain and adapts the final result for the signed-in dual-role
+// user only. Other resident/profile rows are untouched.
 if (dualAssessor) {
   const originalFrom = sb.from.bind(sb);
+  const wrapProfilesBuilder = (builder) => new Proxy(builder, {
+    get(target, prop, receiver) {
+      if (prop === "then") {
+        return (resolve, reject) => Promise.resolve(target).then(
+          (result) => {
+            if (result && !result.error) result.data = adaptProfile(result.data);
+            return resolve ? resolve(result) : result;
+          },
+          reject,
+        );
+      }
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== "function") return value;
+      return (...args) => {
+        const next = value.apply(target, args);
+        if (next && typeof next === "object" && typeof next.then === "function") return wrapProfilesBuilder(next);
+        return next;
+      };
+    },
+  });
   sb.from = (table, ...rest) => {
     const builder = originalFrom(table, ...rest);
-    return table === "profiles" ? wrapProfileBuilder(builder) : builder;
+    return table === "profiles" ? wrapProfilesBuilder(builder) : builder;
   };
 }
 
@@ -94,7 +75,6 @@ function addSwitcher() {
   if (!dualAssessor || document.querySelector("#dualRoleSwitcher")) return;
   const header = document.querySelector(".workspace > header");
   if (!header) return;
-
   const button = document.createElement("button");
   button.id = "dualRoleSwitcher";
   button.type = "button";
@@ -103,13 +83,12 @@ function addSwitcher() {
   button.innerHTML = `<span aria-hidden="true">⇄</span><span>${assessorMode ? "Switch to Resident view" : "Switch to Assessor view"}</span>`;
   button.title = assessorMode
     ? "Return to your Year 4 resident training view"
-    : "Open the complete assessor portal for Years 1–3";
+    : "Open your assessor tools for Years 1–3";
   button.addEventListener("click", () => {
     localStorage.setItem(MODE_KEY, assessorMode ? "resident" : "assessor");
     location.hash = "#dashboard";
     location.reload();
   });
-
   const profileChip = document.querySelector("#profileChip");
   if (profileChip) profileChip.insertAdjacentElement("afterend", button);
   else header.appendChild(button);
@@ -125,3 +104,4 @@ document.head.appendChild(style);
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(addSwitcher, 0));
 else setTimeout(addSwitcher, 0);
+new MutationObserver(addSwitcher).observe(document.documentElement, { childList: true, subtree: true });
