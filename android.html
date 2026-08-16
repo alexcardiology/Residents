@@ -34,7 +34,7 @@
     <section class="card">
       <h2>Install on Android</h2>
       <p>Download the current signed APK. Future builds published to the stable release use this same Android download address.</p>
-      <a class="download" href="https://github.com/alexcardiology/Residents/releases/download/mobile-latest/resident-training-android.apk">↓ Download Android APK</a>
+      <a id="androidApkDownload" class="download" href="https://github.com/alexcardiology/Residents/releases/download/mobile-latest/resident-training-android.apk">↓ Download Android APK</a>
       <ol>
         <li>Tap <b>Download Android APK</b>.</li>
         <li>Open the downloaded file.</li>
@@ -46,6 +46,7 @@
       <a class="portal" href="/Residents/index.html">Open web portal instead</a>
     </section>
   </main>
+  <script type="module" src="/Residents/assets/app-install-tracker.js?v=1.0.2"></script>
   <script>
     const ua=navigator.userAgent||'';
     if(!/Android/i.test(ua)) document.getElementById('deviceWarning').style.display='block';
