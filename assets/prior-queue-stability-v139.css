@@ -1,0 +1,23 @@
+/* v1.0.139 · prevent Prior Experience audit queue first-paint ghosting */
+.prior-review-queue:not(.prior-review-queue-stable-v139) {
+  visibility: hidden;
+}
+
+.prior-review-queue.prior-review-queue-stable-v139 {
+  visibility: visible;
+}
+
+.prior-review-queue .prior-review-static-copy-v139 {
+  margin: 4px 0 0;
+  color: var(--muted, #607086);
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 650;
+  max-width: 980px;
+}
+
+/* Avoid visual text interpolation while rows are being normalized. */
+.prior-review-queue,
+.prior-review-queue * {
+  animation: none !important;
+}
