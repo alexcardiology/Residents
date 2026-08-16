@@ -14,10 +14,8 @@
   <link rel="icon" href="apple-touch-icon-v4.png" type="image/png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-v4.png">
 
-  <link
-    rel="stylesheet"
-    href="assets/style.css?v=1.0.91"
-  >
+  <link rel="stylesheet" href="assets/style.css?v=1.0.91">
+  <link rel="stylesheet" href="assets/landing-access.css?v=1.0.92">
 </head>
 
 <body class="landing">
@@ -42,9 +40,8 @@
         </h1>
 
         <p>
-          A secure competency portfolio for cardiology
-          residents, observers, assessors and the program
-          owner.
+          A secure competency portfolio for cardiology training,
+          supervised practice and fair assessment.
         </p>
       </div>
 
@@ -59,15 +56,14 @@
         <i>↗</i>
 
         <p class="eyebrow blue">
-          Resident · Assessor · Admin
+          Secure portal access
         </p>
 
         <h2>Sign in to your portal</h2>
 
         <p>
-          Sign in using either your username or email.
-          Your assigned role opens the correct workspace
-          automatically.
+          Sign in using your username or email. Your workspace
+          opens automatically.
         </p>
 
         <form id="mainLogin">
@@ -114,6 +110,11 @@
             </span>
           </label>
 
+          <label class="remember-session">
+            <input name="keepSignedIn" type="checkbox" checked>
+            <span>Keep me signed in</span>
+          </label>
+
           <p class="msg"></p>
 
           <button type="submit">
@@ -124,84 +125,48 @@
 
       <hr>
 
-      <article>
-        <p class="eyebrow rose">
-          Observer or assessor access
-        </p>
-
-        <h2>Write a review</h2>
+      <article class="public-el-medico-card">
+        <div class="public-el-medico-heading">
+          <img src="assets/el-medico.png" alt="El Médico">
+          <div>
+            <p class="eyebrow blue">No sign-in required</p>
+            <h2>Ask El Médico</h2>
+          </div>
+        </div>
 
         <p>
-          Observers and assessors can sign in here to
-          write a signed review for any resident.
+          Fast access to the approved faculty duty and rotation schedule.
+          Ask in Arabic or English.
         </p>
 
-        <form id="reviewLogin">
-          <label>
-            Username or email
+        <div class="public-el-medico-quick" aria-label="Quick questions">
+          <button type="button" data-el-medico-prompt="مين طوارئ الميري النهاردة؟">طوارئ الميري اليوم</button>
+          <button type="button" data-el-medico-prompt="مين عناية الميري النهاردة؟">عناية الميري اليوم</button>
+          <button type="button" data-el-medico-prompt="Who is on duty today?">Today's duties</button>
+        </div>
 
-            <input
-              name="identifier"
-              type="text"
-              autocomplete="username"
-              required
-            >
-          </label>
+        <div id="publicElMedicoTranscript" class="public-el-medico-transcript" aria-live="polite">
+          <div class="public-el-medico-message bot">Ask me who is on duty, where a resident is assigned, or about an approved rotation.</div>
+        </div>
 
-          <label>
-            Password
-
-            <span class="password-field">
-              <input
-                name="password"
-                type="password"
-                minlength="6"
-                autocomplete="current-password"
-                required
-              >
-
-              <button
-                class="password-toggle"
-                type="button"
-                aria-label="Show password"
-                title="Show password"
-              >
-                <svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  <circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
-                </svg>
-
-                <svg class="eye-off-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                  <path d="M10.7 6.1A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.6 3.2M6.1 6.3C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M9.9 9.9A3 3 0 0 0 14.1 14.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
-              </button>
-            </span>
-          </label>
-
-          <p class="msg"></p>
-
-          <button
-            type="submit"
-            class="rose-btn"
-          >
-            Sign in to write a review
-          </button>
+        <form id="publicElMedicoForm" class="public-el-medico-form">
+          <label for="publicElMedicoQuestion">Your question</label>
+          <div class="public-el-medico-compose">
+            <input id="publicElMedicoQuestion" name="question" type="text" maxlength="300" autocomplete="off" placeholder="e.g. مين طوارئ الميري النهاردة؟" required>
+            <button type="submit">Ask →</button>
+          </div>
+          <p class="msg" data-el-medico-error></p>
         </form>
       </article>
 
       <small>
-        Invitation-only access. There is no public
-        registration.
+        Portal access is invitation-only. There is no public registration.
       </small>
     </section>
   </main>
 
-  <script
-    type="module"
-    src="assets/login.js?v=1.0.91"
-  ></script>
+  <script type="module" src="assets/login.js?v=1.0.92"></script>
+  <script type="module" src="assets/public-el-medico.js?v=1.0.92"></script>
 
   <script>
     document.addEventListener("click", (event) => {
