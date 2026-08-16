@@ -16,3 +16,36 @@ html.admin-red-theme main :is(.secondary,.btn.secondary,.admin-global-back,.sche
 html.admin-red-theme main :is(.tag.success,.schedule-status.approved,.schedule-el-medico-informed){color:#11603d!important}
 html.admin-red-theme main :is(.tag.warning,.schedule-status.pending){color:#765000!important}
 html.admin-red-theme main :is(.tag.danger,.schedule-status.rejected){color:#8b1f34!important}
+
+/* v1.0.146 — all Admin table headers use the same deep burgundy theme with white text. */
+html.admin-red-theme main table thead,
+html.admin-red-theme main table thead tr,
+html.admin-red-theme main table thead th,
+html.admin-red-theme main .table thead,
+html.admin-red-theme main .table thead tr,
+html.admin-red-theme main .table thead th,
+html.admin-red-theme main [role="table"] [role="columnheader"]{
+  background:#64111f!important;
+  background-image:none!important;
+  border-color:#7a2331!important;
+  color:#fff!important;
+}
+html.admin-red-theme main table thead *,
+html.admin-red-theme main .table thead *,
+html.admin-red-theme main [role="table"] [role="columnheader"] *{
+  color:#fff!important;
+}
+html.admin-red-theme main table thead th,
+html.admin-red-theme main .table thead th,
+html.admin-red-theme main [role="table"] [role="columnheader"]{
+  box-shadow:inset 0 -1px rgba(255,255,255,.14)!important;
+}
+html.admin-red-theme main :is(.admin-table-head,.table-head,.table-header,.minimum-table-head,.requirements-table-head,.prior-table-head,.schedule-table-head){
+  background:#64111f!important;
+  background-image:none!important;
+  border-color:#7a2331!important;
+  color:#fff!important;
+}
+html.admin-red-theme main :is(.admin-table-head,.table-head,.table-header,.minimum-table-head,.requirements-table-head,.prior-table-head,.schedule-table-head) *{
+  color:#fff!important;
+}
