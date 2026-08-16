@@ -1,4 +1,5 @@
 import { sb } from "./supabase.js";
+import "./feature-gates-v142.js?v=1.0.142";
 
 let isOwner = false;
 let paintQueued = false;
