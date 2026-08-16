@@ -85,6 +85,10 @@ function gateChapters() {
 function clearPriorHidden() {
   document.querySelectorAll("#content .feature-prior-hidden-v141").forEach((node) => {
     node.classList.remove("feature-prior-hidden-v141");
+    if (node.dataset.featurePriorInlineHidden === "1") {
+      node.style.removeProperty("display");
+      delete node.dataset.featurePriorInlineHidden;
+    }
   });
 }
 
@@ -100,7 +104,7 @@ function isPriorControl(element) {
 function gatePriorExperience() {
   if (state.flags.prior_experience_logbook || isOwner()) {
     clearPriorHidden();
-    document.querySelector('[data-feature-prior-soon="1"]')?.remove();
+    document.querySelectorAll('[data-feature-prior-soon="1"]').forEach((node) => node.remove());
     return;
   }
 
@@ -109,33 +113,23 @@ function gatePriorExperience() {
   const content = document.querySelector("#content");
   if (!content) return;
 
-  let foundPriorUi = false;
-  content.querySelectorAll('[class*="prior-"], [id*="prior"], [class*="prior_"], [id*="prior_"]').forEach((node) => {
+  /* The disabled Prior Experience feature should disappear completely from the
+     resident workspace. Do not replace the priority banner with another banner. */
+  document.querySelectorAll('#content [data-feature-prior-soon="1"]').forEach((node) => node.remove());
+
+  content.querySelectorAll('.prior-experience-alert, [class*="prior-"], [id*="prior"], [class*="prior_"], [id*="prior_"]').forEach((node) => {
     if (node.closest('[data-feature-gate-ui="1"]')) return;
     node.classList.add("feature-prior-hidden-v141");
-    foundPriorUi = true;
+    if (node.classList.contains("prior-experience-alert")) {
+      node.dataset.featurePriorInlineHidden = "1";
+      node.style.setProperty("display", "none", "important");
+    }
   });
 
   content.querySelectorAll("button, a, [role='button']").forEach((node) => {
     if (!isPriorControl(node)) return;
     node.classList.add("feature-prior-hidden-v141");
-    foundPriorUi = true;
   });
-
-  if (currentRoute === "dashboard" && !foundPriorUi) return;
-  if (content.querySelector('[data-feature-prior-soon="1"]')) return;
-
-  const notice = document.createElement("div");
-  notice.dataset.featurePriorSoon = "1";
-  notice.dataset.featureGateUi = "1";
-  notice.innerHTML = soonCard(
-    "Prior experience logbook",
-    "This section will be available soon. Your current training logbook remains available normally.",
-    true,
-  );
-  const lead = content.querySelector(":scope > .lead");
-  if (lead) lead.after(notice);
-  else content.prepend(notice);
 }
 
 function clearMinimumRequirementsGate() {
