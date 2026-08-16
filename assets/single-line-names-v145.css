@@ -1,0 +1,41 @@
+.message-person,
+.resident-name,
+.request-resident-name,
+.review-resident-name,
+.senior-request-resident b,
+.user-card-copy strong,
+#profileChip > span:last-child {
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+}
+
+/* Give names the width they need first, then let the activity/title use the remaining room. */
+.message-open,
+.mail-content .message-open,
+.message-row.has-embedded-reconsideration > .message-open {
+  grid-template-columns: max-content minmax(0, 1fr) auto !important;
+}
+
+.message-person {
+  width: max-content;
+  max-width: none !important;
+}
+
+@media (max-width: 760px) {
+  .message-open,
+  .mail-content .message-open,
+  .message-row.has-embedded-reconsideration > .message-open {
+    grid-template-columns: 1fr !important;
+  }
+
+  .message-person,
+  .resident-name,
+  .request-resident-name,
+  .review-resident-name,
+  .senior-request-resident b {
+    width: 100%;
+    max-width: 100% !important;
+    font-size: clamp(.66rem, 3.4vw, .82rem);
+  }
+}
