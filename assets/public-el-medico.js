@@ -21,6 +21,10 @@ async function askElMedico(question) {
 
   if (errorBox) errorBox.textContent = "";
   addMessage("user", cleanQuestion);
+
+  // Clear the question box as soon as the question is sent.
+  if (input) input.value = "";
+
   const loading = addMessage("bot", "Checking the approved schedule…", "loading");
   const submit = form?.querySelector('button[type="submit"]');
   if (submit) submit.disabled = true;
@@ -44,7 +48,6 @@ async function askElMedico(question) {
     if (submit) submit.disabled = false;
     if (input) {
       input.disabled = false;
-      input.value = "";
       input.focus();
     }
   }
