@@ -63,6 +63,6 @@ void import("./logbook-48h-limit-v158.js?v=1.0.159").catch((error) => {
   console.warn("48-hour logbook date rule could not load", error);
 });
 
-void import("./admin-logbook-delete-v160.js?v=1.0.161").catch((error) => {
+void import("./admin-logbook-delete-v160.js?v=1.0.162").catch((error) => {
   console.warn("Admin logbook delete controls could not load", error);
 });
