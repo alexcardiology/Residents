@@ -1,4 +1,4 @@
-import { sb } from "./supabase.js";
+import { sb, AUTH_PERSISTENCE_KEY } from "./supabase.js?v=1.0.92";
 
 async function loadActiveProfile(userId) {
   const { data: profile, error } = await sb
@@ -10,6 +10,13 @@ async function loadActiveProfile(userId) {
   return profile;
 }
 
+function syncKeepSignedInControl() {
+  const checkbox = document.querySelector('#mainLogin input[name="keepSignedIn"]');
+  if (!checkbox) return;
+  const saved = localStorage.getItem(AUTH_PERSISTENCE_KEY);
+  if (saved !== null) checkbox.checked = saved !== "0";
+}
+
 async function restoreExistingSession() {
   try {
     const { data: { session }, error } = await sb.auth.getSession();
@@ -19,20 +26,19 @@ async function restoreExistingSession() {
       await sb.auth.signOut();
       return;
     }
-    // A persisted authenticated session should go straight back to the portal.
     location.replace("app.html#dashboard");
   } catch (error) {
-    // Keep the stored session on temporary network/profile-read errors.
     console.warn("Could not restore portal session yet:", error);
   }
 }
 
-async function authenticate(form, reviewAccess = false) {
+async function authenticate(form) {
   const message = form.querySelector(".msg");
-  const button = form.querySelector("button");
+  const button = form.querySelector('button[type="submit"]');
   const formData = new FormData(form);
   const email = String(formData.get("identifier") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
+  const keepSignedIn = formData.get("keepSignedIn") === "on";
 
   message.textContent = "";
   button.disabled = true;
@@ -42,6 +48,8 @@ async function authenticate(form, reviewAccess = false) {
       throw new Error("Please use your email temporarily. Username login will be restored after access is working.");
     }
 
+    localStorage.setItem(AUTH_PERSISTENCE_KEY, keepSignedIn ? "1" : "0");
+
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     if (!data.user) throw new Error("Unable to sign in.");
@@ -50,7 +58,6 @@ async function authenticate(form, reviewAccess = false) {
     try {
       profile = await loadActiveProfile(data.user.id);
     } catch (profileError) {
-      // Do not destroy a valid persisted session because of a temporary fetch/RLS/network error.
       message.textContent = "Signed in, but your profile could not be loaded. Refresh in a moment.";
       button.disabled = false;
       return;
@@ -58,24 +65,11 @@ async function authenticate(form, reviewAccess = false) {
 
     if (!profile?.is_active) {
       await sb.auth.signOut();
-      throw new Error("Account inactive. Contact the admin.");
+      throw new Error("Account inactive. Please contact the training team.");
     }
 
-    if (reviewAccess && !["observer", "assessor"].includes(profile.role)) {
-      throw new Error("Review access is available only to observers and assessors.");
-    }
-    if (!reviewAccess && profile.role === "observer") {
-      throw new Error("Observers must use the Write a Review section.");
-    }
-
-    if (reviewAccess && profile.role === "assessor") {
-      location.replace("app.html#write-review");
-      return;
-    }
     location.replace("app.html#dashboard");
   } catch (error) {
-    // Invalid credentials do not create a session. For a valid existing session, keep it
-    // unless access itself was explicitly revoked/inactivated above.
     message.textContent = error?.message || "Unable to sign in. Please try again.";
     button.disabled = false;
   }
@@ -83,12 +77,8 @@ async function authenticate(form, reviewAccess = false) {
 
 document.querySelector("#mainLogin")?.addEventListener("submit", (event) => {
   event.preventDefault();
-  authenticate(event.currentTarget, false);
+  authenticate(event.currentTarget);
 });
 
-document.querySelector("#reviewLogin")?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  authenticate(event.currentTarget, true);
-});
-
+syncKeepSignedInControl();
 restoreExistingSession();
