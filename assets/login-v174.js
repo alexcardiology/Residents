@@ -2,9 +2,7 @@ import {
   sb,
   AUTH_PERSISTENCE_KEY,
   SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY,
-  SUPABASE_LEGACY_ANON_KEY,
-  createLegacyFallbackClient,
+  SUPABASE_BROWSER_KEY,
 } from "./supabase-v174.js";
 
 const AUTH_STORAGE_PREFIX = "sb-dwkkhqmifmmxubtuaqbd-auth-token";
@@ -50,7 +48,7 @@ function syncKeepSignedInControl() {
   if (saved !== null) checkbox.checked = saved !== "0";
 }
 
-async function passwordGrant(email, password, apiKey) {
+async function passwordGrant(email, password) {
   const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: "POST",
     mode: "cors",
@@ -58,8 +56,8 @@ async function passwordGrant(email, password, apiKey) {
     credentials: "omit",
     headers: {
       "Content-Type": "application/json",
-      apikey: apiKey,
-      Authorization: `Bearer ${apiKey}`,
+      apikey: SUPABASE_BROWSER_KEY,
+      Authorization: `Bearer ${SUPABASE_BROWSER_KEY}`,
       "X-Client-Info": "cardiology-residents-auth-v174",
     },
     body: JSON.stringify({ email, password }),
@@ -73,35 +71,15 @@ async function passwordGrant(email, password, apiKey) {
     err.code = payload?.code || payload?.error_code || "";
     throw err;
   }
-  if (!payload?.access_token || !payload?.refresh_token || !payload?.user) {
-    throw new Error("Unable to create a valid session.");
-  }
+  if (!payload?.access_token || !payload?.refresh_token || !payload?.user) throw new Error("Unable to create a valid session.");
   return payload;
 }
 
 async function signInFresh(email, password) {
-  try {
-    const grant = await passwordGrant(email, password, SUPABASE_PUBLISHABLE_KEY);
-    const result = await sb.auth.setSession({ access_token: grant.access_token, refresh_token: grant.refresh_token });
-    if (result.error) throw result.error;
-    return { client: sb, user: result.data.user || grant.user, session: result.data.session };
-  } catch (primaryError) {
-    const message = String(primaryError?.message || "").toLowerCase();
-    const keyFailure = primaryError?.status === 401 || message.includes("api key") || message.includes("apikey") || message.includes("invalid key");
-    if (!keyFailure) throw primaryError;
-
-    const grant = await passwordGrant(email, password, SUPABASE_LEGACY_ANON_KEY);
-    const legacyClient = createLegacyFallbackClient();
-    const result = await legacyClient.auth.setSession({ access_token: grant.access_token, refresh_token: grant.refresh_token });
-    if (result.error) throw result.error;
-
-    // Both clients share the same auth storage adapter. Mirror the fresh session
-    // to the normal v174 client so every portal module sees the same login.
-    try {
-      await sb.auth.setSession({ access_token: grant.access_token, refresh_token: grant.refresh_token });
-    } catch (_) {}
-    return { client: legacyClient, user: result.data.user || grant.user, session: result.data.session };
-  }
+  const grant = await passwordGrant(email, password);
+  const result = await sb.auth.setSession({ access_token: grant.access_token, refresh_token: grant.refresh_token });
+  if (result.error) throw result.error;
+  return { client: sb, user: result.data.user || grant.user, session: result.data.session };
 }
 
 async function loadActiveProfile(client, userId) {
@@ -164,8 +142,6 @@ async function authenticate(form) {
     location.replace("app.html#dashboard");
   } catch (error) {
     const raw = String(error?.message || "Unable to sign in. Please try again.");
-    // Do not expose infrastructure-key wording to users; v174 already retries
-    // the alternate active browser key automatically.
     message.textContent = /api\s*key|apikey|invalid key/i.test(raw)
       ? "Portal authentication could not connect. Please try again in a moment."
       : raw;
