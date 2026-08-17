@@ -1,5 +1,5 @@
-// v188 — isolated Schedule + Meetings shell.
-// No MutationObserver. No Dashboard/content observer. Meetings is lazy-loaded only on click.
+// v189 — isolated Schedule + Meetings shell.
+// No DOM observers. No Dashboard/content watcher. Meetings is lazy-loaded only on click.
 
 const $=(s,r=document)=>r.querySelector(s);
 
@@ -63,7 +63,7 @@ function afterScheduleRender(){
 async function openMeetings(){
   closeDrawer();
   try{
-    const mod=await import('./meetings-page-v187.js?v=188');
+    const mod=await import('./meetings-page-v187.js?v=189');
     await mod.openMeetingsPage();
   }catch(e){
     console.error(e);
@@ -71,7 +71,6 @@ async function openMeetings(){
   }
 }
 
-// Finite startup attempts only. They cannot loop or block Dashboard rendering.
 [0,250,1000,2500].forEach(ms=>setTimeout(renameScheduleNav,ms));
 
 document.addEventListener('click',e=>{
