@@ -1,4 +1,4 @@
-import { sb, AUTH_PERSISTENCE_KEY } from "./supabase.js?v=1.0.92";
+import { sb, AUTH_PERSISTENCE_KEY } from "./supabase-v173.js";
 
 function detectPlatform() {
   try {
@@ -35,11 +35,13 @@ async function restoreExistingSession() {
   try {
     const { data: { session }, error } = await sb.auth.getSession();
     if (error || !session?.user) return;
+
+    const { data: verified, error: verifyError } = await sb.auth.getUser();
+    if (verifyError || !verified?.user) return;
+
     const profile = await loadActiveProfile(session.user.id);
-    if (!profile?.is_active) {
-      await sb.auth.signOut();
-      return;
-    }
+    if (!profile?.is_active) return;
+
     location.replace("app.html#dashboard");
   } catch (error) {
     console.warn("Could not restore portal session yet:", error);
@@ -66,19 +68,25 @@ async function authenticate(form) {
 
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    if (!data.user) throw new Error("Unable to sign in.");
+    if (!data?.session?.access_token || !data?.user) throw new Error("Unable to create a valid session.");
+
+    // Verify the exact newly issued session before entering the portal. Never
+    // auto-sign-out a fresh login just because an unrelated request is slow.
+    const { data: verified, error: verifyError } = await sb.auth.getUser(data.session.access_token);
+    if (verifyError || verified?.user?.id !== data.user.id) {
+      throw new Error("Your sign-in was accepted, but the session could not be verified. Please retry once.");
+    }
 
     let profile;
     try {
       profile = await loadActiveProfile(data.user.id);
-    } catch (profileError) {
-      message.textContent = "Signed in, but your profile could not be loaded. Refresh in a moment.";
+    } catch (_) {
+      message.textContent = "Signed in successfully. Your profile is taking longer to load — please tap Sign in once more.";
       button.disabled = false;
       return;
     }
 
     if (!profile?.is_active) {
-      await sb.auth.signOut();
       throw new Error("Account inactive. Please contact the training team.");
     }
 
