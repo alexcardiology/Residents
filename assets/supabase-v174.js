@@ -4,6 +4,7 @@ export const AUTH_PERSISTENCE_KEY='cardiology-keep-signed-in';
 export const SUPABASE_URL='https://dwkkhqmifmmxubtuaqbd.supabase.co';
 export const SUPABASE_PUBLISHABLE_KEY='sb_publishable_5RESwwz-dpHp8Sv5eZ2qqQ_73VQF4lV';
 export const SUPABASE_LEGACY_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3a2hxbWlmbW14dWJ0dWFxYmQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4NTkyMzU0MSwiZXhwIjoyMTAxNDk5NTQxfQ.6_aryJx9eA_tKwqm6GjMbM4i9LG_z99qL-uDZaHlRJg';
+export const SUPABASE_BROWSER_KEY=SUPABASE_LEGACY_ANON_KEY;
 
 const authStorage={
   getItem(key){
@@ -30,8 +31,9 @@ const authStorage={
 
 const options={auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:authStorage}};
 
-// Deliberately use a new global name so no previously cached client can be reused.
-export const sb=window.__CARDIOLOGY_SUPABASE_CLIENT_V174__||(window.__CARDIOLOGY_SUPABASE_CLIENT_V174__=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,options));
+// The project's modern sb_publishable key is currently rejected by its API gateway.
+// Use the active legacy anon browser key, which is accepted by both REST and Auth.
+export const sb=window.__CARDIOLOGY_SUPABASE_CLIENT_V174__||(window.__CARDIOLOGY_SUPABASE_CLIENT_V174__=createClient(SUPABASE_URL,SUPABASE_BROWSER_KEY,options));
 
 export function createLegacyFallbackClient(){
   return createClient(SUPABASE_URL,SUPABASE_LEGACY_ANON_KEY,options);
