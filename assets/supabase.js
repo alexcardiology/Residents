@@ -25,19 +25,8 @@ const authStorage={
   }
 };
 
-// Use the project's current publishable key. This is the browser-safe key Supabase
-// recommends for client apps and avoids the invalid-api-key loop seen with the old
-// legacy anon JWT in some sessions.
-export const sb=createClient(
-  'https://dwkkhqmifmmxubtuaqbd.supabase.co',
-  'sb_publishable_5RESwwz-dpHp8Sv5eZ2qqQ_73VQF4lV',
-  {auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:authStorage}}
-);
+export const sb=createClient('https://dwkkhqmifmmxubtuaqbd.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3a2hxbWlmbW14dWJ0dWFxYmQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4NTkyMzU0MSwiZXhwIjoyMTAxNDk5NTQxfQ.6_aryJx9eA_tKwqm6GjMbM4i9LG_z99qL-uDZaHlRJg',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:authStorage}});
 
-// El Médico is deliberately available before sign-in through the public schedule engines.
-// If an authenticated duty-bot call is rejected because the browser has a stale
-// or revoked session token, retry against those read-only engines rather than
-// exposing a raw Edge Function non-2xx error to the user.
 const originalFunctionsInvoke=sb.functions.invoke.bind(sb.functions);
 sb.functions.invoke=async(functionName,options={})=>{
   const primary=await originalFunctionsInvoke(functionName,options);
@@ -52,5 +41,3 @@ sb.functions.invoke=async(functionName,options={})=>{
   }
   return primary;
 };
-
-// Checked "Keep me signed in" stores the session in localStorage. Unchecked stores it in sessionStorage so it ends with the browser session.
