@@ -57,7 +57,6 @@ async function passwordGrant(email, password) {
     headers: {
       "Content-Type": "application/json",
       apikey: SUPABASE_BROWSER_KEY,
-      Authorization: `Bearer ${SUPABASE_BROWSER_KEY}`,
       "X-Client-Info": "cardiology-residents-auth-v174",
     },
     body: JSON.stringify({ email, password }),
