@@ -24,61 +24,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Resolve active Supabase browser key
+      - name: Verify portal authentication gateway
         env:
-          SUPABASE_URL: https://dwkkhqmifmmxubtuaqbd.supabase.co
+          PROXY_URL: https://dwkkhqmifmmxubtuaqbd.supabase.co/functions/v1/portal-api-proxy?target=%2Fauth%2Fv1%2Ftoken%3Fgrant_type%3Dpassword
         run: |
           set -euo pipefail
-          curl -fsS "$SUPABASE_URL/functions/v1/portal-key-diagnostic" -o /tmp/portal-key-diagnostic.json
+          test -f assets/supabase-v175.js
+          test -f assets/login-v175.js
+          test -f index.html
+          grep -F 'assets/login-v175.js?v=175' index.html >/dev/null
+          grep -F 'portal-api-proxy' assets/supabase-v175.js >/dev/null
 
-          SUPABASE_KEY="$(python3 - <<'PY'
-          import json
-          data = json.load(open('/tmp/portal-key-diagnostic.json', encoding='utf-8'))
-          key = str(data.get('anonKey') or '').strip()
-          status = int((data.get('anonAuth') or {}).get('status') or 0)
-          body = str((data.get('anonAuth') or {}).get('body') or '')
-          if not key:
-              raise SystemExit('Runtime anon key was not returned')
-          if status not in (400, 422) or 'invalid_credentials' not in body:
-              raise SystemExit(f'Runtime anon key failed Auth verification: HTTP {status} {body[:120]}')
-          print(key)
-          PY
-          )"
-          echo "::add-mask::$SUPABASE_KEY"
-
-          SUPABASE_KEY="$SUPABASE_KEY" python3 - <<'PY'
-          import os, re
-          path = 'assets/supabase-v174.js'
-          text = open(path, encoding='utf-8').read()
-          key = os.environ['SUPABASE_KEY']
-          text, count = re.subn(
-              r"export const SUPABASE_LEGACY_ANON_KEY='[^']*';",
-              "export const SUPABASE_LEGACY_ANON_KEY='" + key + "';",
-              text,
-              count=1,
-          )
-          if count != 1:
-              raise SystemExit('Could not inject active runtime anon key into v174 client')
-          open(path, 'w', encoding='utf-8').write(text)
-          PY
-
-          auth_status="$(curl -sS -o /tmp/auth-smoke.json -w '%{http_code}' \
-            -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
-            -H "apikey: $SUPABASE_KEY" \
+          status="$(curl -sS -o /tmp/proxy-auth-smoke.json -w '%{http_code}' \
+            -X POST "$PROXY_URL" \
             -H 'Content-Type: application/json' \
             --data '{"email":"auth-smoke-do-not-create@example.invalid","password":"not-a-real-password"}')"
 
-          if [ "$auth_status" != "400" ] && [ "$auth_status" != "422" ]; then
-            echo "Supabase Auth smoke test failed: HTTP $auth_status"
-            cat /tmp/auth-smoke.json
+          if [ "$status" != "400" ] && [ "$status" != "422" ]; then
+            echo "Portal authentication gateway failed: HTTP $status"
+            cat /tmp/proxy-auth-smoke.json
             exit 1
           fi
-          if ! grep -qi 'invalid_credentials' /tmp/auth-smoke.json; then
-            echo "Supabase Auth smoke test did not return the expected invalid-credentials response"
-            cat /tmp/auth-smoke.json
+          if ! grep -qi 'invalid_credentials' /tmp/proxy-auth-smoke.json; then
+            echo "Portal authentication gateway did not reach Supabase Auth correctly"
+            cat /tmp/proxy-auth-smoke.json
             exit 1
           fi
-          echo "Supabase Auth browser-key smoke test passed."
+          echo "Portal authentication gateway smoke test passed."
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
