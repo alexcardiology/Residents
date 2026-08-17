@@ -1,3 +1,4 @@
+import "./schedule-meetings-refresh-state-v193.js?v=194";
 import "./dual-role-bootstrap-v166.js?v=1.0.166";
 import "./dual-role-v163.js?v=1.0.166";
 import { sb } from "./supabase.js";
@@ -81,7 +82,7 @@ void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) =>
   console.warn("Senior logbook response gate could not load", error);
 });
 
-void import("./schedule-meetings-unified-v168.js?v=1.0.169").catch((error) => {
+void import("./schedule-meetings-unified-v168.js?v=1.0.194").catch((error) => {
   console.warn("Unified schedule and meetings UI could not load", error);
 });
 
