@@ -1,5 +1,55 @@
 const BOT_SELECTOR = ".duty-message-bot p";
 const CARD_SELECTOR = ".duty-assignment-card";
+const ARABIC_RE = /[\u0600-\u06FF]/;
+
+const ARABIC_LABELS = {
+  hospital: "المستشفى",
+  service: "القسم",
+  date: "التاريخ",
+  time: "الوقت",
+  source: "المصدر",
+};
+
+function hasArabic(text) {
+  return ARABIC_RE.test(String(text || ""));
+}
+
+function isArabicContext(element) {
+  if (!(element instanceof Element)) return false;
+  if (hasArabic(element.textContent)) return true;
+
+  const message = element.closest(".duty-message");
+  const previous = message?.previousElementSibling;
+  return Boolean(previous?.classList.contains("duty-message-user") && hasArabic(previous.textContent));
+}
+
+function applyDutyDirection(element, arabic) {
+  if (!(element instanceof HTMLElement)) return;
+  const dir = arabic ? "rtl" : "ltr";
+  element.setAttribute("dir", dir);
+  element.style.direction = dir;
+  element.style.textAlign = arabic ? "right" : "left";
+  element.style.unicodeBidi = "plaintext";
+
+  const message = element.closest(".duty-message");
+  if (message instanceof HTMLElement) {
+    message.setAttribute("dir", dir);
+    message.classList.toggle("duty-message-arabic", arabic);
+    const content = message.querySelector(":scope > div");
+    if (content instanceof HTMLElement) {
+      content.setAttribute("dir", dir);
+      content.style.direction = dir;
+      content.style.textAlign = arabic ? "right" : "left";
+    }
+  }
+}
+
+function localizeArabicStatusText(text) {
+  return String(text || "")
+    .replace(/^24-hour duty$/i, "نباطشية 24 ساعة")
+    .replace(/^Day assignment$/i, "توزيع يومي")
+    .replace(/^Approved schedule$/i, "الجدول المعتمد");
+}
 
 function formatDutyBotDateText(text) {
   return String(text || "")
@@ -17,6 +67,18 @@ function cleanDutyBotText(text) {
 
 function formatDutyBotParagraph(paragraph) {
   if (!(paragraph instanceof HTMLElement)) return;
+
+  const arabic = isArabicContext(paragraph);
+  applyDutyDirection(paragraph, arabic);
+
+  if (arabic) {
+    const exact = String(paragraph.textContent || "").trim();
+    if (exact === "Checking the approved faculty schedule…") {
+      paragraph.textContent = "جاري مراجعة جدول النوبات والتوزيعات المعتمد…";
+    } else if (exact === "El Médico could not read the approved schedules. Please try again or contact the admin.") {
+      paragraph.textContent = "تعذر على El Médico قراءة الجداول المعتمدة. حاول مرة أخرى أو تواصل مع مسؤول النظام.";
+    }
+  }
 
   const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
   const textNodes = [];
@@ -40,21 +102,37 @@ function formatDutyBotParagraph(paragraph) {
 function formatDutyAssignmentCard(card) {
   if (!(card instanceof HTMLElement)) return;
 
+  const arabic = isArabicContext(card);
+  applyDutyDirection(card, arabic);
+
   const type = card.querySelector(":scope > div > span");
-  if (type && /^day assignment$/i.test(type.textContent?.trim() || "")) type.remove();
+  if (type && /^day assignment$/i.test(type.textContent?.trim() || "")) {
+    type.remove();
+  } else if (type && arabic) {
+    type.textContent = localizeArabicStatusText(type.textContent?.trim() || "");
+    type.setAttribute("dir", "rtl");
+  }
 
   card.querySelectorAll("dl > div").forEach((row) => {
-    const label = row.querySelector("dt")?.textContent?.trim().toLowerCase();
+    const dt = row.querySelector("dt");
     const value = row.querySelector("dd");
+    const label = dt?.textContent?.trim().toLowerCase();
     if (!value) return;
 
-    if (label === "date") {
+    if (arabic && dt && ARABIC_LABELS[label]) dt.textContent = ARABIC_LABELS[label];
+
+    if (label === "date" || dt?.textContent?.trim() === "التاريخ") {
       value.textContent = formatDutyBotDateText(value.textContent || "");
       return;
     }
 
-    if (label === "time" && /day assignment\s*[·-]\s*time not specified/i.test(value.textContent || "")) {
+    if ((label === "time" || dt?.textContent?.trim() === "الوقت") && /day assignment\s*[·-]\s*time not specified/i.test(value.textContent || "")) {
       row.remove();
+      return;
+    }
+
+    if (arabic && (label === "source" || dt?.textContent?.trim() === "المصدر")) {
+      value.textContent = localizeArabicStatusText(value.textContent || "");
     }
   });
 }
