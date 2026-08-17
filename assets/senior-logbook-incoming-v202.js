@@ -1,13 +1,13 @@
 import { sb } from './supabase.js';
 
 const $=(s,r=document)=>r.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 let timer=null, loading=false;
 
 function style(){
   if($('#seniorReq202Style')) return;
   const s=document.createElement('style'); s.id='seniorReq202Style'; s.textContent=`
-  .seniorreq202{margin:18px 0;border:2px solid #9dc9ee;border-left:6px solid #177fd3;border-radius:18px;background:#fff;padding:18px;box-shadow:0 8px 24px rgba(17,79,128,.08)}
+  .seniorreq202{margin:18px 0 0;border:2px solid #9dc9ee;border-left:6px solid #177fd3;border-radius:18px;background:#fff;padding:18px;box-shadow:0 8px 24px rgba(17,79,128,.08)}
   .seniorreq202-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}.seniorreq202-head h2{margin:2px 0 4px;color:#09233f}.seniorreq202-head p{margin:0;color:#68788b}.seniorreq202-count{display:inline-flex;min-width:34px;height:34px;align-items:center;justify-content:center;border-radius:999px;background:#177fd3;color:#fff;font-weight:900}
   .seniorreq202-list{display:grid;gap:10px}.seniorreq202-card{border:1px solid #dbe6f1;border-radius:14px;padding:14px;background:#fbfdff}.seniorreq202-card h3{margin:0 0 6px;font-size:1rem}.seniorreq202-meta{display:flex;gap:10px;flex-wrap:wrap;color:#5f7184;font-size:.82rem;font-weight:700}.seniorreq202-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.seniorreq202-actions button{border:0;border-radius:10px;padding:10px 15px;font-weight:900;cursor:pointer}.seniorreq202-approve{background:#dff5e9;color:#087347}.seniorreq202-reject{background:#fff0f2;color:#a91f35;border:1px solid #f0bbc4!important}.seniorreq202-empty{padding:12px;border-radius:12px;background:#f7f9fc;color:#68788b}
   `; document.head.appendChild(s);
@@ -28,13 +28,9 @@ function card(row){
 }
 
 function placePanel(panel,content){
-  const updates=[...content.querySelectorAll('h1,h2,h3,button,div')].find(el=>el.textContent?.trim()==='Updates');
-  const card=updates?.closest('.card');
-  if(card && card!==panel){ card.parentNode.insertBefore(panel,card); return; }
-  const coming=[...content.querySelectorAll('*')].find(el=>/Prior experience logbook/i.test(el.textContent||''));
-  const comingCard=coming?.closest('.card');
-  if(comingCard?.nextSibling){comingCard.parentNode.insertBefore(panel,comingCard.nextSibling);return;}
-  content.prepend(panel);
+  // Keep the resident's own request/history content first. Incoming senior-review
+  // requests are always the final section on the Logbook Requests page.
+  if(panel.parentNode!==content || panel!==content.lastElementChild) content.appendChild(panel);
 }
 
 async function render(){
@@ -43,8 +39,6 @@ async function render(){
   loading=true;
   try{
     const {data:sess}=await sb.auth.getSession(); if(!sess?.session?.user?.id) return;
-    // The RPC itself is the authority: if this user has an assigned pending senior review, show it.
-    // Do not hide the queue based on UI role/year metadata because dual-role/year profiles can differ.
     const rows=await loadRows();
     let panel=$('#seniorReq202');
     if(!panel){panel=document.createElement('section');panel.id='seniorReq202';panel.className='seniorreq202';}
