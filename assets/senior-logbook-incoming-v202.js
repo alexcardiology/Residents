@@ -1,66 +1,85 @@
 import { sb } from './supabase.js';
 
 const $=(s,r=document)=>r.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
-let timer=null, loading=false;
-
-function style(){
-  if($('#seniorReq202Style')) return;
-  const s=document.createElement('style'); s.id='seniorReq202Style'; s.textContent=`
-  .seniorreq202{margin:18px 0 0;border:2px solid #9dc9ee;border-left:6px solid #177fd3;border-radius:18px;background:#fff;padding:18px;box-shadow:0 8px 24px rgba(17,79,128,.08)}
-  .seniorreq202-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}.seniorreq202-head h2{margin:2px 0 4px;color:#09233f}.seniorreq202-head p{margin:0;color:#68788b}.seniorreq202-count{display:inline-flex;min-width:34px;height:34px;align-items:center;justify-content:center;border-radius:999px;background:#177fd3;color:#fff;font-weight:900}
-  .seniorreq202-list{display:grid;gap:10px}.seniorreq202-card{border:1px solid #dbe6f1;border-radius:14px;padding:14px;background:#fbfdff}.seniorreq202-card h3{margin:0 0 6px;font-size:1rem}.seniorreq202-meta{display:flex;gap:10px;flex-wrap:wrap;color:#5f7184;font-size:.82rem;font-weight:700}.seniorreq202-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.seniorreq202-actions button{border:0;border-radius:10px;padding:10px 15px;font-weight:900;cursor:pointer}.seniorreq202-approve{background:#dff5e9;color:#087347}.seniorreq202-reject{background:#fff0f2;color:#a91f35;border:1px solid #f0bbc4!important}.seniorreq202-empty{padding:12px;border-radius:12px;background:#f7f9fc;color:#68788b}
-  `; document.head.appendChild(s);
-}
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+let timer=null,loading=false;
 
 const onRequestsPage=()=>location.hash.replace(/^#/,'').split('?')[0]==='logbook-requests' || /logbook requests/i.test($('#title')?.textContent||'');
+const timeText=v=>{
+  if(!v)return '—';
+  try{return new Intl.DateTimeFormat('en-GB',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v));}
+  catch(_){return String(v)}
+};
 
-async function loadRows(){
-  const {data,error}=await sb.rpc('get_my_senior_logbook_requests_v135');
-  if(error) throw error;
-  return data||[];
+async function loadReceived(){
+  const {data,error}=await sb.rpc('get_logbook_messages',{p_view:'received'});
+  if(error)throw error;
+  return (data||[]).filter(m=>!m.logbook_action_taken && m.logbook_entry_id);
 }
 
-function card(row){
-  const date=row.activity_date?new Date(`${row.activity_date}T12:00:00`):null;
-  const dateText=date?new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}).format(date):'—';
-  return `<article class="seniorreq202-card" data-seniorreq-id="${esc(row.id)}"><h3>${esc(row.resident_name||'Resident')} · ${esc(row.procedure_name||'Logbook activity')}</h3><div class="seniorreq202-meta"><span>Year ${esc(row.residency_year||'')}</span><span>${esc(row.participation_mode||'')}</span><span>${esc(row.case_count||1)} case${Number(row.case_count||1)===1?'':'s'}</span><span>${esc(dateText)}</span>${row.hospital?`<span>${esc(row.hospital)}</span>`:''}${row.assessor_name?`<span>Assessor: ${esc(row.assessor_name)}</span>`:''}</div><div class="seniorreq202-actions"><button type="button" class="seniorreq202-approve" data-seniorreq-decision="approved">Approve</button><button type="button" class="seniorreq202-reject" data-seniorreq-decision="rejected">Reject</button></div></article>`;
+function nativeRow(m){
+  const sender=m.sender_name||m.resident_name||'Resident';
+  const title=m.logbook_title||m.activity_kind||m.subject||'Logbook activity';
+  const status=m.request_status||'pending';
+  const search=`${sender} ${m.receiver_name||''} ${m.subject||''} ${m.body||''} ${title} ${status}`.toLowerCase();
+  return `<article class="message-row ${m.is_read?'read':'unread'}" data-senior-native-request="1" data-request-resident="${esc(m.resident_id||m.sender_id||'')}" data-request-status="${esc(status)}" data-request-type="${esc(`${m.activity_category||''}:${m.activity_kind||''}`)}" data-message-search="${esc(search)}">
+    <input class="message-select logbook-message-select" type="checkbox" value="${esc(m.id)}" aria-label="Select logbook message">
+    <button class="message-open" data-message-id="${esc(m.id)}" data-message-box="logbook">
+      <span class="message-person">From: ${esc(sender)}</span>
+      <strong>${esc(m.subject||`Logbook approval request · ${title}`)}</strong>
+      <small>${esc(timeText(m.created_at))}</small>
+    </button>
+    <div class="message-actions approval-actions">
+      <button class="btn small success-button" data-quick-logbook-approve="${esc(m.logbook_entry_id)}" data-approval-message-id="${esc(m.id)}">Approve</button>
+      <button class="btn small danger-button" data-inbox-logbook-reject="${esc(m.logbook_entry_id)}" data-approval-message-id="${esc(m.id)}" data-logbook-title="${esc(title)}">Reject</button>
+    </div>
+  </article>`;
 }
 
-function placePanel(panel,content){
-  // Keep the resident's own request/history content first. Incoming senior-review
-  // requests are always the final section on the Logbook Requests page.
-  if(panel.parentNode!==content || panel!==content.lastElementChild) content.appendChild(panel);
+function removeOldCustomPanel(){
+  $('#seniorReq202')?.remove();
+  $('#seniorReq202Style')?.remove();
+  $('#seniorNativeRequests204')?.remove();
+}
+
+function placeBelowApprovedContent(section,content){
+  const mailSections=[...content.querySelectorAll('section')].filter(el=>el.querySelector('.mail-panel,.message-list,.logbook-mail-tools'));
+  const anchor=mailSections.at(-1);
+  if(anchor?.parentNode){anchor.insertAdjacentElement('afterend',section);return;}
+  content.appendChild(section);
 }
 
 async function render(){
-  if(!onRequestsPage() || loading) return;
-  const content=$('#content'); if(!content) return;
+  if(!onRequestsPage()||loading)return;
+  const content=$('#content');if(!content)return;
   loading=true;
   try{
-    const {data:sess}=await sb.auth.getSession(); if(!sess?.session?.user?.id) return;
-    const rows=await loadRows();
-    let panel=$('#seniorReq202');
-    if(!panel){panel=document.createElement('section');panel.id='seniorReq202';panel.className='seniorreq202';}
-    panel.innerHTML=`<div class="seniorreq202-head"><div><span class="eyebrow">SENIOR RESIDENT REVIEW</span><h2>Requests awaiting my response</h2><p>Junior residents assigned to you appear here until you approve or reject their logbook entry.</p></div><span class="seniorreq202-count">${rows.length}</span></div><div class="seniorreq202-list">${rows.length?rows.map(card).join(''):'<div class="seniorreq202-empty">No junior logbook requests are waiting for your response.</div>'}</div>`;
-    placePanel(panel,content);
+    removeOldCustomPanel();
+    const {data:sess}=await sb.auth.getSession();
+    if(!sess?.session?.user?.id)return;
+    const {data:profile}=await sb.from('profiles').select('role').eq('id',sess.session.user.id).maybeSingle();
+    if(profile?.role!=='resident')return;
+
+    const rows=await loadReceived();
+    if(!rows.length)return;
+
+    if(window.logbookMessages instanceof Map){rows.forEach(m=>window.logbookMessages.set(String(m.id),m));}
+
+    const section=document.createElement('section');
+    section.id='seniorNativeRequests204';
+    section.className='card mail-card senior-native-requests';
+    section.innerHTML=`<div class="section-head"><div><h3>Requests requiring my response</h3><p>Incoming junior logbook requests assigned to you.</p></div><span class="tag warning">${rows.length} pending</span></div><div class="mail-panel"><div class="message-list">${rows.map(nativeRow).join('')}</div></div>`;
+    placeBelowApprovedContent(section,content);
   }catch(e){console.error('Could not load incoming senior logbook requests',e);}
   finally{loading=false;}
 }
 
-document.addEventListener('click',async e=>{
-  const btn=e.target.closest?.('[data-seniorreq-decision]'); if(!btn) return;
-  const card=btn.closest('[data-seniorreq-id]'); if(!card) return;
-  e.preventDefault();e.stopImmediatePropagation();
-  const decision=btn.dataset.seniorreqDecision;let note='';
-  if(decision==='rejected'){note=prompt('Reason for rejection (required):','')?.trim()||'';if(!note)return;}
-  btn.disabled=true;
-  try{const {error}=await sb.rpc('review_logbook_entry_v1051',{p_entry_id:card.dataset.seniorreqId,p_decision:decision,p_note:note||null});if(error)throw error;await render();}
-  catch(err){alert(err.message||err);btn.disabled=false;}
-},true);
-
-function arm(){if(timer)clearInterval(timer);let n=0;void render();timer=setInterval(()=>{n++;void render();if(n>=20){clearInterval(timer);timer=null;}},300);}
+function arm(){
+  if(timer)clearInterval(timer);
+  let n=0;
+  void render();
+  timer=setInterval(()=>{n++;void render();if(n>=16){clearInterval(timer);timer=null;}},300);
+}
 window.addEventListener('hashchange',arm);
 document.addEventListener('click',e=>{if(e.target.closest?.('[data-go="logbook-requests"]'))setTimeout(arm,80)},true);
-new MutationObserver(()=>{if(onRequestsPage())void render();}).observe(document.querySelector('#content')||document.body,{childList:true,subtree:false});
-style();arm();
+arm();
