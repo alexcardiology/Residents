@@ -5,6 +5,19 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 let timer=null,loading=false;
 
 const onRequestsPage=()=>location.hash.replace(/^#/,'').split('?')[0]==='logbook-requests' || /logbook requests/i.test($('#title')?.textContent||'');
+const nativeRequestsReady=()=>{
+  if(!onRequestsPage()) return false;
+  const content=$('#content');
+  if(!content) return false;
+  // Do not paint any senior-review enhancement until the approved Logbook Requests
+  // UI has completely rendered. This prevents a temporary alternative form/box
+  // from flashing during route or refresh loading.
+  return !!(
+    content.querySelector('.logbook-mail-tools') &&
+    content.querySelector('.mail-panel') &&
+    content.querySelector('.message-list')
+  );
+};
 const timeText=v=>{
   if(!v)return '—';
   try{return new Intl.DateTimeFormat('en-GB',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v));}
@@ -39,7 +52,7 @@ function nativeRow(m){
 function removeOldCustomPanel(){
   $('#seniorReq202')?.remove();
   $('#seniorReq202Style')?.remove();
-  $('#seniorNativeRequests204')?.remove();
+  if(!nativeRequestsReady()) $('#seniorNativeRequests204')?.remove();
 }
 
 function placeBelowApprovedContent(section,content){
@@ -51,34 +64,45 @@ function placeBelowApprovedContent(section,content){
 
 async function render(){
   if(!onRequestsPage()||loading)return;
+  removeOldCustomPanel();
+  // Critical flicker guard: wait for the approved page renderer first.
+  if(!nativeRequestsReady())return;
   const content=$('#content');if(!content)return;
   loading=true;
   try{
-    removeOldCustomPanel();
     const {data:sess}=await sb.auth.getSession();
     if(!sess?.session?.user?.id)return;
     const {data:profile}=await sb.from('profiles').select('role').eq('id',sess.session.user.id).maybeSingle();
     if(profile?.role!=='resident')return;
 
     const rows=await loadReceived();
-    if(!rows.length)return;
+    const existing=$('#seniorNativeRequests204');
+    if(!rows.length){existing?.remove();return;}
 
     if(window.logbookMessages instanceof Map){rows.forEach(m=>window.logbookMessages.set(String(m.id),m));}
 
-    const section=document.createElement('section');
+    const section=existing||document.createElement('section');
     section.id='seniorNativeRequests204';
     section.className='card mail-card senior-native-requests';
+    section.hidden=true;
     section.innerHTML=`<div class="section-head"><div><h3>Requests requiring my response</h3><p>Incoming junior logbook requests assigned to you.</p></div><span class="tag warning">${rows.length} pending</span></div><div class="mail-panel"><div class="message-list">${rows.map(nativeRow).join('')}</div></div>`;
     placeBelowApprovedContent(section,content);
+    // Reveal only after it is fully populated and positioned below the native page.
+    requestAnimationFrame(()=>{section.hidden=false;});
   }catch(e){console.error('Could not load incoming senior logbook requests',e);}
   finally{loading=false;}
 }
 
 function arm(){
   if(timer)clearInterval(timer);
+  $('#seniorReq202')?.remove();
+  $('#seniorReq202Style')?.remove();
   let n=0;
-  void render();
-  timer=setInterval(()=>{n++;void render();if(n>=16){clearInterval(timer);timer=null;}},300);
+  timer=setInterval(()=>{
+    n++;
+    void render();
+    if(n>=24){clearInterval(timer);timer=null;}
+  },250);
 }
 window.addEventListener('hashchange',arm);
 document.addEventListener('click',e=>{if(e.target.closest?.('[data-go="logbook-requests"]'))setTimeout(arm,80)},true);
