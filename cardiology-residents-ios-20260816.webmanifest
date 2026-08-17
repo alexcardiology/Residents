@@ -3,20 +3,20 @@
   "name": "Cardiology Residents",
   "short_name": "Cardiology Residents",
   "description": "Cardiology residents curriculum, logbook, reviews and assessment portal.",
-  "start_url": "/Residents/index.html?auth=174&source=ios-home-screen-20260816",
+  "start_url": "/Residents/index.html?auth=175&source=ios-home-screen-20260816",
   "scope": "/Residents/",
   "display": "standalone",
   "background_color": "#081c35",
   "theme_color": "#081c35",
   "icons": [
     {
-      "src": "/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=174",
+      "src": "/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=175",
       "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/Residents/mobile-assets/pwa-icon.svg?v=174",
+      "src": "/Residents/mobile-assets/pwa-icon.svg?v=175",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
