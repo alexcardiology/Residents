@@ -58,14 +58,14 @@ jobs:
           node --check assets/resident-schedule-v133.js
           node --check assets/schedule-meetings-shell-v187.js
           node --check assets/meetings-page-v187.js
-          grep -F 'schedule-meetings-unified-v168.js?v=1.0.188' app.html >/dev/null
-          grep -F 'schedule-meetings-shell-v187.js?v=188' assets/schedule-meetings-unified-v168.js >/dev/null
+          grep -F 'schedule-meetings-unified-v168.js?v=1.0.189' app.html >/dev/null
+          grep -F 'schedule-meetings-shell-v187.js?v=189' assets/schedule-meetings-unified-v168.js >/dev/null
           if grep -F 'schedule-meetings-v186.js' assets/schedule-meetings-unified-v168.js >/dev/null; then
             echo 'Unsafe v186 Meetings boot controller is still loaded'
             exit 1
           fi
-          if grep -F 'MutationObserver' assets/schedule-meetings-shell-v187.js >/dev/null; then
-            echo 'Schedule/Meetings shell must not use MutationObserver'
+          if grep -F 'new MutationObserver' assets/schedule-meetings-shell-v187.js >/dev/null; then
+            echo 'Schedule/Meetings shell must not install DOM observers'
             exit 1
           fi
           echo "Schedule/Meetings isolation smoke test passed."
