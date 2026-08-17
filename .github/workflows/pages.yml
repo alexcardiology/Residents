@@ -52,6 +52,20 @@ jobs:
           fi
           echo "Portal authentication gateway smoke test passed."
 
+      - name: Verify Schedule and Meetings JavaScript
+        run: |
+          set -euo pipefail
+          node --check assets/resident-schedule-v133.js
+          node --check assets/schedule-meetings-shell-v187.js
+          node --check assets/meetings-page-v187.js
+          grep -F 'schedule-meetings-unified-v168.js?v=1.0.187' app.html >/dev/null
+          grep -F 'schedule-meetings-shell-v187.js?v=187' assets/schedule-meetings-unified-v168.js >/dev/null
+          if grep -F 'schedule-meetings-v186.js' assets/schedule-meetings-unified-v168.js >/dev/null; then
+            echo 'Unsafe v186 Meetings boot controller is still loaded'
+            exit 1
+          fi
+          echo "Schedule/Meetings isolation smoke test passed."
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
