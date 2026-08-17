@@ -2,6 +2,30 @@ const BOT_SELECTOR = ".duty-message-bot p";
 const CARD_SELECTOR = ".duty-assignment-card";
 const ARABIC_RE = /[\u0600-\u06FF]/;
 
+// Keep El Médico available even when the browser is temporarily holding a stale
+// authenticated session. The approved duty schedule is already exposed by the
+// public El Médico endpoint, so a failed authenticated request can safely retry
+// against that read-only schedule engine instead of surfacing a raw non-2xx error.
+import("./supabase.js").then(({ sb }) => {
+  if (!sb?.functions || sb.functions.__elMedicoResilienceInstalled) return;
+  const originalInvoke = sb.functions.invoke.bind(sb.functions);
+  sb.functions.__elMedicoResilienceInstalled = true;
+  sb.functions.invoke = async (functionName, options = {}) => {
+    const primary = await originalInvoke(functionName, options);
+    if (functionName !== "duty-bot" || !primary?.error) return primary;
+    try {
+      const fallback = await originalInvoke("duty-bot-public-v2", options);
+      if (!fallback?.error && fallback?.data?.answer) {
+        return {
+          ...fallback,
+          data: { ...fallback.data, fallback: "public-duty-engine" },
+        };
+      }
+    } catch (_) {}
+    return primary;
+  };
+}).catch(() => {});
+
 const ARABIC_LABELS = {
   hospital: "المستشفى",
   service: "القسم",
