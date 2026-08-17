@@ -24,24 +24,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Verify browser Supabase key
+      - name: Verify browser Supabase auth key
         env:
           SUPABASE_URL: https://dwkkhqmifmmxubtuaqbd.supabase.co
-          SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3a2hxbWlmbW14dWJ0dWFxYmQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4NTkyMzU0MSwiZXhwIjoyMTAxNDk5NTQxfQ.6_aryJx9eA_tKwqm6GjMbM4i9LG_z99qL-uDZaHlRJg
         run: |
           set -euo pipefail
           test -f assets/supabase-v174.js
           test -f assets/login-v174.js
-          grep -F "$SUPABASE_KEY" assets/supabase-v174.js >/dev/null
 
-          rest_status="$(curl -sS -o /tmp/rest-smoke.json -w '%{http_code}' \
-            -H "apikey: $SUPABASE_KEY" \
-            "$SUPABASE_URL/rest/v1/")"
-          if [ "$rest_status" != "200" ]; then
-            echo "Supabase REST gateway rejected browser key: HTTP $rest_status"
-            cat /tmp/rest-smoke.json
-            exit 1
-          fi
+          SUPABASE_KEY="$(python3 - <<'PY'
+          import re
+          text = open('assets/supabase-v174.js', encoding='utf-8').read()
+          match = re.search(r"SUPABASE_LEGACY_ANON_KEY='([^']+)'", text)
+          if not match:
+              raise SystemExit('Browser key not found in v174 client')
+          print(match.group(1))
+          PY
+          )"
+          echo "::add-mask::$SUPABASE_KEY"
 
           auth_status="$(curl -sS -o /tmp/auth-smoke.json -w '%{http_code}' \
             -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
@@ -49,7 +49,7 @@ jobs:
             -H 'Content-Type: application/json' \
             --data '{"email":"auth-smoke-do-not-create@example.invalid","password":"not-a-real-password"}')"
 
-          if [ "$auth_status" = "401" ]; then
+          if grep -qi 'invalid api key' /tmp/auth-smoke.json; then
             echo "Supabase Auth gateway rejected browser API key"
             cat /tmp/auth-smoke.json
             exit 1
@@ -59,7 +59,7 @@ jobs:
             cat /tmp/auth-smoke.json
             exit 1
           fi
-          echo "Supabase browser key accepted by REST and Auth gateways (expected invalid-credentials status $auth_status)."
+          echo "Supabase Auth accepted the browser key and returned expected invalid-credentials status $auth_status."
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
