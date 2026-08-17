@@ -1,12 +1,12 @@
 const QUICK_QUESTIONS = [
-  "Who is in Miri CCU today?",
-  "Who is in Miri ER today?",
-  "Who is on duty in Smouha today?",
-  "Who are in Cath Lab today?",
-  "Who are in Echo today?",
-  "Who are in clinics today?",
-  "Who is assigned for male ward?",
-  "Who is assigned for female ward?",
+  "مين في عناية الميري النهاردة؟",
+  "مين في طوارئ الميري النهاردة؟",
+  "مين نباطشي سموحة النهاردة؟",
+  "مين في القسطرة النهاردة؟",
+  "مين في الإيكو النهاردة؟",
+  "مين في العيادات النهاردة؟",
+  "مين متوزع على عنبر الرجال؟",
+  "مين متوزع على عنبر السيدات؟",
 ];
 
 function escapeAttr(value) {
@@ -15,12 +15,13 @@ function escapeAttr(value) {
 
 function enhanceQuickQuestions() {
   document.querySelectorAll(".el-medico-quick-card .duty-quick-prompts").forEach((container) => {
-    if (container.dataset.quickPromptsVersion === "8") return;
-    container.dataset.quickPromptsVersion = "8";
+    if (container.dataset.quickPromptsVersion === "9") return;
+    container.dataset.quickPromptsVersion = "9";
+    container.setAttribute("dir", "rtl");
     container.innerHTML = QUICK_QUESTIONS.map((question) => `
-      <button type="button" data-duty-question="${escapeAttr(question)}">
+      <button type="button" dir="rtl" data-duty-question="${escapeAttr(question)}">
         <span>${escapeAttr(question)}</span>
-        <b aria-hidden="true">›</b>
+        <b aria-hidden="true">‹</b>
       </button>
     `).join("");
   });
