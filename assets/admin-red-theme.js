@@ -68,3 +68,11 @@ void import("./logbook-48h-limit-v158.js?v=1.0.159").catch((error) => {
 void import("./admin-logbook-delete-v160.js?v=1.0.162").catch((error) => {
   console.warn("Admin logbook delete controls could not load", error);
 });
+
+void import("./admin-online-exclusions-v166.js?v=1.0.166").catch((error) => {
+  console.warn("Admin online exclusions could not load", error);
+});
+
+void import("./admin-push-center-v166.js?v=1.0.166").catch((error) => {
+  console.warn("Admin push notification center could not load", error);
+});
