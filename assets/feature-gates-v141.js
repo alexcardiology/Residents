@@ -32,6 +32,7 @@ const state = {
 
 const route = () => String(location.hash || "#dashboard").replace(/^#/, "").split("?")[0];
 const isOwner = () => state.profile?.role === "owner";
+const isYear3Resident = () => state.profile?.role === "resident" && Number(state.profile?.residency_year) === 3;
 
 function toast(message) {
   const node = document.querySelector("#toast");
@@ -198,6 +199,21 @@ function gateMinimumRequirements() {
   banner.before(notice);
 }
 
+function ensureYear3SeniorSkip() {
+  if (!isYear3Resident()) return;
+  const search = document.querySelector("#seniorResidentSearch");
+  const field = search?.closest(".senior-picker-field");
+  if (!search || !field || field.querySelector("#skipSeniorResident")) return;
+
+  const label = document.createElement("label");
+  label.className = "senior-skip-option";
+  label.innerHTML = '<input id="skipSeniorResident" type="checkbox"><span><b>No senior resident</b><small>Send this intervention directly to the assessor.</small></span>';
+
+  const fieldLabel = field.querySelector(".field-label");
+  if (fieldLabel) fieldLabel.after(label);
+  else field.insertBefore(label, search);
+}
+
 function adminControlMarkup(key) {
   const feature = FEATURES[key];
   const enabled = Boolean(state.flags[key]);
@@ -274,6 +290,7 @@ function paint() {
     gateChapters();
     gatePriorExperience();
     gateMinimumRequirements();
+    ensureYear3SeniorSkip();
     ensureAdminControl();
   } finally {
     state.painting = false;
@@ -314,7 +331,7 @@ async function loadState() {
     if (!state.user) return;
 
     const [{ data: profile }, { data: flags, error: flagsError }] = await Promise.all([
-      sb.from("profiles").select("role,is_active").eq("id", state.user.id).single(),
+      sb.from("profiles").select("role,is_active,residency_year").eq("id", state.user.id).single(),
       sb.from("portal_feature_flags").select("feature_key,enabled"),
     ]);
     if (flagsError) throw flagsError;
