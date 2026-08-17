@@ -8,13 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Cardiology Residents">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 
   <title>Cardiology Residents</title>
 
-  <link rel="manifest" href="/Residents/cardiology-residents-ios-20260816.webmanifest?v=1">
-  <link rel="icon" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1" type="image/png" sizes="180x180">
-  <link rel="apple-touch-icon" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1">
-  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=1">
+  <link rel="manifest" href="/Residents/cardiology-residents-ios-20260816.webmanifest?v=174">
+  <link rel="icon" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=174" type="image/png" sizes="180x180">
+  <link rel="apple-touch-icon" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=174">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/Residents/mobile-assets/cardio-residents-ios-20260816.png?v=174">
 
   <link rel="stylesheet" href="assets/style.css?v=1.0.91">
   <link rel="stylesheet" href="assets/landing-access.css?v=1.0.92">
@@ -22,19 +23,28 @@
   <script>
     (() => {
       const migrationKey = "cardiology-auth-client-version";
-      if (localStorage.getItem(migrationKey) === "173") return;
-      const authKey = "sb-dwkkhqmifmmxubtuaqbd-auth-token";
-      localStorage.removeItem(authKey);
-      sessionStorage.removeItem(authKey);
+      if (localStorage.getItem(migrationKey) === "174") return;
+      const prefix = "sb-dwkkhqmifmmxubtuaqbd-auth-token";
+      for (const storage of [localStorage, sessionStorage]) {
+        try {
+          const remove = [];
+          for (let i = 0; i < storage.length; i += 1) {
+            const key = storage.key(i) || "";
+            if (key.startsWith(prefix)) remove.push(key);
+          }
+          remove.forEach((key) => storage.removeItem(key));
+        } catch (_) {}
+      }
       localStorage.removeItem("cardiology-account-switch-sessions-v1");
-      localStorage.setItem(migrationKey, "173");
+      localStorage.setItem(migrationKey, "174");
     })();
   </script>
   <script type="importmap">
     {
       "imports": {
-        "/Residents/assets/supabase.js": "/Residents/assets/supabase-v173.js",
-        "/Residents/assets/supabase.js?v=1.0.92": "/Residents/assets/supabase-v173.js"
+        "/Residents/assets/supabase.js": "/Residents/assets/supabase-v174.js",
+        "/Residents/assets/supabase.js?v=1.0.92": "/Residents/assets/supabase-v174.js",
+        "/Residents/assets/supabase-v173.js": "/Residents/assets/supabase-v174.js"
       }
     }
   </script>
@@ -187,9 +197,9 @@
     </section>
   </main>
 
-  <script type="module" src="assets/app-install-tracker.js?v=1.0.2"></script>
-  <script type="module" src="assets/login.js?v=1.0.173"></script>
-  <script type="module" src="assets/public-el-medico.js?v=1.0.173"></script>
+  <script type="module" src="assets/app-install-tracker-v174.js?v=174"></script>
+  <script type="module" src="assets/login-v174.js?v=174"></script>
+  <script type="module" src="assets/public-el-medico-v174.js?v=174"></script>
 
   <script>
     document.addEventListener("click", (event) => {
