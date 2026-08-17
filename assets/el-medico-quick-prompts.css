@@ -11,12 +11,16 @@
   align-items:center;
   justify-content:space-between;
   gap:10px;
+  direction:rtl;
 }
 
 .el-medico-quick-card .duty-quick-prompts button span{
+  flex:1 1 auto;
   font-size:.82rem !important;
   line-height:1.15 !important;
-  text-align:left;
+  text-align:right;
+  direction:rtl;
+  unicode-bidi:plaintext;
 }
 
 .el-medico-quick-card .duty-quick-prompts button b{
