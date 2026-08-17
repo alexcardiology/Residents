@@ -2,6 +2,7 @@ import { sb, AUTH_PERSISTENCE_KEY } from "./supabase-v175.js";
 
 const AUTH_STORAGE_PREFIX = "sb-dwkkhqmifmmxubtuaqbd-auth-token";
 const MIGRATION_KEY = "cardiology-auth-client-version";
+const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function clearStaleAuthOnce() {
   if (localStorage.getItem(MIGRATION_KEY) === "175") return;
@@ -20,6 +21,19 @@ function clearStaleAuthOnce() {
 }
 
 clearStaleAuthOnce();
+
+function attendanceDestination(){
+  const params=new URLSearchParams(location.search);
+  let token=String(params.get('attendance-checkin')||'').trim();
+  if(!token){
+    try{token=String(sessionStorage.getItem('pendingAttendanceQrToken')||'').trim()}catch(_){}
+  }
+  if(UUID_RE.test(token)){
+    try{sessionStorage.removeItem('pendingAttendanceQrToken')}catch(_){}
+    return `app.html?auth=175#attendance-checkin=${encodeURIComponent(token)}`;
+  }
+  return "app.html?auth=175#dashboard";
+}
 
 function detectPlatform() {
   try {
@@ -61,7 +75,7 @@ async function restoreExistingSession() {
     if (verifyError || verified?.user?.id !== session.user.id) return;
     const profile = await loadActiveProfile(session.user.id);
     if (!profile?.is_active) return;
-    location.replace("app.html?auth=175#dashboard");
+    location.replace(attendanceDestination());
   } catch (error) {
     console.warn("Could not restore portal session yet:", error);
   }
@@ -104,7 +118,7 @@ async function authenticate(form) {
       });
     } catch (_) {}
 
-    location.replace("app.html?auth=175#dashboard");
+    location.replace(attendanceDestination());
   } catch (error) {
     const raw = String(error?.message || "Unable to sign in. Please try again.");
     message.textContent = /api\s*key|apikey|invalid key/i.test(raw)
