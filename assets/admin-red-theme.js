@@ -81,6 +81,6 @@ void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) =>
   console.warn("Senior logbook response gate could not load", error);
 });
 
-void import("./schedule-meetings-unified-v168.js?v=1.0.168").catch((error) => {
+void import("./schedule-meetings-unified-v168.js?v=1.0.169").catch((error) => {
   console.warn("Unified schedule and meetings UI could not load", error);
 });
