@@ -47,8 +47,17 @@ function applyDutyDirection(element, arabic) {
 function localizeArabicStatusText(text) {
   return String(text || "")
     .replace(/^24-hour duty$/i, "نباطشية 24 ساعة")
+    .replace(/^Duty$/i, "نباطشية")
     .replace(/^Day assignment$/i, "توزيع يومي")
     .replace(/^Approved schedule$/i, "الجدول المعتمد");
+}
+
+function localizeArabicInlineText(text) {
+  return String(text || "")
+    .replace(/\bduties\b/gi, "النوبات")
+    .replace(/\bduty\b/gi, "نباطشية")
+    .replace(/\bday assignments?\b/gi, "التوزيعات اليومية")
+    .replace(/\bapproved schedule\b/gi, "الجدول المعتمد");
 }
 
 function formatDutyBotDateText(text) {
@@ -87,7 +96,8 @@ function formatDutyBotParagraph(paragraph) {
 
   for (const textNode of textNodes) {
     const before = textNode.nodeValue || "";
-    const after = cleanDutyBotText(before);
+    let after = cleanDutyBotText(before);
+    if (arabic) after = localizeArabicInlineText(after);
     if (after !== before) textNode.nodeValue = after;
 
     if (!String(textNode.nodeValue || "").trim()) {
@@ -109,7 +119,8 @@ function formatDutyAssignmentCard(card) {
   if (type && /^day assignment$/i.test(type.textContent?.trim() || "")) {
     type.remove();
   } else if (type && arabic) {
-    type.textContent = localizeArabicStatusText(type.textContent?.trim() || "");
+    const localized = localizeArabicStatusText(type.textContent?.trim() || "");
+    if (localized !== type.textContent) type.textContent = localized;
     type.setAttribute("dir", "rtl");
   }
 
@@ -122,7 +133,8 @@ function formatDutyAssignmentCard(card) {
     if (arabic && dt && ARABIC_LABELS[label]) dt.textContent = ARABIC_LABELS[label];
 
     if (label === "date" || dt?.textContent?.trim() === "التاريخ") {
-      value.textContent = formatDutyBotDateText(value.textContent || "");
+      const formatted = formatDutyBotDateText(value.textContent || "");
+      if (formatted !== value.textContent) value.textContent = formatted;
       return;
     }
 
@@ -132,7 +144,8 @@ function formatDutyAssignmentCard(card) {
     }
 
     if (arabic && (label === "source" || dt?.textContent?.trim() === "المصدر")) {
-      value.textContent = localizeArabicStatusText(value.textContent || "");
+      const localized = localizeArabicStatusText(value.textContent || "");
+      if (localized !== value.textContent) value.textContent = localized;
     }
   });
 }
