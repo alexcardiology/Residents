@@ -2,6 +2,7 @@ import { sb } from "./supabase.js";
 
 // Recover stale local sessions before the portal starts. A stale access token can
 // make the app think the user is signed in while every profile/RPC call returns 401.
+// v171 retry deployment
 try {
   const { data: sessionData } = await sb.auth.getSession();
   const session = sessionData?.session;
