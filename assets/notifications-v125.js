@@ -1,5 +1,17 @@
 import { sb } from "./supabase.js";
 
+// One-way migration from the legacy GitHub Pages origin. Push subscriptions are
+// origin-bound, so old-origin clients must move to alexcardiology and subscribe there.
+if (location.hostname.toLowerCase() === "drmohamedalaa90.github.io") {
+  try {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => Promise.all(regs.map((r) => r.unregister()))).catch(() => {});
+    }
+  } catch (_) {}
+  const target = `https://alexcardiology.github.io/Residents/${location.pathname.split('/').pop() || 'app.html'}${location.search}${location.hash}`;
+  location.replace(target);
+}
+
 const VAPID_PUBLIC = "BC5H5L4dqb6VTsWheVyxIS2j_Ol3pDyMbu9osQOtCghIT5qYM3GvF7IFxqSG0G6CLg0yKz_HS1oUVtBZekXrcj8";
 let busy = false;
 
@@ -26,7 +38,7 @@ async function saveSubscription(sub) {
     p_endpoint: json.endpoint,
     p_p256dh: keys.p256dh,
     p_auth: keys.auth,
-    p_device_label: `${navigator.platform || "Device"} · ${navigator.userAgent.includes("Mobile") ? "Mobile" : "Web"}`,
+    p_device_label: `${navigator.platform || "Device"} · ${navigator.userAgent.includes("Mobile") ? "Mobile" : "Web"} · ${location.hostname}`,
   });
   if (error) throw error;
 }
