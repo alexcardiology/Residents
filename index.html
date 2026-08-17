@@ -18,6 +18,26 @@
 
   <link rel="stylesheet" href="assets/style.css?v=1.0.91">
   <link rel="stylesheet" href="assets/landing-access.css?v=1.0.92">
+
+  <script>
+    (() => {
+      const migrationKey = "cardiology-auth-client-version";
+      if (localStorage.getItem(migrationKey) === "173") return;
+      const authKey = "sb-dwkkhqmifmmxubtuaqbd-auth-token";
+      localStorage.removeItem(authKey);
+      sessionStorage.removeItem(authKey);
+      localStorage.removeItem("cardiology-account-switch-sessions-v1");
+      localStorage.setItem(migrationKey, "173");
+    })();
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "/Residents/assets/supabase.js": "/Residents/assets/supabase-v173.js",
+        "/Residents/assets/supabase.js?v=1.0.92": "/Residents/assets/supabase-v173.js"
+      }
+    }
+  </script>
 </head>
 
 <body class="landing">
@@ -168,8 +188,8 @@
   </main>
 
   <script type="module" src="assets/app-install-tracker.js?v=1.0.2"></script>
-  <script type="module" src="assets/login.js?v=1.0.157"></script>
-  <script type="module" src="assets/public-el-medico.js?v=1.0.94"></script>
+  <script type="module" src="assets/login.js?v=1.0.173"></script>
+  <script type="module" src="assets/public-el-medico.js?v=1.0.173"></script>
 
   <script>
     document.addEventListener("click", (event) => {
