@@ -60,6 +60,8 @@ function styles(){
 async function applyAdmin(){
   const list=$('#meet187AdminList');
   if(!list)return false;
+  const cards=$$('.meet187-card',list).filter(card=>card.querySelector('[data-meet187-report]'));
+  if(!cards.length)return false;
   let rows;
   try{
     const {data,error}=await sb.rpc('owner_list_attendance_meetings_v194');
@@ -67,7 +69,8 @@ async function applyAdmin(){
     rows=data||[];
   }catch(e){console.warn('Meeting card formatting could not load',e);return false}
   const byId=new Map(rows.map(m=>[String(m.id),m]));
-  $$('.meet187-card',list).forEach(card=>{
+  let formatted=0;
+  cards.forEach(card=>{
     const ref=card.querySelector('[data-meet187-report]');
     const id=String(ref?.dataset.meet187Report||'');
     const m=byId.get(id);
@@ -76,8 +79,15 @@ async function applyAdmin(){
     const spans=[...meta.children].filter(n=>n.tagName==='SPAN');
     if(spans[0])spans[0].innerHTML=`<span class="meet196-scheduled"><span class="meet196-scheduled-tick" aria-hidden="true">✓</span><span>Scheduled: ${meetingText(m)}</span></span>`;
     if(spans[1])spans[1].innerHTML=`<b>Check-in:</b> ${checkinText(m)}`;
+    const del=card.querySelector('.meet195-delete,.meet194-delete,[data-meet195-delete],[data-meet194-delete]');
+    if(del){
+      del.style.setProperty('color','#111827','important');
+      del.style.setProperty('-webkit-text-fill-color','#111827','important');
+      del.style.setProperty('font-weight','900','important');
+    }
+    formatted++;
   });
-  return true;
+  return formatted===cards.length&&formatted>0;
 }
 
 function arm(){
@@ -88,8 +98,8 @@ function arm(){
   timer=setInterval(async()=>{
     tries++;
     const done=await applyAdmin();
-    if(done||tries>=16){clearInterval(timer);timer=null}
-  },400);
+    if(done||tries>=40){clearInterval(timer);timer=null}
+  },300);
 }
 
 document.addEventListener('click',e=>{
