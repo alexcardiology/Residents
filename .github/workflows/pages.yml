@@ -24,6 +24,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Inspect Supabase runtime key health
+        run: |
+          curl -fsS "https://dwkkhqmifmmxubtuaqbd.supabase.co/functions/v1/portal-key-diagnostic" | tee /tmp/portal-key-diagnostic.json
+          echo
+
       - name: Verify browser Supabase auth key
         env:
           SUPABASE_URL: https://dwkkhqmifmmxubtuaqbd.supabase.co
