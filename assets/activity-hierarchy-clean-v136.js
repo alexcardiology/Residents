@@ -1,5 +1,6 @@
 const MODE_OPTIONS = [
   { value: "attended", label: "Attended", icon: "👁" },
+  { value: "failed_trial", label: "Failed trial", icon: "⚠️" },
   { value: "assisted", label: "Performed assisted", icon: "🤝" },
   { value: "solo_unguided", label: "Performed unassisted", icon: "🩺" },
   { value: "supervised", label: "Supervised", icon: "👥" },
