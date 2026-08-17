@@ -24,12 +24,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Switch Pages to workflow publishing
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api --method PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow
-
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
