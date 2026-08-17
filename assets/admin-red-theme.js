@@ -82,6 +82,10 @@ void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) =>
   console.warn("Senior logbook response gate could not load", error);
 });
 
+void import("./admin-bulk-penalties-v200.js?v=200").catch((error) => {
+  console.warn("Admin bulk penalty tools could not load", error);
+});
+
 // Schedule/Meetings is intentionally loaded only once from app.html.
 // Do not dynamically import it here: a second cache URL executes the meeting
 // enhancement twice and duplicates lifecycle controls on Admin meeting cards.
