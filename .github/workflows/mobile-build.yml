@@ -51,6 +51,18 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      - name: Enable camera permission for meeting QR scanner
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('android/app/src/main/AndroidManifest.xml')
+          s=p.read_text()
+          permission='<uses-permission android:name="android.permission.CAMERA" />'
+          if permission not in s:
+              s=s.replace('<application', permission+'\n    <application', 1)
+          p.write_text(s)
+          PY
+
       - name: Generate branded Android icon and splash assets
         run: npm run assets:android
 
@@ -126,6 +138,9 @@ jobs:
           rm -rf ios
           npx cap add ios
           npx cap sync ios
+
+      - name: Enable camera permission for meeting QR scanner
+        run: plutil -replace NSCameraUsageDescription -string "Scan meeting attendance QR codes." ios/App/App/Info.plist
 
       - name: Generate branded iOS icon and splash assets
         run: npm run assets:ios
