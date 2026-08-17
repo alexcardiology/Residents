@@ -76,3 +76,7 @@ void import("./admin-online-exclusions-v166.js?v=1.0.166").catch((error) => {
 void import("./admin-push-center-v166.js?v=1.0.166").catch((error) => {
   console.warn("Admin push notification center could not load", error);
 });
+
+void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) => {
+  console.warn("Senior logbook response gate could not load", error);
+});
