@@ -118,10 +118,11 @@
     <script type="module" src="assets/prior-banner-gate-v153.js?v=1.0.155"></script>
     <script type="module" src="assets/resident-assessment-access-v151.js?v=1.0.153"></script>
     <script type="module" src="assets/attendance-checker-v167.js?v=1.0.167"></script>
+    <script type="module" src="assets/schedule-meetings-unified-v168.js?v=1.0.169"></script>
     <script type="module">
       import { sb } from "./assets/supabase.js";
       const identity=document.querySelector("#mobileHeaderIdentity"),profileChip=document.querySelector("#profileChip");let username="",fallbackName="";
-      const paintMobileIdentity=()=>{if(!identity)return;const chipName=profileChip?.querySelector("span:last-child")?.textContent?.trim(),displayName=chipName||fallbackName||username||"Signed in";identity.replaceChildren();const nameNode=document.createElement("strong"),userNode=document.createElement("small");nameNode.textContent=displayName;userNode.textContent=username?`@${username.replace(/^@/,"")}`:"";identity.append(nameNode,userNode)};
+      const paintMobileIdentity=()=>{if(!identity)return;const chipName=profileChip?.querySelector("span:last-child")?.textContent?.trim(),displayName=chipName||fallbackName||username||"Signed in";identity.replaceChildren();const nameNode=document.createElement("strong"),userNode=document.createElement("small");nameNode.textContent=displayName;userNode.textContent=username?`@${username.replace(/^@/,"")}:"";identity.append(nameNode,userNode)};
       try{const{data:sessionData}=await sb.auth.getSession(),userId=sessionData?.session?.user?.id;if(userId){const{data:profile}=await sb.from("profiles").select("display_name,username").eq("id",userId).single();username=String(profile?.username||"").trim();fallbackName=String(profile?.display_name||profile?.username||"").trim()}}catch(_){}
       paintMobileIdentity();if(profileChip)new MutationObserver(paintMobileIdentity).observe(profileChip,{childList:true,subtree:true,characterData:true});setTimeout(paintMobileIdentity,250);setTimeout(paintMobileIdentity,900);
     </script>
