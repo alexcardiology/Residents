@@ -4,12 +4,25 @@ const form = document.querySelector("#publicElMedicoForm");
 const input = document.querySelector("#publicElMedicoQuestion");
 const transcript = document.querySelector("#publicElMedicoTranscript");
 const errorBox = document.querySelector("[data-el-medico-error]");
+const ARABIC_RE = /[\u0600-\u06FF]/;
 
-function addMessage(kind, text, extraClass = "") {
+const hasArabic = (text) => ARABIC_RE.test(String(text || ""));
+
+function applyMessageDirection(message, arabic) {
+  if (!(message instanceof HTMLElement)) return;
+  const dir = arabic ? "rtl" : "ltr";
+  message.setAttribute("dir", dir);
+  message.style.direction = dir;
+  message.style.textAlign = arabic ? "right" : "left";
+  message.style.unicodeBidi = "plaintext";
+}
+
+function addMessage(kind, text, extraClass = "", arabic = hasArabic(text)) {
   if (!transcript) return null;
   const message = document.createElement("div");
   message.className = `public-el-medico-message ${kind} ${extraClass}`.trim();
   message.textContent = text;
+  applyMessageDirection(message, arabic);
   transcript.appendChild(message);
   transcript.scrollTop = transcript.scrollHeight;
   return message;
@@ -19,13 +32,22 @@ async function askElMedico(question) {
   const cleanQuestion = String(question || "").trim();
   if (cleanQuestion.length < 2) return;
 
-  if (errorBox) errorBox.textContent = "";
-  addMessage("user", cleanQuestion);
+  const arabic = hasArabic(cleanQuestion);
+
+  if (errorBox) {
+    errorBox.textContent = "";
+    errorBox.setAttribute("dir", arabic ? "rtl" : "ltr");
+    errorBox.style.textAlign = arabic ? "right" : "left";
+  }
+  addMessage("user", cleanQuestion, "", arabic);
 
   // Clear the question box as soon as the question is sent.
   if (input) input.value = "";
 
-  const loading = addMessage("bot", "Checking the approved schedule…", "loading");
+  const loadingText = arabic
+    ? "جاري مراجعة جدول النوبات والتوزيعات المعتمد…"
+    : "Checking the approved schedule…";
+  const loading = addMessage("bot", loadingText, "loading", arabic);
   const submit = form?.querySelector('button[type="submit"]');
   if (submit) submit.disabled = true;
   if (input) input.disabled = true;
@@ -38,12 +60,21 @@ async function askElMedico(question) {
     if (data?.error) throw new Error(data.error);
 
     loading?.remove();
-    addMessage("bot", data?.answer || "No matching approved assignment was found.");
+    const fallback = arabic
+      ? "لم يتم العثور على توزيع معتمد مطابق للسؤال."
+      : "No matching approved assignment was found.";
+    addMessage("bot", data?.answer || fallback, "", arabic || hasArabic(data?.answer));
   } catch (error) {
     loading?.remove();
-    const message = error?.message || "El Médico is temporarily unavailable. Please try again.";
-    addMessage("bot", message);
-    if (errorBox) errorBox.textContent = "Could not load the schedule right now.";
+    const message = arabic
+      ? "El Médico غير متاح مؤقتًا. حاول مرة أخرى بعد قليل."
+      : (error?.message || "El Médico is temporarily unavailable. Please try again.");
+    addMessage("bot", message, "", arabic);
+    if (errorBox) {
+      errorBox.textContent = arabic
+        ? "تعذر تحميل الجدول حاليًا."
+        : "Could not load the schedule right now.";
+    }
   } finally {
     if (submit) submit.disabled = false;
     if (input) {
