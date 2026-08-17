@@ -58,10 +58,24 @@ jobs:
           node --check assets/resident-schedule-v133.js
           node --check assets/schedule-meetings-shell-v187.js
           node --check assets/meetings-page-v187.js
-          node --check assets/meeting-card-format-v196.js
-          grep -F 'schedule-meetings-unified-v168.js?v=1.0.198' app.html >/dev/null
+          node --check assets/meeting-card-normalizer-v199.js
+          node --check assets/meeting-admin-enhancements-v195.js
+          grep -F 'schedule-meetings-unified-v168.js?v=1.0.199' app.html >/dev/null
+          grep -F 'admin-red-theme.js?v=1.0.199' app.html >/dev/null
           grep -F 'schedule-meetings-shell-v187.js?v=191' assets/schedule-meetings-unified-v168.js >/dev/null
-          grep -F 'meeting-card-format-v196.js?v=198' assets/schedule-meetings-unified-v168.js >/dev/null
+          grep -F 'meeting-card-normalizer-v199.js?v=199' assets/schedule-meetings-unified-v168.js >/dev/null
+          if grep -F 'meeting-admin-dedupe-v196.js' assets/schedule-meetings-unified-v168.js >/dev/null; then
+            echo 'Legacy meeting dedupe module is still loaded'
+            exit 1
+          fi
+          if grep -F 'meeting-card-format-v196.js' assets/schedule-meetings-unified-v168.js >/dev/null; then
+            echo 'Legacy meeting formatter module is still loaded'
+            exit 1
+          fi
+          if grep -F 'schedule-meetings-unified-v168.js' assets/admin-red-theme.js >/dev/null; then
+            echo 'Admin theme must not boot Schedule/Meetings a second time'
+            exit 1
+          fi
           if grep -F 'schedule-meetings-v186.js' assets/schedule-meetings-unified-v168.js >/dev/null; then
             echo 'Unsafe v186 Meetings boot controller is still loaded'
             exit 1
@@ -70,7 +84,7 @@ jobs:
             echo 'Schedule/Meetings shell must not install DOM observers'
             exit 1
           fi
-          echo "Schedule/Meetings isolation smoke test passed."
+          echo "Schedule/Meetings single-boot smoke test passed."
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
@@ -84,4 +98,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-# Deployment retry marker: meeting-card-v198
+# Deployment marker: meeting-card-v199-single-boot
