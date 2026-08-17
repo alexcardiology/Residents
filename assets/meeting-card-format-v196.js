@@ -32,6 +32,27 @@ function styles(){
       -webkit-text-fill-color:#111827!important;
       font-weight:900!important;
     }
+    .meet196-scheduled{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      font-weight:950;
+      color:#0b1f37;
+    }
+    .meet196-scheduled-tick{
+      display:inline-grid;
+      place-items:center;
+      width:20px;
+      height:20px;
+      border-radius:50%;
+      background:#16a34a;
+      color:#fff;
+      -webkit-text-fill-color:#fff;
+      font-size:13px;
+      line-height:1;
+      font-weight:1000;
+      flex:0 0 20px;
+    }
   `;
   document.head.appendChild(s);
 }
@@ -53,7 +74,7 @@ async function applyAdmin(){
     const meta=card.querySelector('.meet187-meta');
     if(!m||!meta)return;
     const spans=[...meta.children].filter(n=>n.tagName==='SPAN');
-    if(spans[0])spans[0].innerHTML=`<b>Meeting:</b> ${meetingText(m)}`;
+    if(spans[0])spans[0].innerHTML=`<span class="meet196-scheduled"><span class="meet196-scheduled-tick" aria-hidden="true">✓</span><span>Scheduled: ${meetingText(m)}</span></span>`;
     if(spans[1])spans[1].innerHTML=`<b>Check-in:</b> ${checkinText(m)}`;
   });
   return true;
