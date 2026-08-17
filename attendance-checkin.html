@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#081c35">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>Meeting Check-in</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:#f3f7fb;color:#0a2745;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:grid;place-items:center;padding:22px}.card{width:min(100%,620px);background:#fff;border:1px solid #d9e5ef;border-radius:22px;padding:26px;box-shadow:0 18px 48px rgba(8,38,66,.10)}.brand{display:flex;gap:12px;align-items:center;margin-bottom:26px}.heart{display:grid;place-items:center;width:50px;height:50px;border-radius:14px;background:#e74761;color:#fff;font-size:24px}.brand strong{display:block;font-size:1.15rem}.brand small{display:block;margin-top:2px;color:#718397;font-weight:700}.status{display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:#e9f8f0;color:#087548;font-size:34px;font-weight:900;margin-bottom:16px}.status.error{background:#fff0f2;color:#ad243d}.eyebrow{margin:0 0 7px;color:#1674d1;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{margin:0;font-size:clamp(1.7rem,5vw,2.45rem)}p{color:#61758a;line-height:1.55}.detail{margin-top:14px;padding:12px 14px;border-radius:12px;background:#f3f7fa;color:#536b80;font-weight:700}.login{display:grid;gap:14px;margin-top:20px}.login label{display:grid;gap:6px;font-size:.85rem;font-weight:800}.login input{width:100%;border:1px solid #cbd9e6;border-radius:12px;padding:12px 13px;font:inherit}.btn{border:0;border-radius:12px;padding:12px 16px;background:#0b3764;color:#fff;font:inherit;font-weight:900;cursor:pointer}.btn:disabled{opacity:.55}.msg{min-height:1.2em;margin:0;color:#b0223c;font-size:.86rem;font-weight:800}.hidden{display:none!important}.success{color:#087548}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand"><div class="heart">♥</div><div><strong>Cardiology Residents</strong><small>Meeting attendance</small></div></div>
+    <section id="checking"><div class="status">✓</div><p class="eyebrow">Physical meeting</p><h1>Checking you in…</h1><p>Please wait while your QR code is verified.</p></section>
+    <section id="signin" class="hidden"><div class="status">↗</div><p class="eyebrow">Sign in required</p><h1>Sign in to check in</h1><p>Your QR code is saved on this page. Sign in and your attendance will be recorded automatically.</p><form id="loginForm" class="login"><label>Email<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="6" required></label><p class="msg"></p><button class="btn" type="submit">Sign in & check in</button></form></section>
+    <section id="result" class="hidden"><div id="resultIcon" class="status">✓</div><p class="eyebrow">Meeting attendance</p><h1 id="resultTitle">You checked in successfully.</h1><p id="resultText">Your attendance has been recorded.</p><div id="resultDetail" class="detail hidden"></div><p style="margin-top:20px"><a class="btn" style="display:inline-block;text-decoration:none" href="app.html#dashboard">Continue to portal</a></p></section>
+  </main>
+<script type="module">
+  import { sb } from './assets/supabase-v175.js';
+  const $=s=>document.querySelector(s);
+  const token=String(new URLSearchParams(location.search).get('token')||'').trim();
+  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const show=id=>['checking','signin','result'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id));
+  function fail(message){show('result');$('#resultIcon').textContent='!';$('#resultIcon').classList.add('error');$('#resultTitle').textContent='Check-in failed';$('#resultText').textContent=message||'We could not record your attendance.';$('#resultDetail').classList.add('hidden')}
+  async function checkIn(){
+    if(!uuid.test(token))return fail('This QR code is not valid.');
+    const {data:{session}}=await sb.auth.getSession();
+    if(!session){show('signin');return;}
+    show('checking');
+    const {data,error}=await sb.rpc('resident_attendance_checkin_v167',{p_qr_token:token,p_meeting_id:null});
+    if(error)return fail(error.message);
+    show('result');
+    $('#resultIcon').textContent='✓';$('#resultIcon').classList.remove('error');$('#resultTitle').textContent='You checked in successfully.';$('#resultText').textContent='Your attendance has been recorded.';
+    if(data?.checked_in_at){const d=new Date(data.checked_in_at);$('#resultDetail').textContent='Check-in time: '+d.toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'});$('#resultDetail').classList.remove('hidden')}
+  }
+  $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector('button'),m=f.querySelector('.msg');m.textContent='';b.disabled=true;const {error}=await sb.auth.signInWithPassword({email:String(f.email.value||'').trim().toLowerCase(),password:String(f.password.value||'')});if(error){m.textContent=error.message;b.disabled=false;return}await checkIn()});
+  checkIn().catch(e=>fail(e?.message||String(e)));
+</script>
+</body>
+</html>
