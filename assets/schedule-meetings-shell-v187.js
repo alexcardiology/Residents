@@ -1,5 +1,5 @@
-// v190 — isolated Schedule + Meetings shell.
-// No DOM observers. No Dashboard/content watcher. Meetings is lazy-loaded only on click.
+// v191 — deterministic Schedule + Meetings shell.
+// No DOM observers. No Dashboard/content repaint. Meetings is lazy-loaded only on click.
 
 const $=(s,r=document)=>r.querySelector(s);
 
@@ -24,7 +24,7 @@ function renameScheduleNav(){
   if(label){
     if(label.textContent!==wanted)label.textContent=wanted;
   }else if(badge){
-    if(!n.querySelector('[data-sm190-label]'))n.insertAdjacentHTML('afterbegin','<span data-sm190-label>Schedule and Meetings</span>');
+    if(!n.querySelector('[data-sm191-label]'))n.insertAdjacentHTML('afterbegin','<span data-sm191-label>Schedule and Meetings</span>');
   }else if(n.textContent.trim()!==wanted){
     n.textContent=wanted;
   }
@@ -33,10 +33,10 @@ function renameScheduleNav(){
 }
 
 function addStyles(){
-  if($('#sm190ShellStyles'))return;
+  if($('#sm191ShellStyles'))return;
   const s=document.createElement('style');
-  s.id='sm190ShellStyles';
-  s.textContent=`.sm190-shell-tabs{display:flex;gap:8px;margin:0 0 18px;padding:5px;border:1px solid #d6e2ed;border-radius:14px;background:#edf4f9;width:max-content;max-width:100%}.sm190-shell-tabs button{border:0;border-radius:10px;background:transparent;padding:10px 22px;color:#284a65;font-weight:900;font-size:15px;cursor:pointer}.sm190-shell-tabs button.active{background:#0b3764;color:#fff!important;-webkit-text-fill-color:#fff!important}@media(max-width:720px){.sm190-shell-tabs{width:100%;box-sizing:border-box}.sm190-shell-tabs button{flex:1}}`;
+  s.id='sm191ShellStyles';
+  s.textContent=`.sm191-shell-tabs{display:flex;gap:8px;margin:0 0 18px;padding:5px;border:1px solid #d6e2ed;border-radius:14px;background:#edf4f9;width:max-content;max-width:100%}.sm191-shell-tabs button{border:0;border-radius:10px;background:transparent;padding:10px 22px;color:#284a65;font-weight:900;font-size:15px;cursor:pointer}.sm191-shell-tabs button.active{background:#0b3764;color:#fff!important;-webkit-text-fill-color:#fff!important}@media(max-width:720px){.sm191-shell-tabs{width:100%;box-sizing:border-box}.sm191-shell-tabs button{flex:1}}`;
   document.head.appendChild(s);
 }
 
@@ -48,30 +48,19 @@ function decorateSchedule(){
   renameScheduleNav();
   addStyles();
   if($('#title'))$('#title').textContent='Schedule and Meetings';
-  if(root.querySelector('[data-sm190-shell-tabs]'))return true;
+  if(root.querySelector('[data-sm191-shell-tabs]'))return true;
   const tabs=document.createElement('div');
-  tabs.className='sm190-shell-tabs';
-  tabs.dataset.sm190ShellTabs='1';
-  tabs.innerHTML='<button type="button" class="active" aria-current="page">Schedule</button><button type="button" data-sm190-open-meetings>Meetings</button>';
+  tabs.className='sm191-shell-tabs';
+  tabs.dataset.sm191ShellTabs='1';
+  tabs.innerHTML='<button type="button" class="active" aria-current="page">Schedule</button><button type="button" data-sm191-open-meetings>Meetings</button>';
   page.before(tabs);
   return true;
-}
-
-function waitForScheduleRender(){
-  closeDrawer();
-  renameScheduleNav();
-  const started=Date.now();
-  const tick=()=>{
-    if(decorateSchedule())return;
-    if(Date.now()-started<15000)setTimeout(tick,120);
-  };
-  tick();
 }
 
 async function openMeetings(){
   closeDrawer();
   try{
-    const mod=await import('./meetings-page-v187.js?v=190');
+    const mod=await import('./meetings-page-v187.js?v=191');
     await mod.openMeetingsPage();
   }catch(e){
     console.error(e);
@@ -79,15 +68,23 @@ async function openMeetings(){
   }
 }
 
-[0,250,1000,2500].forEach(ms=>setTimeout(renameScheduleNav,ms));
+setInterval(()=>{
+  renameScheduleNav();
+  decorateSchedule();
+},500);
+
+[0,250,1000,2500].forEach(ms=>setTimeout(()=>{renameScheduleNav();decorateSchedule();},ms));
 
 document.addEventListener('click',e=>{
   const sNav=e.target.closest?.('[data-resident-schedule-link],[data-admin-schedule-link]');
   if(sNav){
-    waitForScheduleRender();
+    closeDrawer();
+    setTimeout(decorateSchedule,0);
+    setTimeout(decorateSchedule,250);
+    setTimeout(decorateSchedule,800);
     return;
   }
-  const meetings=e.target.closest?.('[data-sm190-open-meetings]');
+  const meetings=e.target.closest?.('[data-sm191-open-meetings]');
   if(meetings){
     e.preventDefault();
     e.stopPropagation();
@@ -97,6 +94,8 @@ document.addEventListener('click',e=>{
 
 window.addEventListener('hashchange',()=>{
   if(location.hash==='#resident-schedule'||location.hash==='#admin-schedule'){
-    waitForScheduleRender();
+    closeDrawer();
+    setTimeout(decorateSchedule,0);
+    setTimeout(decorateSchedule,300);
   }
 });
