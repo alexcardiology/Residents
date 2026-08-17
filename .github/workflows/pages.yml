@@ -24,6 +24,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Verify browser Supabase key
+        env:
+          SUPABASE_URL: https://dwkkhqmifmmxubtuaqbd.supabase.co
+          SUPABASE_KEY: sb_publishable_5RESwwz-dpHp8Sv5eZ2qqQ_73VQF4lV
+        run: |
+          set -euo pipefail
+          test -f assets/supabase-v174.js
+          test -f assets/login-v174.js
+          grep -F "$SUPABASE_KEY" assets/supabase-v174.js >/dev/null
+
+          curl -fsS \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$SUPABASE_URL/rest/v1/" >/dev/null
+
+          status="$(curl -sS -o /tmp/auth-smoke.json -w '%{http_code}' \
+            -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H 'Content-Type: application/json' \
+            --data '{"email":"auth-smoke-do-not-create@example.invalid","password":"not-a-real-password"}')"
+
+          if [ "$status" = "401" ]; then
+            echo "Supabase gateway rejected the browser API key"
+            cat /tmp/auth-smoke.json
+            exit 1
+          fi
+          if [ "$status" != "400" ] && [ "$status" != "422" ]; then
+            echo "Unexpected auth smoke response: HTTP $status"
+            cat /tmp/auth-smoke.json
+            exit 1
+          fi
+          echo "Supabase browser key accepted by REST and Auth gateways (Auth returned expected invalid-credentials status $status)."
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
