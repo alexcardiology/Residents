@@ -34,29 +34,32 @@ jobs:
           test -f assets/login-v174.js
           grep -F "$SUPABASE_KEY" assets/supabase-v174.js >/dev/null
 
-          curl -fsS \
+          rest_status="$(curl -sS -o /tmp/rest-smoke.json -w '%{http_code}' \
             -H "apikey: $SUPABASE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_KEY" \
-            "$SUPABASE_URL/rest/v1/" >/dev/null
+            "$SUPABASE_URL/rest/v1/")"
+          if [ "$rest_status" != "200" ]; then
+            echo "Supabase REST gateway rejected browser key: HTTP $rest_status"
+            cat /tmp/rest-smoke.json
+            exit 1
+          fi
 
-          status="$(curl -sS -o /tmp/auth-smoke.json -w '%{http_code}' \
+          auth_status="$(curl -sS -o /tmp/auth-smoke.json -w '%{http_code}' \
             -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
             -H "apikey: $SUPABASE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_KEY" \
             -H 'Content-Type: application/json' \
             --data '{"email":"auth-smoke-do-not-create@example.invalid","password":"not-a-real-password"}')"
 
-          if [ "$status" = "401" ]; then
-            echo "Supabase gateway rejected the browser API key"
+          if [ "$auth_status" = "401" ]; then
+            echo "Supabase Auth gateway rejected browser API key"
             cat /tmp/auth-smoke.json
             exit 1
           fi
-          if [ "$status" != "400" ] && [ "$status" != "422" ]; then
-            echo "Unexpected auth smoke response: HTTP $status"
+          if [ "$auth_status" != "400" ] && [ "$auth_status" != "422" ]; then
+            echo "Unexpected Auth response: HTTP $auth_status"
             cat /tmp/auth-smoke.json
             exit 1
           fi
-          echo "Supabase browser key accepted by REST and Auth gateways (Auth returned expected invalid-credentials status $status)."
+          echo "Supabase browser key accepted by REST and Auth gateways (expected invalid-credentials status $auth_status)."
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
