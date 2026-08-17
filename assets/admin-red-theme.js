@@ -82,6 +82,10 @@ void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) =>
   console.warn("Senior logbook response gate could not load", error);
 });
 
+void import("./senior-logbook-incoming-v202.js?v=202").catch((error) => {
+  console.warn("Incoming senior logbook requests could not load", error);
+});
+
 void import("./admin-bulk-penalties-v201.js?v=201").catch((error) => {
   console.warn("Admin bulk penalty tools could not load", error);
 });
