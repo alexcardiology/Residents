@@ -41,7 +41,15 @@
     <link rel="stylesheet" href="assets/minimum-requirements-compact-v148.css?v=1.0.150" />
     <link rel="stylesheet" href="assets/admin-card-title-hierarchy-v149.css?v=1.0.149" />
     <link rel="stylesheet" href="assets/audit-name-width-v151.css?v=1.0.156" />
-    <script type="module" src="assets/admin-red-theme.js?v=1.0.172"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "/Residents/assets/supabase.js": "/Residents/assets/supabase-v173.js",
+          "/Residents/assets/supabase.js?v=1.0.92": "/Residents/assets/supabase-v173.js"
+        }
+      }
+    </script>
+    <script type="module" src="assets/admin-red-theme.js?v=1.0.173"></script>
     <style>
       [hidden] { display: none !important; }
       #mobileHeaderIdentity { display: none; }
@@ -79,7 +87,7 @@
     </div>
     <dialog id="modal"><div id="modalBody"></div></dialog>
     <div id="toast"></div>
-    <script type="module" src="assets/app.js?v=1.0.96"></script>
+    <script type="module" src="assets/app.js?v=1.0.173"></script>
     <script type="module" src="assets/app-install-tracker.js?v=1.0.2"></script>
     <script type="module" src="assets/user-activity-v157.js?v=1.0.157"></script>
     <script type="module" src="assets/logbook-badge-fix-v157.js?v=1.0.157"></script>
@@ -119,7 +127,7 @@
     <script type="module" src="assets/resident-assessment-access-v151.js?v=1.0.153"></script>
     <script type="module" src="assets/attendance-checker-v167.js?v=1.0.167"></script>
     <script type="module">
-      import { sb } from "./assets/supabase.js";
+      import { sb } from "./assets/supabase-v173.js";
       const identity=document.querySelector("#mobileHeaderIdentity"),profileChip=document.querySelector("#profileChip");let username="",fallbackName="";
       const paintMobileIdentity=()=>{if(!identity)return;const chipName=profileChip?.querySelector("span:last-child")?.textContent?.trim(),displayName=chipName||fallbackName||username||"Signed in";identity.replaceChildren();const nameNode=document.createElement("strong"),userNode=document.createElement("small");nameNode.textContent=displayName;userNode.textContent=username?`@${username.replace(/^@/,"")}`:"";identity.append(nameNode,userNode)};
       try{const{data:sessionData}=await sb.auth.getSession(),userId=sessionData?.session?.user?.id;if(userId){const{data:profile}=await sb.from("profiles").select("display_name,username").eq("id",userId).single();username=String(profile?.username||"").trim();fallbackName=String(profile?.display_name||profile?.username||"").trim()}}catch(_){}
