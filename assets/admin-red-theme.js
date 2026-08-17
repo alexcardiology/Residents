@@ -1,3 +1,4 @@
+import "./auth-session-recovery-v171.js?v=1.0.171";
 import "./dual-role-bootstrap-v166.js?v=1.0.166";
 import "./dual-role-v163.js?v=1.0.166";
 import { sb } from "./supabase.js";
