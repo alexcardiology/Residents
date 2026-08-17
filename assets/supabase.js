@@ -25,22 +25,24 @@ const authStorage={
   }
 };
 
-export const sb=createClient('https://dwkkhqmifmmxubtuaqbd.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3a2tocW1pZm1teHVidHVhcWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5MjM1NDEsImV4cCI6MjEwMTQ5OTU0MX0.6_aryJx9eA_tKwqm6GjMbM4i9LG_z99qL-uDZaHlRJg',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:authStorage}});
+export const sb=createClient('https://dwkkhqmifmmxubtuaqbd.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBiYXNlIiwicmVmIjoiZHdra2hxbWlmbW14dWJ0dWFxYmQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4NTkyMzU0MSwiZXhwIjoyMTAxNDk5NTQxfQ.6_aryJx9eA_tKwqm6GjMbM4i9LG_z99qL-uDZaHlRJg',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:authStorage}});
 
-// El Médico is deliberately available before sign-in through duty-bot-public-v2.
+// El Médico is deliberately available before sign-in through the public schedule engines.
 // If an authenticated duty-bot call is rejected because the browser has a stale
-// or revoked session token, retry against that read-only public schedule engine
-// rather than exposing a raw Edge Function non-2xx error to the user.
+// or revoked session token, retry against those read-only engines rather than
+// exposing a raw Edge Function non-2xx error to the user.
 const originalFunctionsInvoke=sb.functions.invoke.bind(sb.functions);
 sb.functions.invoke=async(functionName,options={})=>{
   const primary=await originalFunctionsInvoke(functionName,options);
   if(functionName!=='duty-bot'||!primary?.error)return primary;
-  try{
-    const fallback=await originalFunctionsInvoke('duty-bot-public-v2',options);
-    if(!fallback?.error&&fallback?.data?.answer){
-      return{...fallback,data:{...fallback.data,fallback:'public-duty-engine'}};
-    }
-  }catch(_){}
+  for(const fallbackName of ['duty-bot-public-v2','duty-bot-public']){
+    try{
+      const fallback=await originalFunctionsInvoke(fallbackName,options);
+      if(!fallback?.error&&fallback?.data?.answer){
+        return{...fallback,data:{...fallback.data,fallback:fallbackName}};
+      }
+    }catch(_){}
+  }
   return primary;
 };
 
