@@ -27,7 +27,7 @@ jobs:
       - name: Verify browser Supabase key
         env:
           SUPABASE_URL: https://dwkkhqmifmmxubtuaqbd.supabase.co
-          SUPABASE_KEY: sb_publishable_5RESwwz-dpHp8Sv5eZ2qqQ_73VQF4lV
+          SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3a2hxbWlmbW14dWJ0dWFxYmQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4NTkyMzU0MSwiZXhwIjoyMTAxNDk5NTQxfQ.6_aryJx9eA_tKwqm6GjMbM4i9LG_z99qL-uDZaHlRJg
         run: |
           set -euo pipefail
           test -f assets/supabase-v174.js
