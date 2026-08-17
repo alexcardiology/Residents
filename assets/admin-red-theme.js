@@ -84,3 +84,7 @@ void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) =>
 void import("./schedule-meetings-unified-v168.js?v=1.0.169").catch((error) => {
   console.warn("Unified schedule and meetings UI could not load", error);
 });
+
+void import("./resident-dashboard-attendance-v169.js?v=1.0.169").catch((error) => {
+  console.warn("Resident dashboard and attendance polish could not load", error);
+});
