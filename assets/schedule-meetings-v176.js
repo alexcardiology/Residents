@@ -6,7 +6,8 @@ const CAIRO="Africa/Cairo";
 let role="";
 let mode="";
 let busy=false;
-let observerBusy=false;
+let navTimer=0;
+let repairTimer=0;
 
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
 function dt(v){if(!v)return"—";return new Intl.DateTimeFormat("en-GB",{timeZone:CAIRO,day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(v));}
@@ -29,26 +30,73 @@ function addStyles(){if($("#scheduleMeetings176Styles"))return;const s=document.
 `;document.head.appendChild(s)}
 
 function tabsHtml(active){return `<div class="sm176-tabs"><button type="button" data-sm176="schedule" class="${active==="schedule"?"active":""}">Schedule</button><button type="button" data-sm176="meetings" class="${active==="meetings"?"active":""}">Meetings</button></div>`}
-function wireTabs(){const root=$("#content");if(!root)return;root.querySelector('[data-sm176="schedule"]')?.addEventListener("click",openSchedule);root.querySelector('[data-sm176="meetings"]')?.addEventListener("click",openMeetings)}
 
-async function openSchedule(){if(busy)return;busy=true;mode="schedule";closeDrawer();try{
-  history.replaceState(null,"",`${location.pathname}#resident-schedule`);
-  const item=scheduleItem();if(item){item.dataset.sm176program="1";item.click();delete item.dataset.sm176program}
-  await new Promise(r=>setTimeout(r,120));
-  const root=$("#content");if(root&&!root.querySelector(".sm176-tabs")){const w=document.createElement("div");w.innerHTML=tabsHtml("schedule");root.prepend(w.firstElementChild);wireTabs()}
-  setHead(role==="owner"?"ADMIN":"RESIDENT","Schedule & meetings");
-}finally{closeDrawer();busy=false}}
-
-async function residentMeetings(){setHead("RESIDENT","Schedule & meetings");const root=$("#content");if(!root)return;root.innerHTML=`<div class="sm176-page">${tabsHtml("meetings")}<section class="sm176-hero"><h2>Meeting attendance</h2><p>View upcoming meetings, check-in windows and your attendance history.</p></section><div id="sm176ResidentList" class="sm176-grid"><div class="sm176-card">Loading…</div></div></div>`;wireTabs();
- try{const rows=await rpc("get_my_attendance_meetings_v167");const box=$("#sm176ResidentList");if(!rows?.length){box.innerHTML='<div class="sm176-empty">No meetings yet.</div>';return}const now=Date.now();box.innerHTML=rows.map(m=>{const open=now>=new Date(m.checkin_opens_at).getTime()&&now<=new Date(m.checkin_closes_at).getTime();return `<article class="sm176-card"><span class="sm176-badge ${m.attended?"ok":"wait"}">${m.attended?"✓ Checked-in":"Not checked in"}</span> <span class="sm176-badge ${m.meeting_mode}">${m.meeting_mode==="physical"?"Physical · QR":"Online"}</span><h3>${esc(m.title)}</h3><div class="sm176-meta"><span><b>Meeting starts:</b> ${dt(m.starts_at)}${m.ends_at?` · <b>ends:</b> ${dt(m.ends_at)}`:""}</span>${m.venue?`<span>📍 ${esc(m.venue)}</span>`:""}<span><b>Check-in for this meeting starts:</b> ${dt(m.checkin_opens_at)} · <b>ends:</b> ${dt(m.checkin_closes_at)}</span>${m.attended?`<span><b>Check-in time:</b> ${dt(m.checked_in_at)}</span>`:""}</div>${m.attended?'<div class="sm176-success">✓ You checked-in successfully</div>':m.meeting_mode==="physical"?`<div class="sm176-note">Scan the QR code displayed by the Admin during the check-in window.</div>`:open?`<div class="sm176-actions"><button data-sm176-online="${m.id}">Check in now</button></div>`:'<div class="sm176-note">Online check-in is available only during the check-in window.</div>'}</article>`}).join("");box.querySelectorAll("[data-sm176-online]").forEach(b=>b.addEventListener("click",async()=>{try{await rpc("resident_attendance_checkin_v167",{p_qr_token:null,p_meeting_id:b.dataset.sm176Online});await residentMeetings()}catch(e){alert(e.message||e)}}));}catch(e){$("#sm176ResidentList").innerHTML=`<div class="sm176-empty">${esc(e.message||e)}</div>`}}
+async function residentMeetings(){
+  mode="meetings";setHead("RESIDENT","Schedule & meetings");
+  const root=$("#content");if(!root)return;
+  root.innerHTML=`<div class="sm176-page" data-sm176-page="meetings">${tabsHtml("meetings")}<section class="sm176-hero"><h2>Meeting attendance</h2><p>View upcoming meetings, check-in windows and your attendance history.</p></section><div id="sm176ResidentList" class="sm176-grid"><div class="sm176-card">Loading…</div></div></div>`;
+  try{
+    const rows=await rpc("get_my_attendance_meetings_v167");
+    if(mode!=="meetings")return;
+    const box=$("#sm176ResidentList");if(!box)return;
+    if(!rows?.length){box.innerHTML='<div class="sm176-empty">No meetings yet.</div>';return}
+    const now=Date.now();
+    box.innerHTML=rows.map(m=>{const open=now>=new Date(m.checkin_opens_at).getTime()&&now<=new Date(m.checkin_closes_at).getTime();return `<article class="sm176-card"><span class="sm176-badge ${m.attended?"ok":"wait"}">${m.attended?"✓ Checked-in":"Not checked in"}</span> <span class="sm176-badge ${m.meeting_mode}">${m.meeting_mode==="physical"?"Physical · QR":"Online"}</span><h3>${esc(m.title)}</h3><div class="sm176-meta"><span><b>Meeting starts:</b> ${dt(m.starts_at)}${m.ends_at?` · <b>ends:</b> ${dt(m.ends_at)}`:""}</span>${m.venue?`<span>📍 ${esc(m.venue)}</span>`:""}<span><b>Check-in for this meeting starts:</b> ${dt(m.checkin_opens_at)} · <b>ends:</b> ${dt(m.checkin_closes_at)}</span>${m.attended?`<span><b>Check-in time:</b> ${dt(m.checked_in_at)}</span>`:""}</div>${m.attended?'<div class="sm176-success">✓ You checked-in successfully</div>':m.meeting_mode==="physical"?`<div class="sm176-note">Scan the QR code displayed by the Admin during the check-in window.</div>`:open?`<div class="sm176-actions"><button data-sm176-online="${m.id}">Check in now</button></div>`:'<div class="sm176-note">Online check-in is available only during the check-in window.</div>'}</article>`}).join("");
+  }catch(e){const box=$("#sm176ResidentList");if(box)box.innerHTML=`<div class="sm176-empty">${esc(e.message||e)}</div>`}
+}
 
 function localInput(iso){if(!iso)return"";const d=new Date(iso);const p=new Intl.DateTimeFormat("en-CA",{timeZone:CAIRO,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(d);const o=Object.fromEntries(p.map(x=>[x.type,x.value]));return `${o.year}-${o.month}-${o.day}T${o.hour}:${o.minute}`}
 function toIso(v){if(!v)return null;return new Date(`${v}:00+03:00`).toISOString()}
-async function adminMeetings(){setHead("ADMIN","Schedule & meetings");const root=$("#content");if(!root)return;root.innerHTML=`<div class="sm176-page">${tabsHtml("meetings")}<section class="sm176-hero"><h2>Resident meeting attendance</h2><p>Create meetings, define check-in windows, show QR codes for physical meetings and review attendance.</p></section><form id="sm176AdminForm" class="sm176-admin-form"><label class="full">Meeting title<input name="title" required minlength="3"></label><label>Date<input type="date" name="date" required></label><label>Type<select name="mode"><option value="physical">Physical meeting · QR</option><option value="online">Online meeting</option></select></label><label>Starts<input type="datetime-local" name="starts" required></label><label>Ends (optional)<input type="datetime-local" name="ends"></label><label>Check-in opens<input type="datetime-local" name="opens" required></label><label>Check-in closes<input type="datetime-local" name="closes" required></label><label>Venue<input name="venue"></label><label>Notes<input name="notes"></label><button type="submit">Create meeting</button></form><div id="sm176AdminList" class="sm176-grid"><div class="sm176-card">Loading…</div></div></div>`;wireTabs();const f=$("#sm176AdminForm");f.date.value=new Intl.DateTimeFormat("en-CA",{timeZone:CAIRO}).format(new Date());f.addEventListener("submit",async e=>{e.preventDefault();try{await rpc("owner_create_attendance_meeting_v167",{p_title:f.title.value,p_meeting_date:f.date.value,p_starts_at:toIso(f.starts.value),p_ends_at:toIso(f.ends.value),p_checkin_opens_at:toIso(f.opens.value),p_checkin_closes_at:toIso(f.closes.value),p_meeting_mode:f.mode.value,p_venue:f.venue.value,p_notes:f.notes.value});await adminMeetings()}catch(err){alert(err.message||err)}});try{const rows=await rpc("owner_list_attendance_meetings_v167");const box=$("#sm176AdminList");if(!rows?.length){box.innerHTML='<div class="sm176-empty">No meetings created.</div>';return}box.innerHTML=rows.map(m=>`<article class="sm176-card"><span class="sm176-badge ${m.is_active?"ok":"wait"}">${m.is_active?"Active":"Archived"}</span> <span class="sm176-badge ${m.meeting_mode}">${m.meeting_mode==="physical"?"Physical · QR":"Online"}</span><h3>${esc(m.title)}</h3><div class="sm176-meta"><span><b>Meeting starts:</b> ${dt(m.starts_at)}${m.ends_at?` · <b>ends:</b> ${dt(m.ends_at)}`:""}</span><span><b>Check-in:</b> ${dt(m.checkin_opens_at)} → ${dt(m.checkin_closes_at)}</span><span><b>${Number(m.attendance_count||0)}</b> attendance records</span></div>${m.meeting_mode==="physical"?`<div class="sm176-actions"><button data-sm176-showqr="${m.id}">Show QR</button></div>`:""}</article>`).join("");box.querySelectorAll("[data-sm176-showqr]").forEach(btn=>btn.addEventListener("click",()=>{const m=rows.find(x=>String(x.id)===String(btn.dataset.sm176Showqr));const old=hiddenMeetingItem();if(old){old.dataset.sm176program="1";old.click();delete old.dataset.sm176program;setTimeout(()=>{const q=$(`[data-qr="${m.id}"]`);q?.click()},160)}}));}catch(e){$("#sm176AdminList").innerHTML=`<div class="sm176-empty">${esc(e.message||e)}</div>`}}
+async function adminMeetings(){
+  mode="meetings";setHead("ADMIN","Schedule & meetings");const root=$("#content");if(!root)return;
+  root.innerHTML=`<div class="sm176-page" data-sm176-page="meetings">${tabsHtml("meetings")}<section class="sm176-hero"><h2>Resident meeting attendance</h2><p>Create meetings, define check-in windows, show QR codes for physical meetings and review attendance.</p></section><form id="sm176AdminForm" class="sm176-admin-form"><label class="full">Meeting title<input name="title" required minlength="3"></label><label>Date<input type="date" name="date" required></label><label>Type<select name="mode"><option value="physical">Physical meeting · QR</option><option value="online">Online meeting</option></select></label><label>Starts<input type="datetime-local" name="starts" required></label><label>Ends (optional)<input type="datetime-local" name="ends"></label><label>Check-in opens<input type="datetime-local" name="opens" required></label><label>Check-in closes<input type="datetime-local" name="closes" required></label><label>Venue<input name="venue"></label><label>Notes<input name="notes"></label><button type="submit">Create meeting</button></form><div id="sm176AdminList" class="sm176-grid"><div class="sm176-card">Loading…</div></div></div>`;
+  const f=$("#sm176AdminForm");f.date.value=new Intl.DateTimeFormat("en-CA",{timeZone:CAIRO}).format(new Date());f.addEventListener("submit",async e=>{e.preventDefault();try{await rpc("owner_create_attendance_meeting_v167",{p_title:f.title.value,p_meeting_date:f.date.value,p_starts_at:toIso(f.starts.value),p_ends_at:toIso(f.ends.value),p_checkin_opens_at:toIso(f.opens.value),p_checkin_closes_at:toIso(f.closes.value),p_meeting_mode:f.mode.value,p_venue:f.venue.value,p_notes:f.notes.value});await adminMeetings()}catch(err){alert(err.message||err)}});
+  try{const rows=await rpc("owner_list_attendance_meetings_v167");if(mode!=="meetings")return;const box=$("#sm176AdminList");if(!box)return;if(!rows?.length){box.innerHTML='<div class="sm176-empty">No meetings created.</div>';return}box.innerHTML=rows.map(m=>`<article class="sm176-card"><span class="sm176-badge ${m.is_active?"ok":"wait"}">${m.is_active?"Active":"Archived"}</span> <span class="sm176-badge ${m.meeting_mode}">${m.meeting_mode==="physical"?"Physical · QR":"Online"}</span><h3>${esc(m.title)}</h3><div class="sm176-meta"><span><b>Meeting starts:</b> ${dt(m.starts_at)}${m.ends_at?` · <b>ends:</b> ${dt(m.ends_at)}`:""}</span><span><b>Check-in:</b> ${dt(m.checkin_opens_at)} → ${dt(m.checkin_closes_at)}</span><span><b>${Number(m.attendance_count||0)}</b> attendance records</span></div>${m.meeting_mode==="physical"?`<div class="sm176-actions"><button data-sm176-showqr="${m.id}">Show QR</button></div>`:""}</article>`).join("")}catch(e){const box=$("#sm176AdminList");if(box)box.innerHTML=`<div class="sm176-empty">${esc(e.message||e)}</div>`}
+}
 
-async function openMeetings(){if(busy)return;busy=true;mode="meetings";closeDrawer();try{history.replaceState(null,"",`${location.pathname}#schedule-meetings`);if(role==="owner")await adminMeetings();else await residentMeetings()}finally{closeDrawer();busy=false}}
+async function openMeetings(){
+  if(busy&&mode==="meetings")return;
+  busy=true;mode="meetings";closeDrawer();history.replaceState(null,"",`${location.pathname}#schedule-meetings`);
+  try{if(role==="owner")await adminMeetings();else await residentMeetings()}finally{busy=false;closeDrawer();scheduleRepair()}
+}
 
-function syncNav(){const item=scheduleItem();if(item){if((item.textContent||"").trim()!=="Schedule & meetings")item.textContent="Schedule & meetings";if(!item.dataset.sm176wired){item.dataset.sm176wired="1";item.addEventListener("click",e=>{if(item.dataset.sm176program)return;mode="schedule";setTimeout(()=>{setHead(role==="owner"?"ADMIN":"RESIDENT","Schedule & meetings");const root=$("#content");if(root&&!root.querySelector(".sm176-tabs")){const w=document.createElement("div");w.innerHTML=tabsHtml("schedule");root.prepend(w.firstElementChild);wireTabs()}closeDrawer()},120)})}}const m=hiddenMeetingItem();if(m)m.style.display="none";navItems().forEach(n=>{if(!n.dataset.sm176close){n.dataset.sm176close="1";n.addEventListener("click",()=>setTimeout(closeDrawer,0))}})}
+async function openSchedule(){
+  mode="schedule";clearTimeout(repairTimer);closeDrawer();history.replaceState(null,"",`${location.pathname}#resident-schedule`);
+  const item=scheduleItem();if(item){item.dataset.sm176program="1";item.click();delete item.dataset.sm176program}
+  setTimeout(()=>{if(mode!=="schedule")return;setHead(role==="owner"?"ADMIN":"RESIDENT","Schedule & meetings");const root=$("#content");if(root&&!root.querySelector(".sm176-tabs")){const w=document.createElement("div");w.innerHTML=tabsHtml("schedule");root.prepend(w.firstElementChild)}closeDrawer()},120)
+}
 
-async function boot(){addStyles();try{const{data:s}=await sb.auth.getSession();const id=s?.session?.user?.id;if(!id)return;const{data:p}=await sb.from("profiles").select("role,is_active").eq("id",id).maybeSingle();if(!p?.is_active)return;role=String(p.role||"")}catch{return}syncNav();const nav=$("#nav"),content=$("#content");if(nav)new MutationObserver(()=>{clearTimeout(observerBusy);observerBusy=setTimeout(syncNav,30)}).observe(nav,{childList:true,subtree:true,characterData:true});if(content)new MutationObserver(()=>{if(mode==="meetings"&&!$(".sm176-page")){setTimeout(()=>{if(mode==="meetings"&&!$(".sm176-page"))openMeetings()},60)}}).observe(content,{childList:true,subtree:false});if(location.hash==="#schedule-meetings")openMeetings()}
+function scheduleRepair(){
+  clearTimeout(repairTimer);
+  repairTimer=setTimeout(async()=>{
+    if(mode!=="meetings")return;
+    const good=$("#content [data-sm176-page='meetings']");
+    if(!good){busy=false;if(role==="owner")await adminMeetings();else await residentMeetings()}
+    if(mode==="meetings")scheduleRepair();
+  },180);
+}
+
+function syncNav(){
+  const item=scheduleItem();
+  if(item){if((item.textContent||"").trim()!=="Schedule & meetings")item.textContent="Schedule & meetings";if(!item.dataset.sm176wired){item.dataset.sm176wired="1";item.addEventListener("click",()=>{if(item.dataset.sm176program)return;mode="schedule";setTimeout(()=>{setHead(role==="owner"?"ADMIN":"RESIDENT","Schedule & meetings");closeDrawer()},80)})}}
+  const m=hiddenMeetingItem();if(m)m.style.display="none";
+  navItems().forEach(n=>{if(!n.dataset.sm176close){n.dataset.sm176close="1";n.addEventListener("click",()=>setTimeout(closeDrawer,0))}})
+}
+
+// Capture the unified tabs BEFORE legacy attendance/dashboard handlers can react.
+document.addEventListener("click",e=>{
+  const meetingTab=e.target.closest?.('[data-sm176="meetings"]');
+  if(meetingTab){e.preventDefault();e.stopImmediatePropagation();openMeetings();return}
+  const scheduleTab=e.target.closest?.('[data-sm176="schedule"]');
+  if(scheduleTab){e.preventDefault();e.stopImmediatePropagation();openSchedule();return}
+},true);
+
+async function boot(){
+  addStyles();
+  try{const{data:s}=await sb.auth.getSession();const id=s?.session?.user?.id;if(!id)return;const{data:p}=await sb.from("profiles").select("role,is_active").eq("id",id).maybeSingle();if(!p?.is_active)return;role=String(p.role||"")}catch{return}
+  syncNav();
+  const nav=$("#nav");if(nav)new MutationObserver(()=>{clearTimeout(navTimer);navTimer=setTimeout(syncNav,20)}).observe(nav,{childList:true,subtree:true,characterData:true});
+  setInterval(syncNav,500);
+  if(location.hash==="#schedule-meetings")openMeetings();
+}
 boot();
