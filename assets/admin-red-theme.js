@@ -82,8 +82,8 @@ void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) =>
   console.warn("Senior logbook response gate could not load", error);
 });
 
-void import("./schedule-meetings-unified-v168.js?v=1.0.194").catch((error) => {
-  console.warn("Unified schedule and meetings UI could not load", error);
-});
+// Schedule/Meetings is intentionally loaded only once from app.html.
+// Do not dynamically import it here: a second cache URL executes the meeting
+// enhancement twice and duplicates lifecycle controls on Admin meeting cards.
 
 // Stable authentication bootstrap: no forced refresh and no automatic sign-out.
