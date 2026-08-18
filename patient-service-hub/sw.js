@@ -1,7 +1,0 @@
-const CACHE='alex-cardio-psh-v4';
-const CORE=['./','./index.html','./login.html','./manifest.webmanifest','./icon.svg'];
-self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting())));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET')return;const url=new URL(req.url);if(url.origin!==self.location.origin)return;event.respondWith(fetch(req).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));return res}).catch(()=>caches.match(req).then(r=>r||caches.match('./login.html'))));});
-self.addEventListener('push',event=>{let data={};try{data=event.data?event.data.json():{}}catch{data={body:event.data?.text()||''}};const title=data.title||'Alexandria Cardiology Patient Hub';const options={body:data.body||'',icon:'./icon.svg',badge:'./icon.svg',tag:data.tag||'psh-notification',data:{url:data.url||'./v2.html'}};event.waitUntil(self.registration.showNotification(title,options));});
-self.addEventListener('notificationclick',event=>{event.notification.close();const target=new URL(event.notification.data?.url||'./v2.html',self.location.href).href;event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(ws=>{for(const w of ws){if('focus'in w){w.navigate(target);return w.focus()}}return clients.openWindow(target)}));});
