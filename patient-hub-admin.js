@@ -9,4 +9,5 @@ async function deleteConsultant(id){if(!confirm(lang==='ar'?'حذف هذا ال�
 async function resetAllConsultants(){const text=lang==='ar'?'سيتم حذف جميع أسماء الاستشاريين من القائمة. الحجوزات القديمة لن تُحذف. هل أنت متأكد؟':'This will delete every consultant from the active list. Existing reservations will not be deleted. Are you sure?';if(!confirm(text))return;const r=await sb.from('psh_cath_consultants').delete().gte('id',0);if(r.error)return toast(r.error.message);await loadAdminConsultants();if(window.refreshCathConsultants)await window.refreshCathConsultants();toast(lang==='ar'?'تم مسح كل الأسماء':'All consultant entries reset')}
 window.editCathConsultant=editConsultant;window.deleteCathConsultant=deleteConsultant;window.loadAdminConsultants=loadAdminConsultants;
 const timer=setInterval(()=>{if(typeof profile!=='undefined'&&profile){ensureAdminUi();clearInterval(timer)}},250);
+if(!document.querySelector('script[data-cath-export]')){const s=document.createElement('script');s.src='./patient-hub-cath-export.js?v=1';s.dataset.cathExport='1';document.body.appendChild(s)}
 })();
