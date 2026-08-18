@@ -2,16 +2,28 @@
 const KEY='psh_nav_state_v5';
 const app=document.getElementById('appView'),login=document.getElementById('loginView');
 if(app)app.style.visibility='hidden';if(login)login.style.visibility='hidden';
-const boot=document.createElement('div');boot.id='pshBoot';boot.style.cssText='position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:linear-gradient(135deg,#fffaf6,#fff2e7);color:#8a2d0c;font:850 18px Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif';boot.innerHTML='<div style="display:grid;place-items:center;gap:10px"><div style="font-size:38px">♥</div><div>Patient Service Hub</div></div>';document.body.appendChild(boot);
-function read(){try{return JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('psh_nav_state_v4')||localStorage.getItem('psh_nav_state_v3')||'{}')}catch{return{}}}
-function write(p){localStorage.setItem(KEY,JSON.stringify({...read(),...p}))}
-function finish(){boot?.remove()}
-function revealLogin(){if(login)login.style.visibility='visible';if(app)app.style.visibility='visible';finish()}
-function revealApp(){if(app)app.style.visibility='visible';finish()}
+const boot=document.createElement('div');boot.id='pshBoot';boot.style.cssText='position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:linear-gradient(135deg,#fffaf6,#fff2e7);color:#8a2d0c;font:700 18px Tahoma,Arial,sans-serif';boot.innerHTML='<div style="display:grid;place-items:center;gap:10px"><div style="font-size:38px">♥</div><div>Patient Service Hub</div></div>';document.body.appendChild(boot);
+function installDrawerLabels(){
+ const labels={
+  'cath_miri':['Miri','الميري'],'cath_smouha':['Smouha','سموحة'],
+  'echo_miri':['Miri','الميري'],'echo_smouha':['Smouha','سموحة'],
+  'tee':['TEE','إيكو بالمنظار'],'dse':['DSE','إيكو بالمجهود الدوائي'],
+  'holter':['Holter','رسم قلب ممتد هولتر'],'exercise_ecg':['Exercise ECG','رسم قلب بالمجهود']
+ };
+ Object.entries(labels).forEach(([code,[en,ar]])=>{const b=document.querySelector(`.nav [data-service="${code}"]`);if(!b)return;const icon=code==='holter'?'◌ ':code==='exercise_ecg'?'⌁ ':'';b.innerHTML=`${icon}<span data-en="${en}" data-ar="${ar}">${en}</span>`});
+ const cath=document.querySelector('.nav [data-toggle="cath"] span:first-child');if(cath){cath.dataset.en='♥ Cath Lab';cath.dataset.ar='♥ معمل القسطرة'}
+ const echo=document.querySelector('.nav [data-toggle="echo"] span:first-child');if(echo){echo.dataset.en='◉ Echo Lab';echo.dataset.ar='◉ معمل الإيكو'}
+ if(typeof applyLang==='function')applyLang();
+}
+installDrawerLabels();
+const KEYREAD=()=>{try{return JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('psh_nav_state_v4')||localStorage.getItem('psh_nav_state_v3')||'{}')}catch{return{}}};
+function read(){return KEYREAD()}function write(p){localStorage.setItem(KEY,JSON.stringify({...read(),...p}))}
+function finish(){boot?.remove()}function revealLogin(){if(login)login.style.visibility='visible';if(app)app.style.visibility='visible';finish()}function revealApp(){if(app)app.style.visibility='visible';finish()}
 function restoreDrawer(st){['cath','echo'].forEach(id=>{const el=document.getElementById(id),k=id+'Collapsed';if(el&&typeof st[k]==='boolean')el.classList.toggle('hidden',st[k])})}
 async function restore(){const st=read();restoreDrawer(st);try{if(st.page==='service'&&st.service&&typeof openService==='function'){await openService(st.service);const d=document.getElementById('serviceDate'),s=document.getElementById('serviceStatus'),rf=document.getElementById('rangeFrom'),rt=document.getElementById('rangeTo');if(d&&st.date!==undefined)d.value=st.date||'';if(s&&st.status!==undefined)s.value=st.status||'';if(rf&&st.rangeFrom!==undefined)rf.value=st.rangeFrom||'';if(rt&&st.rangeTo!==undefined)rt.value=st.rangeTo||'';if(typeof loadService==='function')await loadService();restoreDrawer(st)}else if(st.page&&st.page!=='dashboard'&&document.getElementById(st.page)&&typeof show==='function'){show(st.page);restoreDrawer(st)}}catch(e){console.error('PSH restore failed',e)}finally{revealApp()}}
 document.addEventListener('click',e=>{const p=e.target.closest('[data-page]');if(p)write({page:p.dataset.page,service:null});const s=e.target.closest('[data-service]');if(s)write({page:'service',service:s.dataset.service});const t=e.target.closest('[data-toggle]');if(t){const id=t.dataset.toggle;setTimeout(()=>{const el=document.getElementById(id);if(el)write({[id+'Collapsed']:el.classList.contains('hidden')})},0)}},true);
 document.addEventListener('change',e=>{if(e.target?.id==='serviceDate')write({date:e.target.value});if(e.target?.id==='serviceStatus')write({status:e.target.value});if(e.target?.id==='rangeFrom')write({rangeFrom:e.target.value});if(e.target?.id==='rangeTo')write({rangeTo:e.target.value})});
+document.getElementById('appLang')?.addEventListener('click',()=>setTimeout(installDrawerLabels,0));
 window.addEventListener('beforeunload',()=>{const active=document.querySelector('.page.on')?.id||'dashboard';const st={page:active,service:active==='service'?(typeof currentService!=='undefined'?currentService:null):null,date:document.getElementById('serviceDate')?.value||'',status:document.getElementById('serviceStatus')?.value||'',rangeFrom:document.getElementById('rangeFrom')?.value||'',rangeTo:document.getElementById('rangeTo')?.value||''};['cath','echo'].forEach(id=>{const el=document.getElementById(id);if(el)st[id+'Collapsed']=el.classList.contains('hidden')});write(st)});
 (async()=>{try{const {data:{session}}=await sb.auth.getSession();if(!session){revealLogin();return}let waited=0;const t=setInterval(()=>{waited+=50;if(app&&!app.classList.contains('hidden')){clearInterval(t);restore()}else if(waited>=1800){clearInterval(t);if(app&&!app.classList.contains('hidden'))restore();else revealLogin()}},50)}catch(e){console.error('PSH startup failed',e);revealLogin()}})();
 setTimeout(()=>{if(document.getElementById('pshBoot')){if(app&&!app.classList.contains('hidden'))revealApp();else revealLogin()}},2500);
