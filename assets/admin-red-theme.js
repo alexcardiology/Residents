@@ -86,7 +86,7 @@ void import("./senior-logbook-incoming-v202.js?v=205").catch((error) => {
   console.warn("Incoming senior logbook requests could not load", error);
 });
 
-void import("./admin-logbook-authority-v206.js?v=206").catch((error) => {
+void import("./admin-logbook-authority-v206.js?v=207").catch((error) => {
   console.warn("Admin logbook authority controls could not load", error);
 });
 
