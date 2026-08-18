@@ -1,0 +1,1 @@
+(()=>{if(!window.supabase?.createClient)return;const original=window.supabase.createClient.bind(window.supabase);window.supabase.createClient=(url,key,options={})=>original(url,key,{...options,auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage,...(options.auth||{})}});})();
