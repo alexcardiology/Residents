@@ -64,15 +64,17 @@ jobs:
           node --check assets/senior-logbook-incoming-v202.js
           node --check assets/admin-logbook-authority-v206.js
           node --check assets/logbook-submit-export-v207.js
-          test -f assets/alexandria-faculty-logo.jpg
-          grep -F 'logbook-submit-export-v207.js?v=207' app.html >/dev/null
+          grep -F 'logbook-submit-export-v207.js?v=208' app.html >/dev/null
+          grep -F 'E-resident logbook' assets/logbook-submit-export-v207.js >/dev/null
+          grep -F 'Residency Year' assets/logbook-submit-export-v207.js >/dev/null
+          grep -F 'Notes / case details' assets/logbook-submit-export-v207.js >/dev/null
+          grep -F 'Head of Cardiology Department signature' assets/logbook-submit-export-v207.js >/dev/null
+          grep -F '48-hour protection' assets/logbook-submit-export-v207.js >/dev/null
           grep -F 'schedule-meetings-unified-v168.js?v=1.0.199' app.html >/dev/null
           grep -F 'admin-red-theme.js?v=1.0.206' app.html >/dev/null
           grep -F 'senior-logbook-incoming-v202.js?v=205' assets/admin-red-theme.js >/dev/null
           grep -F 'admin-logbook-authority-v206.js?v=207' assets/admin-red-theme.js >/dev/null
           grep -F 'admin-bulk-penalties-v201.js?v=201' assets/admin-red-theme.js >/dev/null
-          grep -F 'Head of Cardiology Department signature' assets/logbook-submit-export-v207.js >/dev/null
-          grep -F '48-hour protection' assets/logbook-submit-export-v207.js >/dev/null
           if grep -F 'admin-bulk-penalties-v200.js' assets/admin-red-theme.js >/dev/null; then
             echo 'Race-prone bulk penalty v200 loader is still active'
             exit 1
@@ -113,4 +115,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-# Deployment marker: logbook-submit-export-v207
+# Deployment marker: logbook-submit-export-v208
