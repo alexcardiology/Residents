@@ -66,7 +66,7 @@ jobs:
           grep -F 'schedule-meetings-unified-v168.js?v=1.0.199' app.html >/dev/null
           grep -F 'admin-red-theme.js?v=1.0.206' app.html >/dev/null
           grep -F 'senior-logbook-incoming-v202.js?v=205' assets/admin-red-theme.js >/dev/null
-          grep -F 'admin-logbook-authority-v206.js?v=206' assets/admin-red-theme.js >/dev/null
+          grep -F 'admin-logbook-authority-v206.js?v=207' assets/admin-red-theme.js >/dev/null
           grep -F 'admin-bulk-penalties-v201.js?v=201' assets/admin-red-theme.js >/dev/null
           if grep -F 'admin-bulk-penalties-v200.js' assets/admin-red-theme.js >/dev/null; then
             echo 'Race-prone bulk penalty v200 loader is still active'
@@ -108,4 +108,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-# Deployment marker: admin-logbook-authority-v206
+# Deployment marker: overdue-senior-controls-v207
