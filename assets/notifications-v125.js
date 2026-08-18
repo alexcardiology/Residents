@@ -19,15 +19,40 @@ function toast(text) {
   const node = document.querySelector("#toast");
   if (!node) return;
   node.textContent = text; node.style.display = "block";
-  setTimeout(() => { node.style.display = "none"; }, 3000);
+  setTimeout(() => { node.style.display = "none"; }, 4200);
 }
 function vapidBytes(base64) {
   const padding = "=".repeat((4 - base64.length % 4) % 4);
   const raw = atob((base64 + padding).replace(/-/g,"+").replace(/_/g,"/"));
   return Uint8Array.from([...raw].map((ch) => ch.charCodeAt(0)));
 }
+function pushSupport() {
+  return {
+    serviceWorker: "serviceWorker" in navigator,
+    pushManager: "PushManager" in window,
+    notification: "Notification" in window,
+  };
+}
+function fullySupported() {
+  const s = pushSupport();
+  return s.serviceWorker && s.pushManager && s.notification;
+}
+function androidLike() {
+  return /Android/i.test(navigator.userAgent || "");
+}
+function likelyInAppBrowser() {
+  const ua = navigator.userAgent || "";
+  return /FBAN|FBAV|Instagram|Line\/|wv\)|; wv|WhatsApp/i.test(ua);
+}
+function unsupportedMessage() {
+  if (androidLike()) {
+    if (likelyInAppBrowser()) return "Notifications are not available inside this in-app browser. Open Cardiology Residents in Chrome, Edge or Samsung Internet, then tap the bell again.";
+    return "This Android browser does not expose Web Push. Open Cardiology Residents in Chrome, Edge or Samsung Internet, then tap the bell again.";
+  }
+  return "Push notifications are not supported by this browser. Please open the portal in a browser that supports web notifications.";
+}
 async function registration() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return null;
+  if (!fullySupported()) return null;
   const swUrl = new URL("../push-sw.js", import.meta.url);
   return navigator.serviceWorker.register(swUrl.href);
 }
@@ -60,13 +85,22 @@ async function ensureSubscription(askPermission = false) {
 function updateButton() {
   const btn = document.querySelector("#notificationEnableButton");
   if (!btn) return;
-  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  if (!supported) { btn.hidden = true; return; }
+  // Never hide the bell. Android users in unsupported webviews need a visible
+  // affordance that explains how to open the portal in a push-capable browser.
   btn.hidden = false;
-  btn.classList.toggle("is-enabled", Notification.permission === "granted");
-  btn.classList.toggle("is-denied", Notification.permission === "denied");
-  btn.textContent = Notification.permission === "granted" ? "🔔" : Notification.permission === "denied" ? "🔕" : "🔔";
-  btn.title = Notification.permission === "granted" ? "Push notifications enabled" : Notification.permission === "denied" ? "Notifications blocked in browser settings" : "Enable push notifications";
+  const supported = fullySupported();
+  const permission = supported ? Notification.permission : "unsupported";
+  btn.classList.toggle("is-enabled", permission === "granted");
+  btn.classList.toggle("is-denied", permission === "denied");
+  btn.classList.toggle("is-unsupported", permission === "unsupported");
+  btn.textContent = permission === "denied" ? "🔕" : "🔔";
+  btn.title = permission === "granted"
+    ? "Push notifications enabled"
+    : permission === "denied"
+      ? "Notifications blocked in browser settings"
+      : permission === "unsupported"
+        ? "Tap for notification setup instructions"
+        : "Enable push notifications";
   btn.setAttribute("aria-label",btn.title);
 }
 function installButton() {
@@ -78,7 +112,12 @@ function installButton() {
   const refresh = document.querySelector("#mobileHeaderRefresh");
   header.insertBefore(btn, refresh || null);
   btn.addEventListener("click", async () => {
-    if (Notification.permission === "denied") return toast("Notifications are blocked. Allow them in your browser/site settings first.");
+    if (!fullySupported()) return alert(unsupportedMessage());
+    if (Notification.permission === "denied") {
+      return alert(androidLike()
+        ? "Notifications are blocked for this site. Open your browser Site settings → Notifications → Allow for alexcardiology.github.io, then return here and tap the bell again."
+        : "Notifications are blocked. Allow them in your browser/site settings first.");
+    }
     try {
       const ok = await ensureSubscription(true);
       toast(ok ? "Push notifications enabled" : "Notification permission was not enabled");
@@ -90,7 +129,7 @@ async function boot() {
   installButton();
   const { data } = await sb.auth.getSession();
   if (!data?.session) return;
-  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+  if (fullySupported() && Notification.permission === "granted") {
     try { await ensureSubscription(false); } catch (error) { console.warn("Push registration failed",error); }
   }
 }
