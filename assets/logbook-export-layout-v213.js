@@ -1,0 +1,6 @@
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const fmtDate=v=>{if(!v)return '—';const d=/^\d{4}-\d{2}-\d{2}$/.test(String(v))?new Date(v+'T12:00:00'):new Date(v);return isNaN(d)?String(v):new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d)};
+const part=v=>({attended:'Attended',failed_trial:'Failed trial',assisted:'Performed with assistance',solo_guided:'Performed solo under guidance',solo_unguided:'Performed solo without guidance',solo:'Performed solo without guidance',supervised:'Supervised'})[v]||String(v||'—');
+const hospital=v=>String(v||'').trim().toLowerCase()==='miri'?'AMUH':String(v||'—');
+const details=e=>{let a=e?.case_details;if(typeof a==='string'){try{a=JSON.parse(a)}catch(_){a=[]}}if(!Array.isArray(a))a=[];return a.map((x,i)=>String(x||'').trim()?`Case ${i+1}: ${String(x).trim()}`:'').filter(Boolean).join(' | ')};
+const LOGO='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOcAAADwCAIAAACtkyNRAAAA...';
