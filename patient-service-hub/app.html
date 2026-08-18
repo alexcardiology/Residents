@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fff7ed">
+<title>Alexandria Cardiology Patient Service Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:#fff7ed}.gate{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:radial-gradient(circle at 50% 12%,#fffdf9 0,#fff8ef 45%,#fff2e6 100%);transition:opacity .22s}.gate.out{opacity:0;pointer-events:none}.loadcard{width:min(470px,calc(100% - 32px));background:#fff;border:1px solid #f2b98f;border-radius:28px;padding:36px;text-align:center;box-shadow:0 18px 50px rgba(123,55,20,.10)}.logo{width:104px;height:88px;margin:0 auto 14px}.loadcard h1{margin:0;font-size:25px;color:#28130b}.loadcard p{margin:8px 0 20px;color:#75645c}.spinner{width:36px;height:36px;border:4px solid #ffdcc5;border-top-color:#f45b0b;border-radius:50%;margin:auto;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}#hub{position:fixed;inset:0;width:100%;height:100%;border:0;opacity:0;transition:opacity .22s;background:#fff7ed}#hub.ready{opacity:1}
+</style>
+</head>
+<body>
+<div id="gate" class="gate"><div class="loadcard"><div class="logo"><svg viewBox="0 0 180 145" width="100%" height="100%" fill="none"><defs><clipPath id="h"><path d="M86 132C48 101 21 77 21 44C21 19 49 7 68 25C77 33 83 40 86 47C89 40 95 33 104 25C123 7 151 19 151 44C151 77 124 101 86 132Z"/></clipPath></defs><path d="M86 132C48 101 21 77 21 44C21 19 49 7 68 25C77 33 83 40 86 47C89 40 95 33 104 25C123 7 151 19 151 44C151 77 124 101 86 132Z" fill="#f45b0b"/><rect x="86" width="94" height="145" fill="#fff" clip-path="url(#h)"/><path d="M86 132C48 101 21 77 21 44C21 19 49 7 68 25C77 33 83 40 86 47C89 40 95 33 104 25C123 7 151 19 151 44C151 77 124 101 86 132Z" stroke="#3f170f" stroke-width="3"/><path d="M30 72h26l7-30 12 61 11-36h18" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M110 31c0 16 2 28 12 39m-15-21c-4 17-2 33 10 48m5-26c11 5 18 14 18 28m-27-13c-11 7-17 17-15 32m26-34c-5 9-6 18-2 29m-10-46c-12 2-22 10-27 22" stroke="#d64c10" stroke-width="3.3" stroke-linecap="round"/></svg></div><h1>Alexandria Cardiology</h1><p>Opening Patient Service Hub…</p><div class="spinner"></div></div></div>
+<iframe id="hub" title="Alexandria Cardiology Patient Service Hub"></iframe>
+<script>
+const URL='https://dwkkhqmifmmxubtuaqbd.supabase.co',KEY='sb_publishable_5RESwwz-dpHp8Sv5eZ2qqQ_73VQF4lV';
+const sb=supabase.createClient(URL,KEY),hub=document.getElementById('hub'),gate=document.getElementById('gate');
+(async()=>{
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session){location.replace('./login.html?v=5');return}
+ hub.src='./v2.html?v=5';
+ let tries=0;
+ const watch=setInterval(()=>{
+   tries++;
+   try{
+     const doc=hub.contentDocument;
+     const app=doc&&doc.getElementById('app');
+     if(app&&!app.classList.contains('hide')){
+       clearInterval(watch);hub.classList.add('ready');gate.classList.add('out');setTimeout(()=>gate.remove(),260);return;
+     }
+     if(tries>80){clearInterval(watch);location.replace('./login.html?v=5')}
+   }catch(e){if(tries>80){clearInterval(watch);location.replace('./login.html?v=5')}}
+ },100);
+})();
+</script>
+</body></html>
