@@ -16,9 +16,7 @@ if (!document.querySelector("#inboxBadgeBootStyleV232")) {
 }
 
 let lastVerifiedCount = null;
-let settling = true;
 let syncing = false;
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function countUnreadThreads(messages = [], reviewActions = []) {
@@ -44,16 +42,17 @@ async function readAuthoritativeCount() {
   return countUnreadThreads(messages || [], reviewActions || []);
 }
 
+function setBadge(badge, value) {
+  const text = String(value);
+  if (badge.textContent !== text) badge.textContent = text;
+  const shouldHide = value === 0;
+  if (badge.hidden !== shouldHide) badge.hidden = shouldHide;
+}
+
 function paint(count) {
   const value = Math.max(0, Number(count) || 0);
-  document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
-    badge.textContent = String(value);
-    badge.hidden = value === 0;
-  });
-  document.querySelectorAll('.mailbox-tab[data-mail-tab="inbox"] .inline-badge').forEach((badge) => {
-    badge.textContent = String(value);
-    badge.hidden = value === 0;
-  });
+  document.querySelectorAll("[data-inbox-badge]").forEach((badge) => setBadge(badge, value));
+  document.querySelectorAll('.mailbox-tab[data-mail-tab="inbox"] .inline-badge').forEach((badge) => setBadge(badge, value));
 }
 
 async function syncVerifiedCount() {
@@ -64,7 +63,7 @@ async function syncVerifiedCount() {
     lastVerifiedCount = count;
     paint(count);
   } catch (_) {
-    // Keep the application's own badge state if the verification request fails.
+    // Leave the application's own badge state untouched if this optional check fails.
   } finally {
     syncing = false;
   }
@@ -73,44 +72,26 @@ async function syncVerifiedCount() {
 async function stabilizeStartup() {
   try {
     const { data } = await sb.auth.getSession();
-    if (!data?.session) {
-      root.classList.remove("inbox-badge-booting");
-      settling = false;
-      return;
-    }
+    if (!data?.session) return;
 
-    // The portal runs several mailbox/workflow requests during bootstrap. Keep
-    // both Inbox counters invisible until the database count has settled, so an
-    // old unread value can never flash before the final read state arrives.
-    await sleep(850);
+    // One short settle window is enough. Do not observe the whole DOM here:
+    // repeatedly repainting badge text from a MutationObserver can trigger itself
+    // and lock the page on slower devices.
+    await sleep(550);
+    const first = await readAuthoritativeCount();
+    lastVerifiedCount = first;
+    paint(first);
 
-    let previous = null;
-    let stableReads = 0;
-    for (let attempt = 0; attempt < 7; attempt += 1) {
-      try {
-        const count = await readAuthoritativeCount();
-        lastVerifiedCount = count;
-        stableReads = count === previous ? stableReads + 1 : 1;
-        previous = count;
-        if (stableReads >= 2) break;
-      } catch (_) {}
-      await sleep(260);
-    }
-
-    if (lastVerifiedCount !== null) paint(lastVerifiedCount);
+    await sleep(250);
+    const second = await readAuthoritativeCount();
+    lastVerifiedCount = second;
+    paint(second);
+  } catch (_) {
+    // The main application remains the fallback source of truth.
   } finally {
     root.classList.remove("inbox-badge-booting");
-    settling = false;
-
-    // Catch a late workflow/read-state update after the page becomes visible.
-    setTimeout(syncVerifiedCount, 650);
-    setTimeout(syncVerifiedCount, 1500);
+    setTimeout(syncVerifiedCount, 1200);
   }
 }
-
-new MutationObserver(() => {
-  if (lastVerifiedCount === null) return;
-  if (settling) paint(lastVerifiedCount);
-}).observe(document.documentElement, { childList: true, subtree: true });
 
 void stabilizeStartup();
