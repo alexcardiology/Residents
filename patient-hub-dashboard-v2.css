@@ -1,0 +1,26 @@
+/* Operational dashboard v2 */
+#dashboard .dashSearch{display:flex;gap:8px;align-items:center;flex:1;max-width:720px;margin-inline:18px}
+#dashboard .dashSearch input{width:100%;height:46px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:0 14px;outline:none}
+#dashboard .dashSearch input:focus{border-color:var(--o);box-shadow:0 0 0 3px #f9731614}
+#dashboard .dashTop{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+#dashboard .cards .kpi{cursor:pointer;transition:.15s;box-shadow:none}
+#dashboard .cards .kpi:hover{transform:translateY(-2px);box-shadow:var(--sh)}
+#dashboard .opsGrid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,.75fr);gap:14px;margin-top:14px}
+#dashboard .opsStack{display:grid;gap:14px}
+#dashboard .dashCard{background:#fff;border:1px solid var(--line);border-radius:17px;padding:16px}
+#dashboard .dashCard h3{margin:0 0 12px;font-size:20px}
+#dashboard .dayTabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+#dashboard .dayTabs button,#dashboard .serviceTabs button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:700}
+#dashboard .dayTabs button.active,#dashboard .serviceTabs button.active{background:#fff0e6;border-color:#ef8a50;color:#a63a0a}
+#dashboard .serviceTabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+#dashboard .dashCase{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border-top:1px solid #f5e3d8;padding:10px 2px}
+#dashboard .dashCase:first-child{border-top:0}.dashCaseMeta{color:var(--mut);font-size:12px;margin-top:3px}.dashActions{display:flex;gap:5px}
+#dashboard .miniAction{border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 8px;cursor:pointer;text-decoration:none;color:var(--d);font-weight:700}
+#dashboard .quickGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#dashboard .quickGrid button{min-height:48px}
+#dashboard .alertItem{border-inline-start:3px solid var(--o);background:#fff8f3;border-radius:10px;padding:10px;margin-top:7px}
+#dashboard .emptyDash{color:var(--mut);padding:16px;text-align:center}
+#dashboard .sectionHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+#dashboard .sectionHead h3{margin:0}
+@media(max-width:1050px){#dashboard .opsGrid{grid-template-columns:1fr}#dashboard .dashTop{flex-wrap:wrap}#dashboard .dashSearch{order:3;max-width:none;flex-basis:100%;margin:0}}
+@media(max-width:620px){#dashboard .quickGrid{grid-template-columns:1fr 1fr}#dashboard .dashCase{grid-template-columns:1fr}#dashboard .dashActions{justify-content:flex-start}}
