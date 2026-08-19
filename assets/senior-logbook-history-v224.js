@@ -62,7 +62,15 @@ async function render(){
     const rows=await history();
     if(!rows.length){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();return;}
     if(!(window.logbookMessages instanceof Map))window.logbookMessages=new Map();
-    rows.forEach(m=>window.logbookMessages.set(`logbook-${m.id}`,m));
+    rows.forEach(m=>{
+      const detail={...m};
+      if(m.admin_override){
+        const by=m.override_by_name||'Admin';
+        const original=m.override_original_name||'the assigned senior resident';
+        detail.body=`${m.body||''}\n\nAdmin override: ${by} approved this senior-review stage in place of ${original}.`;
+      }
+      window.logbookMessages.set(`logbook-${m.id}`,detail);
+    });
     $('#seniorNativeRequests204')?.remove();$('#seniorReq202')?.remove();
     const tabs=mailbox.querySelector('.mailbox-tabs');
     let tab=$('#seniorHistoryTab224');
