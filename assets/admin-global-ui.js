@@ -1,6 +1,6 @@
 import { sb } from "./supabase.js";
 import "./feature-gates-v143.js?v=1.0.143";
-import "./admin-inbox-penalty-actions-v230.js?v=1.0.232";
+import "./admin-inbox-penalty-actions-v230.js?v=1.0.240";
 
 let isOwner = false;
 let uiQueued = false;
@@ -84,10 +84,4 @@ try {
   isOwner = false;
 }
 
-if (isOwner) {
-  // Keep this module deliberately lightweight. Previous versions scanned every
-  // DOM element with getComputedStyle and also observed class/style mutations.
-  // On large admin pages that created a feedback loop and froze the portal.
-  // Theme colors are handled by CSS; this file now only manages the Back button.
-  scheduleUiBurst();
-}
+if (isOwner) scheduleUiBurst();
