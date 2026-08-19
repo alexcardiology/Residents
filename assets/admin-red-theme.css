@@ -186,6 +186,26 @@ html.admin-red-theme .duty-message-user * {
   color: #fff !important;
 }
 
+/* Final hard override: some later El Médico styles were repainting the text dark. */
+html.admin-red-theme body #content #dutyBotTranscript .duty-message.duty-message-user,
+html.admin-red-theme body .duty-transcript .duty-message.duty-message-user {
+  background: #430812 !important;
+  border-color: #430812 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html.admin-red-theme body #content #dutyBotTranscript .duty-message.duty-message-user > span,
+html.admin-red-theme body #content #dutyBotTranscript .duty-message.duty-message-user > p,
+html.admin-red-theme body #content #dutyBotTranscript .duty-message.duty-message-user *,
+html.admin-red-theme body .duty-transcript .duty-message.duty-message-user > span,
+html.admin-red-theme body .duty-transcript .duty-message.duty-message-user > p,
+html.admin-red-theme body .duty-transcript .duty-message.duty-message-user * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
 /* Preserve semantic colors: success remains green, warnings amber, danger red. */
 html.admin-red-theme .success,
 html.admin-red-theme .warning,
