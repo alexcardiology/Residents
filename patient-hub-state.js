@@ -7,6 +7,8 @@ function installDrawerLabels(){
  Object.entries(labels).forEach(([code,[en,ar]])=>{const b=document.querySelector(`.nav [data-service="${code}"]`);if(!b)return;const icon=code==='holter'?'◌ ':code==='exercise_ecg'?'⌁ ':'';b.innerHTML=`${icon}<span data-en="${en}" data-ar="${ar}">${en}</span>`});
  const cath=document.querySelector('.nav [data-toggle="cath"] span:first-child');if(cath){cath.dataset.en='♥ Cath Lab';cath.dataset.ar='♥ معمل القسطرة'}
  const echo=document.querySelector('.nav [data-toggle="echo"] span:first-child');if(echo){echo.dataset.en='◉ Echo Lab';echo.dataset.ar='◉ معمل الإيكو'}
+ const quickLabels={cath_miri:'قسطرة الميري',cath_smouha:'قسطرة سموحة',echo_miri:'إيكو الميري'};
+ Object.entries(quickLabels).forEach(([code,ar])=>{const b=document.querySelector(`#dashboard [data-service="${code}"]`);if(!b)return;if(!b.dataset.en)b.dataset.en=b.textContent.trim();b.dataset.ar=ar});
  if(typeof applyLang==='function')applyLang();
 }
 function restoreDrawer(st){['cath','echo'].forEach(id=>{const el=document.getElementById(id),k=id+'Collapsed';if(el&&typeof st[k]==='boolean')el.classList.toggle('hidden',st[k])})}
