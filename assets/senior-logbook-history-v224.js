@@ -1,8 +1,8 @@
 import { sb } from './supabase.js';
 
 const $=(s,r=document)=>r.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let timer=null,loading=false,activated=false;
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
+let timer=null,loading=false,activated=false,historyPromise=null;
 
 const onPage=()=>location.hash.replace(/^#/,'').split('?')[0]==='logbook-requests'||/logbook requests/i.test($('#title')?.textContent||'');
 const ready=()=>onPage()&&!!$('#content .mailbox.wide-mailbox .mailbox-tabs')&&!!$('#content .logbook-mail-tools');
@@ -10,13 +10,33 @@ const timeText=v=>{if(!v)return'—';try{return new Intl.DateTimeFormat('en-GB',
 const overrideName=m=>{
   const note=String(m?.senior_note||'');
   const match=note.match(/^(.+?)\s*\(in place of/i);
-  return match?.[1]?.trim()||m?.override_by_name||'Admin';
+  const raw=match?.[1]?.trim()||m?.override_by_name||'Admin';
+  return /^drmohamedalaa90$/i.test(raw)?'Dr. Mohamed Alaa':raw;
 };
+
+if(!$('#seniorHistoryNoFlash226')){
+  const style=document.createElement('style');
+  style.id='seniorHistoryNoFlash226';
+  style.textContent=`
+    html.senior-history-preparing-v226 #content .mailbox.wide-mailbox{visibility:hidden!important}
+    html.senior-history-preparing-v226 #content{min-height:420px}
+  `;
+  document.head.appendChild(style);
+}
+
+const setPreparing=value=>document.documentElement.classList.toggle('senior-history-preparing-v226',Boolean(value));
 
 async function history(){
   const {data,error}=await sb.rpc('get_my_senior_logbook_request_history_v224');
   if(error)throw error;
   return data||[];
+}
+
+function prefetch(){
+  if(!onPage())return null;
+  setPreparing(true);
+  if(!historyPromise)historyPromise=history().catch(error=>{console.error('Could not preload senior request history',error);return[]});
+  return historyPromise;
 }
 
 function statusMarkup(m){
@@ -55,17 +75,17 @@ function activate(panel,tab){
 }
 
 async function render(){
+  if(!onPage()){setPreparing(false);return}
   if(!ready()||loading)return;
   const mailbox=$('#content .mailbox.wide-mailbox');
-  if(!mailbox)return;
+  if(!mailbox){setPreparing(false);return}
   const nativeReceived=[...mailbox.querySelectorAll('[data-logbook-tab="received"]')].find(x=>x.id!=='seniorHistoryTab224');
-  if(nativeReceived){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();return;}
+  if(nativeReceived){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();setPreparing(false);return}
   loading=true;
   try{
-    const {data:sess}=await sb.auth.getSession();const uid=sess?.session?.user?.id;if(!uid)return;
-    const {data:profile}=await sb.from('profiles').select('role').eq('id',uid).maybeSingle();if(profile?.role!=='resident')return;
-    const rows=await history();
-    if(!rows.length){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();return;}
+    const rows=await(prefetch()||history());
+    historyPromise=null;
+    if(!rows.length){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();return}
     if(!(window.logbookMessages instanceof Map))window.logbookMessages=new Map();
     rows.forEach(m=>{
       const detail={...m};
@@ -86,10 +106,28 @@ async function render(){
     if(!panel){panel=document.createElement('div');panel.id='seniorHistoryPanel224';panel.className='mail-panel';panel.dataset.mailPanel='received';const first=mailbox.querySelector('[data-mail-panel]');if(first)mailbox.insertBefore(panel,first);else mailbox.appendChild(panel)}
     panel.innerHTML=`<div class="message-list">${rows.map(row).join('')}</div>`;
     if(!activated){activated=true;activate(panel,tab)}
-  }catch(err){console.error('Could not load senior request history',err)}finally{loading=false}
+  }catch(err){console.error('Could not load senior request history',err)}finally{loading=false;setPreparing(false)}
 }
 
-function arm(){activated=false;if(timer)clearInterval(timer);let n=0;timer=setInterval(()=>{n++;void render();if(n>=28){clearInterval(timer);timer=null}},250)}
+function arm(){
+  activated=false;
+  if(timer)clearInterval(timer);
+  if(!onPage()){historyPromise=null;setPreparing(false);return}
+  prefetch();
+  void render();
+  let n=0;
+  timer=setInterval(()=>{n++;void render();if(n>=32){clearInterval(timer);timer=null;setPreparing(false)}},120);
+}
+
+if(onPage())prefetch();
 window.addEventListener('hashchange',arm);
-document.addEventListener('click',e=>{if(e.target.closest?.('[data-go="logbook-requests"]'))setTimeout(arm,80)},true);
+document.addEventListener('click',e=>{
+  if(e.target.closest?.('[data-go="logbook-requests"]')){
+    setPreparing(true);
+    setTimeout(()=>{prefetch();arm()},0);
+  }
+},true);
+
+const content=$('#content');
+if(content)new MutationObserver(()=>{if(onPage())void render()}).observe(content,{childList:true,subtree:true});
 arm();
