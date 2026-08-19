@@ -1,40 +1,28 @@
 (()=>{
-const servicePage=document.getElementById('service'); if(!servicePage) return;
-const head=servicePage.querySelector('.pageHead');
-const actions=head?.querySelector(':scope > button')?.parentElement===head?head:null;
-const exportBtn=document.createElement('button');
-exportBtn.type='button';exportBtn.id='cathExportBtn';exportBtn.className='secondary hidden';exportBtn.textContent='Export';
-if(head) head.appendChild(exportBtn);
-
+const servicePage=document.getElementById('service');if(!servicePage)return;
 const cols=[
- {key:'patient',en:'Patient name',ar:'اسم المريض',checked:true},
- {key:'intervention',en:'Type of intervention',ar:'نوع التدخل',checked:true},
- {key:'consultant',en:'Consultant name',ar:'اسم الاستشاري',checked:true},
- {key:'notes',en:'Notes',ar:'ملاحظات',checked:true},
- {key:'date',en:'Date',ar:'التاريخ',checked:false},
- {key:'mobile',en:'Mobile',ar:'الهاتف',checked:false},
- {key:'national_id',en:'National ID',ar:'الرقم القومي',checked:false},
- {key:'status',en:'Status',ar:'الحالة',checked:false},
- {key:'filing',en:'Filing ID',ar:'رقم الحفظ',checked:false}
+ {key:'patient',ar:'اسم المريض',checked:true},
+ {key:'intervention',ar:'نوع الإجراء',checked:true},
+ {key:'consultant',ar:'اسم الاستشاري',checked:true},
+ {key:'notes',ar:'ملاحظات',checked:true},
+ {key:'date',ar:'التاريخ',checked:false},
+ {key:'mobile',ar:'الهاتف',checked:false},
+ {key:'national_id',ar:'الرقم القومي',checked:false},
+ {key:'status',ar:'الحالة',checked:false},
+ {key:'filing',ar:'رقم الحفظ',checked:false}
 ];
+const STATUS_AR={booked:'تم الحجز',arrived:'حضر',done:'تم الإجراء',reported:'تم كتابة التقرير',cancelled:'ملغي',no_show:'لم يحضر'};
 function isCath(){return typeof currentService==='string'&&currentService.startsWith('cath_')}
-function syncButton(){exportBtn.classList.toggle('hidden',!isCath());exportBtn.textContent=lang==='ar'?'تصدير':'Export'}
-document.addEventListener('click',e=>{if(e.target.closest('[data-service]'))setTimeout(syncButton,80)});document.getElementById('appLang')?.addEventListener('click',()=>setTimeout(syncButton,0));
-function esc(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
-function modalHtml(){return `<div class="modalHead"><h2>${lang==='ar'?'تصدير قائمة القسطرة':'Export Cath Lab list'}</h2><button class="close" onclick="closeModal()">×</button></div><p>${lang==='ar'?'اختر الأعمدة المراد تصديرها. الاختيارات الافتراضية محددة مسبقاً.':'Choose which columns to export. Default columns are pre-selected.'}</p><div class="rows" style="margin:14px 0">${cols.map(c=>`<label class="item" style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-export-col="${c.key}" ${c.checked?'checked':''}> <span>${lang==='ar'?c.ar:c.en}</span></label>`).join('')}</div><div class="actions"><button class="secondary" onclick="closeModal()">${lang==='ar'?'إلغاء':'Cancel'}</button><button class="primary" id="doCathExport">${lang==='ar'?'تصدير CSV':'Export CSV'}</button></div>`}
-exportBtn.onclick=()=>{if(!isCath())return;modal(modalHtml());document.getElementById('doCathExport').onclick=doExport};
-async function doExport(){
- const selected=[...document.querySelectorAll('[data-export-col]:checked')].map(x=>x.dataset.exportCol);if(!selected.length)return toast(lang==='ar'?'اختر عموداً واحداً على الأقل':'Choose at least one column');
- const svc=services.find(x=>x.code===currentService);if(!svc)return toast('Service unavailable');
- let q=sb.from('psh_reservations').select('id,scheduled_date,status,cath_filing_id,consultant_name,intervention_type,patient:psh_patients(arabic_name,mobile,national_id)').eq('service_id',svc.id).order('scheduled_date');
- const d=document.getElementById('serviceDate')?.value||'';const st=document.getElementById('serviceStatus')?.value||'';if(d)q=q.eq('scheduled_date',d);if(st)q=q.eq('status',st);
- const r=await q;if(r.error)return toast(r.error.message);const rows=r.data||[];
- const ids=rows.map(x=>x.id);let noteMap={};if(ids.length){const n=await sb.from('psh_patient_notes').select('reservation_id,note,created_at').in('reservation_id',ids).order('created_at');if(!n.error){for(const x of n.data||[]){if(!noteMap[x.reservation_id])noteMap[x.reservation_id]=[];noteMap[x.reservation_id].push(x.note)}}}
- const labels={patient:'Patient name',intervention:'Type of intervention',consultant:'Consultant name',notes:'Notes',date:'Date',mobile:'Mobile',national_id:'National ID',status:'Status',filing:'Filing ID'};
- const get=(x,k)=>({patient:x.patient?.arabic_name||'',intervention:x.intervention_type||'',consultant:x.consultant_name||'',notes:(noteMap[x.id]||[]).join(' | '),date:fmt(x.scheduled_date),mobile:x.patient?.mobile||'',national_id:x.patient?.national_id||'',status:x.status||'',filing:x.cath_filing_id||''}[k]??'');
- const csv=[selected.map(k=>esc(labels[k])).join(','),...rows.map(x=>selected.map(k=>esc(get(x,k))).join(','))].join('\r\n');
- const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Cath_${currentService.replace('cath_','')}_${d||today()}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);closeModal();toast(lang==='ar'?'تم تصدير القائمة':'List exported');
-}
-window.syncCathExportButton=syncButton;
-setTimeout(syncButton,200);
+function loadScript(src,test){return new Promise((resolve,reject)=>{if(test())return resolve();const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=reject;document.head.appendChild(s)})}
+async function ensureLibs(){await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',()=>!!window.XLSX);await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',()=>!!window.html2canvas);await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',()=>!!window.jspdf)}
+function getButton(){let b=document.getElementById('cathExportBtn');if(!b){b=document.createElement('button');b.id='cathExportBtn';b.type='button';b.className='secondary hidden';servicePage.querySelector('.pageHead')?.prepend(b)}b.textContent=lang==='ar'?'تصدير':'Export';b.classList.toggle('hidden',!isCath());b.onclick=()=>{if(isCath())openModal()};return b}
+function openModal(){modal(`<div dir="rtl"><div class="modalHead"><h2>تصدير قائمة القسطرة</h2><button class="close" onclick="closeModal()">×</button></div><p>اختر الأعمدة المراد تصديرها. الاختيارات الافتراضية محددة مسبقاً.</p><div class="rows" style="margin:14px 0">${cols.map(c=>`<label class="item" style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-export-col="${c.key}" ${c.checked?'checked':''}> <span>${c.ar}</span></label>`).join('')}</div><div class="formField" style="margin-top:12px"><label>اتجاه صفحة PDF</label><select id="legacyExportOrientation"><option value="landscape">أفقي</option><option value="portrait">رأسي</option></select></div><div class="actions" style="flex-wrap:wrap"><button class="secondary" onclick="closeModal()">إلغاء</button><button class="primary" onclick="legacyCathExport('xlsx')">تصدير Excel</button><button class="primary" onclick="legacyCathExport('pdf')">تصدير PDF</button><button class="primary" onclick="legacyCathExport('png')">تصدير صورة PNG</button></div></div>`)}
+async function fetchRows(){const svc=services.find(x=>x.code===currentService);if(!svc)throw new Error('Service unavailable');let q=sb.from('psh_reservations').select('id,scheduled_date,status,cath_filing_id,consultant_name,intervention_type,patient:psh_patients(arabic_name,mobile,national_id)').eq('service_id',svc.id).order('scheduled_date');const d=document.getElementById('serviceDate')?.value||'',st=document.getElementById('serviceStatus')?.value||'',rf=document.getElementById('rangeFrom')?.value||'',rt=document.getElementById('rangeTo')?.value||'';if(rf)q=q.gte('scheduled_date',rf);if(rt)q=q.lte('scheduled_date',rt);if(!rf&&!rt&&d)q=q.eq('scheduled_date',d);if(st)q=q.eq('status',st);const r=await q;if(r.error)throw r.error;const rows=r.data||[];if(rows.length){const n=await sb.from('psh_patient_notes').select('reservation_id,note,created_at').in('reservation_id',rows.map(x=>x.id)).order('created_at');const map={};for(const x of n.data||[]){(map[x.reservation_id]??=[]).push(x.note)}rows.forEach(x=>x.notes=(map[x.id]||[]).join(' | '))}return rows}
+function selected(){return [...document.querySelectorAll('[data-export-col]:checked')].map(x=>x.dataset.exportCol)}
+function value(r,k){return {patient:r.patient?.arabic_name||'',intervention:r.intervention_type||'',consultant:r.consultant_name||'',notes:r.notes||'',date:typeof fmt==='function'?fmt(r.scheduled_date):r.scheduled_date,mobile:r.patient?.mobile||'',national_id:r.patient?.national_id||'',status:STATUS_AR[r.status]||r.status||'',filing:r.cath_filing_id||''}[k]??''}
+function title(){return currentService==='cath_smouha'?'قسطرة سموحة':'قسطرة الميري'}
+function htmlTable(keys,rows){return `<div dir="rtl" style="background:#fff;padding:28px;font-family:Tahoma,Arial,sans-serif;color:#21150f;min-width:900px"><h2 style="text-align:right">${title()}</h2><table style="width:100%;border-collapse:collapse;direction:rtl"><thead><tr>${keys.map(k=>`<th style="border:1px solid #d8b6a1;background:#fff2e8;padding:10px;text-align:right">${cols.find(c=>c.key===k)?.ar||k}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${keys.map(k=>`<td style="border:1px solid #e2c9ba;padding:9px;text-align:right;vertical-align:top">${String(value(r,k)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+async function exportNow(format){const keys=selected();if(!keys.length)return toast('اختر عموداً واحداً على الأقل');let rows;try{rows=await fetchRows();await ensureLibs()}catch(e){return toast(e.message||'تعذر التصدير')}if(format==='xlsx'){const aoa=[keys.map(k=>cols.find(c=>c.key===k)?.ar||k),...rows.map(r=>keys.map(k=>value(r,k)))];const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!rtl']=true;ws['!cols']=keys.map(()=>({wch:24}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'قائمة القسطرة');XLSX.writeFile(wb,`${title()}.xlsx`);closeModal();return}const holder=document.createElement('div');holder.style.cssText='position:fixed;left:-10000px;top:0;z-index:-1';holder.innerHTML=htmlTable(keys,rows);document.body.appendChild(holder);const canvas=await html2canvas(holder.firstElementChild,{scale:2,backgroundColor:'#ffffff'});if(format==='png'){const a=document.createElement('a');a.href=canvas.toDataURL('image/png');a.download=`${title()}.png`;a.click()}else{const {jsPDF}=window.jspdf;const orientation=document.getElementById('legacyExportOrientation')?.value||'landscape';const pdf=new jsPDF({orientation,unit:'mm',format:'a4'});const img=canvas.toDataURL('image/png'),pw=pdf.internal.pageSize.getWidth()-16,ph=canvas.height*pw/canvas.width;pdf.addImage(img,'PNG',8,8,pw,Math.min(ph,pdf.internal.pageSize.getHeight()-16));pdf.save(`${title()}.pdf`)}holder.remove();closeModal()}
+window.legacyCathExport=exportNow;window.syncCathExportButton=()=>getButton();
+document.addEventListener('click',e=>{if(e.target.closest('[data-service]'))setTimeout(getButton,80)});document.getElementById('appLang')?.addEventListener('click',()=>setTimeout(getButton,0));setTimeout(getButton,150);
 })();
