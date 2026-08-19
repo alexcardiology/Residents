@@ -1,4 +1,5 @@
 (()=>{
+const TOKEN_KEY='psh_cath_portal_token_v1';
 function norm(v){return String(v||'').trim().toLowerCase()}
 function currentResident(){
   const host=document.getElementById('cathResidentPortal');
@@ -7,6 +8,7 @@ function currentResident(){
   const line=nodes.find(x=>/^طبيب القسطرة\s*:/.test((x.textContent||'').trim()) && x.children.length===0);
   return line?line.textContent.replace(/^طبيب القسطرة\s*:\s*/,'').trim():'';
 }
+function token(){try{return localStorage.getItem(TOKEN_KEY)||''}catch{return''}}
 function enforce(){
   const host=document.getElementById('cathResidentPortal');
   if(!host||host.style.display==='none')return;
@@ -25,6 +27,13 @@ function enforce(){
     }
   });
 }
+window.releaseCathPortalCase=async(id,type,code)=>{
+  const resident=currentResident();
+  if(!resident)return;
+  const {error}=await sb.rpc('psh_cath_portal_release_case',{p_token:token(),p_item_type:type,p_item_id:id,p_resident_name:resident});
+  if(error){alert(error.message);return}
+  document.getElementById('refreshCathPortal')?.click();
+};
 new MutationObserver(()=>setTimeout(enforce,0)).observe(document.documentElement,{subtree:true,childList:true});
 setInterval(enforce,1000);
 })();
