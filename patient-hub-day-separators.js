@@ -7,7 +7,8 @@ function dateKeyFromCell(cell){
 function addDaySeparators(){
   const body=document.getElementById('serviceRows');
   if(!body)return;
-  const rows=[...body.querySelectorAll(':scope > tr')].filter(r=>!r.classList.contains('psh-day-separator'));
+  body.querySelectorAll(':scope > tr.psh-day-separator').forEach(x=>x.remove());
+  const rows=[...body.querySelectorAll(':scope > tr')];
   let previous='';
   rows.forEach((row,i)=>{
     const key=dateKeyFromCell(row.cells?.[0]);
@@ -17,7 +18,7 @@ function addDaySeparators(){
       sep.className='psh-day-separator';
       const td=document.createElement('td');
       td.colSpan=Math.max(row.cells.length,1);
-      td.style.cssText='height:7px;padding:0!important;background:#f97316;border:0!important;box-shadow:inset 0 1px 0 #e85d04,inset 0 -1px 0 #ff9a4d';
+      td.style.cssText='height:2px!important;line-height:0!important;padding:0!important;background:#f97316!important;border:0!important;';
       sep.appendChild(td);
       row.before(sep);
     }
