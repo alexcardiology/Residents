@@ -1,5 +1,6 @@
 import { sb } from "./supabase.js";
 import "./feature-gates-v143.js?v=1.0.143";
+import "./admin-inbox-penalty-actions-v230.js?v=1.0.230";
 
 let isOwner = false;
 let paintQueued = false;
