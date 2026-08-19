@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "333065044517",
+    "project_id": "cardiology-residents",
+    "storage_bucket": "cardiology-residents.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:333065044517:android:b39c340113d7bfa61f75cc",
+        "android_client_info": {
+          "package_name": "org.drmohamedalaa.residenttraining"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDK1IuqwWelpsDOT9z0XCpxU7WRDOe7_Y8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
