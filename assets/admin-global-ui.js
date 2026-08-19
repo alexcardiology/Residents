@@ -3,7 +3,7 @@ import "./feature-gates-v143.js?v=1.0.143";
 import "./admin-inbox-penalty-actions-v230.js?v=1.0.232";
 
 let isOwner = false;
-let paintQueued = false;
+let uiQueued = false;
 let burstTimers = [];
 
 const ROOT_ROUTES = new Set(["", "dashboard"]);
@@ -50,68 +50,18 @@ function ensureBackButton(){
   content.prepend(row);
 }
 
-function parseRgbToken(token){
-  const match = String(token || "").match(/rgba?\(([^)]+)\)/i);
-  if (!match) return null;
-  const parts = match[1].split(",").map((part)=>Number.parseFloat(part.trim()));
-  if (parts.length < 3 || parts.slice(0,3).some((v)=>Number.isNaN(v))) return null;
-  return { r:parts[0], g:parts[1], b:parts[2], a:parts.length>3 && Number.isFinite(parts[3]) ? parts[3] : 1 };
-}
-
-function brightness(c){ return .299*c.r + .587*c.g + .114*c.b; }
-function isRedSurface(c){
-  if (!c || c.a <= .04) return false;
-  return c.r >= 55 && c.r > c.g * 1.38 && c.r > c.b * 1.12 && brightness(c) < 165;
-}
-
-function gradientIsDeepRed(image){
-  const colors = [...String(image || "").matchAll(/rgba?\([^)]+\)/gi)]
-    .map((m)=>parseRgbToken(m[0]))
-    .filter((c)=>c && c.a > .25);
-  if (!colors.length) return null;
-  const redCount = colors.filter(isRedSurface).length;
-  return redCount >= Math.ceil(colors.length * .6);
-}
-
-function backgroundState(el, parentRed){
-  const style = getComputedStyle(el);
-  const bg = parseRgbToken(style.backgroundColor);
-  const image = String(style.backgroundImage || "none");
-  if (image !== "none") {
-    const gradientState = gradientIsDeepRed(image);
-    if (gradientState !== null) return gradientState;
-  }
-  if (bg && bg.a >= .55) return isRedSurface(bg);
-  if (bg && bg.a > .04) return parentRed && brightness(bg) < 210;
-  return parentRed;
-}
-
-function paintRedText(){
-  if (!isOwner || !document.documentElement.classList.contains("admin-red-theme")) return;
-  const root = document.body;
-  if (!root) return;
-  const walk = (el, parentRed=false) => {
-    if (!(el instanceof HTMLElement)) return;
-    const red = backgroundState(el, parentRed);
-    el.classList.toggle("admin-on-red-surface", red);
-    for (const child of el.children) walk(child, red);
-  };
-  walk(root, false);
-}
-
-function schedulePaint(){
-  if (paintQueued) return;
-  paintQueued = true;
+function scheduleUi(){
+  if (uiQueued) return;
+  uiQueued = true;
   requestAnimationFrame(()=>{
-    paintQueued = false;
+    uiQueued = false;
     ensureBackButton();
-    paintRedText();
   });
 }
 
-function schedulePaintBurst(){
+function scheduleUiBurst(){
   burstTimers.forEach((timer)=>clearTimeout(timer));
-  burstTimers = [0, 180, 650].map((delay)=>setTimeout(schedulePaint, delay));
+  burstTimers = [0, 180, 650].map((delay)=>setTimeout(scheduleUi, delay));
 }
 
 document.addEventListener("click", (event)=>{
@@ -121,7 +71,7 @@ document.addEventListener("click", (event)=>{
   location.hash = parentRoute(currentRoute());
 });
 
-window.addEventListener("hashchange", schedulePaintBurst);
+window.addEventListener("hashchange", scheduleUiBurst);
 
 try {
   const { data: sessionData } = await sb.auth.getSession();
@@ -135,10 +85,9 @@ try {
 }
 
 if (isOwner) {
-  // IMPORTANT: do not observe class/style mutations here. paintRedText itself
-  // changes classes, so an attribute MutationObserver creates a self-triggering
-  // render loop and can freeze the portal. A small bounded paint burst after
-  // route changes is sufficient and keeps the UI responsive.
-  schedulePaintBurst();
-  window.addEventListener("focus", ()=>setTimeout(schedulePaint, 80), { passive:true });
+  // Keep this module deliberately lightweight. Previous versions scanned every
+  // DOM element with getComputedStyle and also observed class/style mutations.
+  // On large admin pages that created a feedback loop and froze the portal.
+  // Theme colors are handled by CSS; this file now only manages the Back button.
+  scheduleUiBurst();
 }
