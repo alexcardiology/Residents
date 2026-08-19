@@ -1,3 +1,4 @@
+import "./logbook-suspension-popup-v229.js?v=229";
 import { sb } from "./supabase.js";
 
 let busy = false;
