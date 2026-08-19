@@ -5,13 +5,25 @@ function currentResident(){
   const host=document.getElementById('cathResidentPortal');
   if(!host||host.style.display==='none')return'';
   const nodes=[...host.querySelectorAll('div')];
-  const line=nodes.find(x=>/^طبيب القسطرة\s*:/.test((x.textContent||'').trim()) && x.children.length===0);
-  return line?line.textContent.replace(/^طبيب القسطرة\s*:\s*/,'').trim():'';
+  const line=nodes.find(x=>/^(?:طبيب|نائب) القسطرة\s*:/.test((x.textContent||'').trim()) && x.children.length===0);
+  return line?line.textContent.replace(/^(?:طبيب|نائب) القسطرة\s*:\s*/,'').trim():'';
 }
 function token(){try{return localStorage.getItem(TOKEN_KEY)||''}catch{return''}}
+function replaceLabels(host){
+  const walker=document.createTreeWalker(host,NodeFilter.SHOW_TEXT);
+  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+  nodes.forEach(n=>{n.nodeValue=n.nodeValue
+    .replace(/اسم طبيب القسطرة/g,'اسم نائب القسطرة')
+    .replace(/طبيب القسطرة:/g,'نائب القسطرة:')
+    .replace(/بوابة طبيب القسطرة/g,'بوابة نائب القسطرة')
+    .replace(/حساب طبيب القسطرة/g,'حساب نائب القسطرة')
+    .replace(/طبيب واحد فقط/g,'نائب واحد فقط')
+    .replace(/اكتب اسم الطبيب أولاً/g,'اكتب اسم النائب أولاً');});
+}
 function enforce(){
   const host=document.getElementById('cathResidentPortal');
   if(!host||host.style.display==='none')return;
+  replaceLabels(host);
   const me=currentResident(); if(!me)return;
   host.querySelectorAll('tbody tr').forEach(tr=>{
     const cells=tr.querySelectorAll('td'); if(cells.length<8)return;
@@ -35,5 +47,5 @@ window.releaseCathPortalCase=async(id,type,code)=>{
   document.getElementById('refreshCathPortal')?.click();
 };
 new MutationObserver(()=>setTimeout(enforce,0)).observe(document.documentElement,{subtree:true,childList:true});
-setInterval(enforce,1000);
+setInterval(enforce,800);
 })();
