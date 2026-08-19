@@ -1,10 +1,11 @@
 import { sb } from './supabase.js';
 
 const $=(s,r=document)=>r.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 let timer=null,loading=false,activated=false,historyPromise=null;
 
-const onPage=()=>location.hash.replace(/^#/,'').split('?')[0]==='logbook-requests'||/logbook requests/i.test($('#title')?.textContent||'');
+const route=()=>location.hash.replace(/^#/,'').split('?')[0];
+const onPage=()=>route()==='logbook-requests';
 const ready=()=>onPage()&&!!$('#content .mailbox.wide-mailbox .mailbox-tabs')&&!!$('#content .logbook-mail-tools');
 const timeText=v=>{if(!v)return'—';try{return new Intl.DateTimeFormat('en-GB',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v))}catch(_){return String(v)}};
 const overrideName=m=>{
@@ -14,17 +15,14 @@ const overrideName=m=>{
   return /^drmohamedalaa90$/i.test(raw)?'Dr. Mohamed Alaa':raw;
 };
 
-if(!$('#seniorHistoryNoFlash226')){
-  const style=document.createElement('style');
-  style.id='seniorHistoryNoFlash226';
-  style.textContent=`
-    html.senior-history-preparing-v226 #content .mailbox.wide-mailbox{visibility:hidden!important}
-    html.senior-history-preparing-v226 #content{min-height:420px}
-  `;
-  document.head.appendChild(style);
+function removePriorSoon(){
+  if(!onPage())return;
+  document.querySelectorAll('#content section,#content .card,#content [data-feature-gate-ui="1"]').forEach(node=>{
+    if(node.closest?.('.mailbox'))return;
+    const text=String(node.textContent||'').replace(/\s+/g,' ').trim();
+    if(/prior experience logbook/i.test(text)&&/coming soon|available soon|section will be available soon/i.test(text))node.remove();
+  });
 }
-
-const setPreparing=value=>document.documentElement.classList.toggle('senior-history-preparing-v226',Boolean(value));
 
 async function history(){
   const {data,error}=await sb.rpc('get_my_senior_logbook_request_history_v224');
@@ -34,7 +32,6 @@ async function history(){
 
 function prefetch(){
   if(!onPage())return null;
-  setPreparing(true);
   if(!historyPromise)historyPromise=history().catch(error=>{console.error('Could not preload senior request history',error);return[]});
   return historyPromise;
 }
@@ -75,16 +72,19 @@ function activate(panel,tab){
 }
 
 async function render(){
-  if(!onPage()){setPreparing(false);return}
+  if(!onPage())return;
+  removePriorSoon();
   if(!ready()||loading)return;
   const mailbox=$('#content .mailbox.wide-mailbox');
-  if(!mailbox){setPreparing(false);return}
+  if(!mailbox)return;
   const nativeReceived=[...mailbox.querySelectorAll('[data-logbook-tab="received"]')].find(x=>x.id!=='seniorHistoryTab224');
-  if(nativeReceived){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();setPreparing(false);return}
+  if(nativeReceived){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();return}
   loading=true;
   try{
     const rows=await(prefetch()||history());
     historyPromise=null;
+    if(!onPage())return;
+    removePriorSoon();
     if(!rows.length){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();return}
     if(!(window.logbookMessages instanceof Map))window.logbookMessages=new Map();
     rows.forEach(m=>{
@@ -106,28 +106,26 @@ async function render(){
     if(!panel){panel=document.createElement('div');panel.id='seniorHistoryPanel224';panel.className='mail-panel';panel.dataset.mailPanel='received';const first=mailbox.querySelector('[data-mail-panel]');if(first)mailbox.insertBefore(panel,first);else mailbox.appendChild(panel)}
     panel.innerHTML=`<div class="message-list">${rows.map(row).join('')}</div>`;
     if(!activated){activated=true;activate(panel,tab)}
-  }catch(err){console.error('Could not load senior request history',err)}finally{loading=false;setPreparing(false)}
+  }catch(err){console.error('Could not load senior request history',err)}finally{loading=false}
 }
 
 function arm(){
   activated=false;
   if(timer)clearInterval(timer);
-  if(!onPage()){historyPromise=null;setPreparing(false);return}
+  if(!onPage()){historyPromise=null;return}
   prefetch();
+  removePriorSoon();
   void render();
   let n=0;
-  timer=setInterval(()=>{n++;void render();if(n>=32){clearInterval(timer);timer=null;setPreparing(false)}},120);
+  timer=setInterval(()=>{n++;void render();if(n>=40){clearInterval(timer);timer=null}},100);
 }
 
 if(onPage())prefetch();
 window.addEventListener('hashchange',arm);
 document.addEventListener('click',e=>{
-  if(e.target.closest?.('[data-go="logbook-requests"]')){
-    setPreparing(true);
-    setTimeout(()=>{prefetch();arm()},0);
-  }
+  if(e.target.closest?.('[data-go="logbook-requests"]'))setTimeout(()=>{prefetch();arm()},0);
 },true);
 
 const content=$('#content');
-if(content)new MutationObserver(()=>{if(onPage())void render()}).observe(content,{childList:true,subtree:true});
+if(content)new MutationObserver(()=>{if(onPage()){removePriorSoon();void render()}}).observe(content,{childList:true,subtree:true});
 arm();
