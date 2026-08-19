@@ -173,6 +173,19 @@ html.admin-red-theme [data-duty-submit] {
   border-color: #cc5164 !important;
 }
 
+/* Admin's own El Médico question bubble: deep red with forced white text. */
+html.admin-red-theme .duty-message-user {
+  background: #430812 !important;
+  color: #fff !important;
+  border-color: #430812 !important;
+}
+
+html.admin-red-theme .duty-message-user > span,
+html.admin-red-theme .duty-message-user > p,
+html.admin-red-theme .duty-message-user * {
+  color: #fff !important;
+}
+
 /* Preserve semantic colors: success remains green, warnings amber, danger red. */
 html.admin-red-theme .success,
 html.admin-red-theme .warning,
