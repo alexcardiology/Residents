@@ -1,7 +1,7 @@
 import { sb } from './supabase.js';
 
 const $=(s,r=document)=>r.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let timer=null,loading=false,activated=false,historyPromise=null;
 
 const route=()=>location.hash.replace(/^#/,'').split('?')[0];
