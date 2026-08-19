@@ -3,7 +3,7 @@ import { sb } from './supabase.js';
 const $=(s,r=document)=>r.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 const fmt=v=>v?new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(v)):'—';
-let owner=false,observer=null,pendingAction=null;
+let owner=false,observer=null,pendingAction=null,managerOverlay=null,managerLocked=false;
 
 function ensureStyle(){
  if($('#manualSuspension222Style'))return;
@@ -72,13 +72,24 @@ function showConfirm(form,action,message){
  box.classList.add('show');box.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 
+function closeManager(){
+ managerLocked=false;
+ pendingAction=null;
+ const overlay=managerOverlay||document.querySelector('#manualSuspension221Overlay');
+ managerOverlay=null;
+ overlay?.remove();
+}
+
 async function openManager(){
  ensureStyle();pendingAction=null;
+ managerLocked=false;
  document.querySelector('#manualSuspension221Overlay')?.remove();
  const list=await residents();
  const el=document.createElement('div');el.id='manualSuspension221Overlay';el.className='manual-suspension221-overlay';
  const options=list.map(r=>`<option value="${esc(r.id)}">${esc(r.display_name||r.username||'Resident')}${r.residency_year?` · Year ${esc(r.residency_year)}`:''}</option>`).join('');
  el.innerHTML=`<section class="manual-suspension221-panel"><div class="manual-suspension221-head"><div><small>ADMIN · E-LOGBOOK SUSPENSION</small><h2>Suspend / remove suspension</h2><p>Choose the resident and duration. Confirmation stays inside this window and the suspension list updates immediately.</p></div><button class="manual-suspension221-close" type="button" data-manual-suspension221-close>×</button></div><form class="manual-suspension221-form" data-manual-suspension221-form><label><b>Resident</b><select name="resident" required><option value="">Choose resident…</option>${options}</select></label><div class="manual-suspension221-status" data-manual-suspension221-status><b>Select a resident</b><span>The current suspension status will appear here.</span></div><label><b>Suspension duration</b><select name="duration" required><option value="3_days">3 days</option><option value="1_week">1 week</option><option value="2_weeks">2 weeks</option><option value="1_month">1 month</option><option value="3_months">3 months</option></select></label><label><b>Reason / note</b><textarea name="reason">Delayed response to a junior resident logbook request for more than 48 hours.</textarea></label><div class="manual-suspension221-feedback" data-manual-suspension221-feedback></div><div class="manual-suspension221-confirm" data-manual-suspension221-confirm><b>Confirm action</b><p data-manual-suspension221-confirm-text></p><div class="manual-suspension221-confirm-actions"><button class="btn manual-suspension221-confirm-ok" type="button" data-manual-suspension221-confirm-ok>Confirm</button><button class="btn secondary" type="button" data-manual-suspension221-confirm-cancel>Cancel</button></div></div><div class="manual-suspension221-actions"><button class="btn danger" type="submit">Suspend</button><button class="btn manual-suspension221-remove" type="button" data-manual-suspension221-remove hidden>Remove suspension</button></div></form></section>`;
+ managerOverlay=el;
+ managerLocked=true;
  document.body.appendChild(el);
 }
 
@@ -119,7 +130,8 @@ async function executePending(form,button){
 
 document.addEventListener('click',async e=>{
  const open=e.target.closest?.('[data-manual-suspension221-open]');if(open){e.preventDefault();e.stopPropagation();try{await openManager()}catch(err){console.error(err)}return}
- if(e.target.closest?.('[data-manual-suspension221-close]')||e.target.id==='manualSuspension221Overlay'){document.querySelector('#manualSuspension221Overlay')?.remove();pendingAction=null;return}
+ if(e.target.closest?.('[data-manual-suspension221-close]')){e.preventDefault();e.stopPropagation();closeManager();return}
+ if(e.target.id==='manualSuspension221Overlay'){e.preventDefault();e.stopPropagation();return}
  const cancel=e.target.closest?.('[data-manual-suspension221-confirm-cancel]');if(cancel){const form=cancel.closest('[data-manual-suspension221-form]');hideConfirm(form);return}
  const ok=e.target.closest?.('[data-manual-suspension221-confirm-ok]');if(ok){const form=ok.closest('[data-manual-suspension221-form]');await executePending(form,ok);return}
  const remove=e.target.closest?.('[data-manual-suspension221-remove]');if(remove){const form=remove.closest('[data-manual-suspension221-form]');const id=remove.dataset.residentId||form?.elements.resident.value;if(!id)return;const name=form.elements.resident.selectedOptions[0]?.textContent||'this resident';showConfirm(form,{type:'remove',id,name},`Remove the current E-logbook suspension for ${name}?`);return}
@@ -135,6 +147,14 @@ document.addEventListener('submit',e=>{
  showConfirm(form,{type:'suspend',id,name,duration,reason},`Suspend E-logbook recording for ${name} for ${form.elements.duration.selectedOptions[0]?.textContent||duration}?`);
 },true);
 
-function arm(){ensureStyle();injectButton();if(observer)return;observer=new MutationObserver(()=>{ensureStyle();injectButton()});observer.observe(document.body,{childList:true,subtree:true});}
+function arm(){
+ ensureStyle();injectButton();if(observer)return;
+ observer=new MutationObserver(()=>{
+  ensureStyle();
+  if(managerLocked&&managerOverlay&&!managerOverlay.isConnected)document.body.appendChild(managerOverlay);
+  injectButton();
+ });
+ observer.observe(document.body,{childList:true,subtree:true});
+}
 async function init(){try{const {data:s}=await sb.auth.getSession();const uid=s?.session?.user?.id;if(!uid)return;const {data:p}=await sb.from('profiles').select('role').eq('id',uid).maybeSingle();owner=p?.role==='owner';if(owner)arm()}catch(_){}}
-window.addEventListener('hashchange',()=>setTimeout(injectButton,200));init();
+window.addEventListener('hashchange',()=>{closeManager();setTimeout(injectButton,200)});init();
