@@ -5,6 +5,7 @@ let ownerPromise=null;
 let loading=false;
 let rerun=false;
 let refreshTimer=0;
+const seenPenaltyMessages=new Set();
 
 function ensureStyles(){
   if(document.querySelector("#adminInboxPenaltyActionsV230Styles"))return;
@@ -84,6 +85,49 @@ function actionButtons(item){
   `;
 }
 
+function countUnreadThreads(messages=[],reviewActions=[]){
+  const reviewByMessage=new Map((reviewActions||[]).map(row=>[String(row.message_id||""),String(row.review_id||"")]));
+  const unread=new Set();
+  (messages||[]).forEach(message=>{
+    if(message?.is_read)return;
+    const reviewId=reviewByMessage.get(String(message?.id||""));
+    unread.add(reviewId?`review:${reviewId}`:`message:${message?.id}`);
+  });
+  return unread.size;
+}
+
+async function refreshInboxBadge(){
+  try{
+    const [{data:messages},{data:reviewActions}]=await Promise.all([
+      sb.rpc("get_private_messages",{p_box:"inbox"}),
+      sb.rpc("get_my_review_message_actions_v1051")
+    ]);
+    const count=countUnreadThreads(messages||[],reviewActions||[]);
+    document.querySelectorAll("[data-inbox-badge]").forEach(badge=>{
+      badge.textContent=String(count);
+      badge.hidden=count===0;
+    });
+    document.querySelectorAll('.mailbox-tab[data-mail-tab="inbox"] .inline-badge').forEach(badge=>{
+      badge.textContent=String(count);
+      badge.hidden=count===0;
+    });
+  }catch(_){}
+}
+
+async function markPenaltySeen(messageId,row){
+  const id=String(messageId||"");
+  if(!id||seenPenaltyMessages.has(id))return;
+  seenPenaltyMessages.add(id);
+  try{
+    const {error}=await sb.rpc("mark_private_message_read",{p_message_id:id});
+    if(error)throw error;
+    markRowRead(row);
+    await refreshInboxBadge();
+  }catch(_){
+    seenPenaltyMessages.delete(id);
+  }
+}
+
 function renderItem(item){
   const row=findInboxRow(item.message_id);
   if(!row)return false;
@@ -105,6 +149,9 @@ function renderItem(item){
   }else{
     holder.innerHTML=actionButtons(item);
   }
+  // Once the Admin Inbox is visibly displaying the penalty request, the alert
+  // has been seen even if the penalty itself is still awaiting a decision.
+  void markPenaltySeen(item.message_id,row);
   return true;
 }
 
@@ -160,6 +207,7 @@ async function decide(button){
   holder.innerHTML=statusHtml(decision);
   setSubject(row,decision);
   markRowRead(row);
+  void refreshInboxBadge();
 }
 
 document.addEventListener("click",event=>{
