@@ -7,6 +7,11 @@ let timer=null,loading=false,activated=false;
 const onPage=()=>location.hash.replace(/^#/,'').split('?')[0]==='logbook-requests'||/logbook requests/i.test($('#title')?.textContent||'');
 const ready=()=>onPage()&&!!$('#content .mailbox.wide-mailbox .mailbox-tabs')&&!!$('#content .logbook-mail-tools');
 const timeText=v=>{if(!v)return'—';try{return new Intl.DateTimeFormat('en-GB',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v))}catch(_){return String(v)}};
+const overrideName=m=>{
+  const note=String(m?.senior_note||'');
+  const match=note.match(/^(.+?)\s*\(in place of/i);
+  return match?.[1]?.trim()||m?.override_by_name||'Admin';
+};
 
 async function history(){
   const {data,error}=await sb.rpc('get_my_senior_logbook_request_history_v224');
@@ -18,7 +23,7 @@ function statusMarkup(m){
   const status=String(m.request_status||'pending').toLowerCase();
   if(status==='pending')return `<div class="message-actions approval-actions"><button class="btn small success-button" data-quick-logbook-approve="${esc(m.logbook_entry_id)}" data-approval-message-id="${esc(m.id)}">Approve</button><button class="btn small danger-button" data-inbox-logbook-reject="${esc(m.logbook_entry_id)}" data-approval-message-id="${esc(m.id)}" data-logbook-title="${esc(m.logbook_title||m.activity_kind||'Logbook activity')}">Reject</button></div>`;
   if(status==='approved'&&m.admin_override){
-    const by=m.override_by_name||'Admin';
+    const by=overrideName(m);
     const original=m.override_original_name||'you';
     return `<div class="message-actions"><span class="tag success">Approved by ${esc(by)} in place of ${esc(original)}</span></div>`;
   }
@@ -29,7 +34,7 @@ function row(m){
   const sender=m.sender_name||m.resident_name||'Resident';
   const title=m.logbook_title||m.activity_kind||'Logbook activity';
   const status=String(m.request_status||'pending').toLowerCase();
-  const overrideText=m.admin_override?`${m.override_by_name||'Admin'} approved in place of ${m.override_original_name||'assigned senior resident'} ${m.senior_note||''}`:'';
+  const overrideText=m.admin_override?`${overrideName(m)} approved in place of ${m.override_original_name||'assigned senior resident'} ${m.senior_note||''}`:'';
   const search=`${sender} ${m.receiver_name||''} ${m.subject||''} ${m.body||''} ${title} ${status} ${overrideText}`.toLowerCase();
   const heading=status==='approved'&&m.admin_override?`Approved on your behalf · ${title}`:`Approval request · ${title}`;
   return `<article class="message-row ${m.is_read?'read':'unread'}" data-senior-history-v224="1" data-request-resident="${esc(m.resident_id||m.sender_id||'')}" data-request-status="${esc(status)}" data-request-type="${esc(`${m.activity_category||''}:${m.activity_kind||''}`)}" data-message-search="${esc(search)}">
@@ -53,7 +58,7 @@ async function render(){
   if(!ready()||loading)return;
   const mailbox=$('#content .mailbox.wide-mailbox');
   if(!mailbox)return;
-  const nativeReceived=mailbox.querySelector('[data-logbook-tab="received"]');
+  const nativeReceived=[...mailbox.querySelectorAll('[data-logbook-tab="received"]')].find(x=>x.id!=='seniorHistoryTab224');
   if(nativeReceived){$('#seniorHistoryPanel224')?.remove();$('#seniorHistoryTab224')?.remove();return;}
   loading=true;
   try{
@@ -65,7 +70,7 @@ async function render(){
     rows.forEach(m=>{
       const detail={...m};
       if(m.admin_override){
-        const by=m.override_by_name||'Admin';
+        const by=overrideName(m);
         const original=m.override_original_name||'the assigned senior resident';
         detail.body=`${m.body||''}\n\nAdmin override: ${by} approved this senior-review stage in place of ${original}.`;
       }
