@@ -83,7 +83,7 @@ void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) =>
   console.warn("Senior logbook response gate could not load", error);
 });
 
-void import("./senior-logbook-history-v224.js?v=224").catch((error) => {
+void import("./senior-logbook-history-v224.js?v=225").catch((error) => {
   console.warn("Senior logbook request history could not load", error);
 });
 
