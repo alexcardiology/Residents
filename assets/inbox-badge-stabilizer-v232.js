@@ -1,6 +1,20 @@
 import { sb } from "./supabase.js";
 
 const root = document.documentElement;
+root.classList.add("inbox-badge-booting");
+
+if (!document.querySelector("#inboxBadgeBootStyleV232")) {
+  const style = document.createElement("style");
+  style.id = "inboxBadgeBootStyleV232";
+  style.textContent = `
+    html.inbox-badge-booting [data-inbox-badge],
+    html.inbox-badge-booting .mailbox-tab[data-mail-tab="inbox"] .inline-badge {
+      visibility: hidden !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 let lastVerifiedCount = null;
 let settling = true;
 let syncing = false;
@@ -65,9 +79,9 @@ async function stabilizeStartup() {
       return;
     }
 
-    // Do not expose the first transient count. The app performs several startup
-    // mailbox/workflow reads, and old read-state can briefly arrive before the
-    // final authoritative inbox state.
+    // The portal runs several mailbox/workflow requests during bootstrap. Keep
+    // both Inbox counters invisible until the database count has settled, so an
+    // old unread value can never flash before the final read state arrives.
     await sleep(850);
 
     let previous = null;
@@ -88,8 +102,7 @@ async function stabilizeStartup() {
     root.classList.remove("inbox-badge-booting");
     settling = false;
 
-    // One final pass catches a late workflow/read-state update without allowing
-    // a stale number to flash during initial rendering.
+    // Catch a late workflow/read-state update after the page becomes visible.
     setTimeout(syncVerifiedCount, 650);
     setTimeout(syncVerifiedCount, 1500);
   }
