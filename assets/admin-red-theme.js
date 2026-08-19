@@ -1,4 +1,4 @@
-import "./inbox-badge-stabilizer-v232.js?v=232";
+import "./inbox-badge-stabilizer-v232.js?v=233";
 import "./logbook-export-v220.js?v=220";
 import "./senior-logbook-history-v224.js?v=228";
 import "./schedule-meetings-refresh-state-v193.js?v=194";
