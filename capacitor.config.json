@@ -5,5 +5,10 @@
   "server": {
     "url": "https://alexcardiology.github.io/Residents/index.html?auth=175",
     "cleartext": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["alert", "sound"]
+    }
   }
 }
