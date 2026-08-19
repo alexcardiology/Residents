@@ -1,9 +1,10 @@
 import { sb } from "./supabase.js";
 import "./feature-gates-v143.js?v=1.0.143";
-import "./admin-inbox-penalty-actions-v230.js?v=1.0.231";
+import "./admin-inbox-penalty-actions-v230.js?v=1.0.232";
 
 let isOwner = false;
 let paintQueued = false;
+let burstTimers = [];
 
 const ROOT_ROUTES = new Set(["", "dashboard"]);
 const LOGBOOK_ROUTES = new Set([
@@ -63,8 +64,6 @@ function isRedSurface(c){
   return c.r >= 55 && c.r > c.g * 1.38 && c.r > c.b * 1.12 && brightness(c) < 165;
 }
 
-/* A pale pink/white gradient is NOT a deep-red surface merely because one stop is burgundy.
-   At least 60% of meaningful gradient stops must themselves be dark red. */
 function gradientIsDeepRed(image){
   const colors = [...String(image || "").matchAll(/rgba?\([^)]+\)/gi)]
     .map((m)=>parseRgbToken(m[0]))
@@ -110,6 +109,11 @@ function schedulePaint(){
   });
 }
 
+function schedulePaintBurst(){
+  burstTimers.forEach((timer)=>clearTimeout(timer));
+  burstTimers = [0, 180, 650].map((delay)=>setTimeout(schedulePaint, delay));
+}
+
 document.addEventListener("click", (event)=>{
   const button = event.target.closest("[data-admin-global-back]");
   if (!button || !isOwner) return;
@@ -117,7 +121,7 @@ document.addEventListener("click", (event)=>{
   location.hash = parentRoute(currentRoute());
 });
 
-window.addEventListener("hashchange", schedulePaint);
+window.addEventListener("hashchange", schedulePaintBurst);
 
 try {
   const { data: sessionData } = await sb.auth.getSession();
@@ -131,8 +135,10 @@ try {
 }
 
 if (isOwner) {
-  new MutationObserver(schedulePaint).observe(document.documentElement, { childList:true, subtree:true, attributes:true, attributeFilter:["class","style"] });
-  setTimeout(schedulePaint, 0);
-  setTimeout(schedulePaint, 350);
-  setTimeout(schedulePaint, 1000);
+  // IMPORTANT: do not observe class/style mutations here. paintRedText itself
+  // changes classes, so an attribute MutationObserver creates a self-triggering
+  // render loop and can freeze the portal. A small bounded paint burst after
+  // route changes is sufficient and keeps the UI responsive.
+  schedulePaintBurst();
+  window.addEventListener("focus", ()=>setTimeout(schedulePaint, 80), { passive:true });
 }
