@@ -1,4 +1,5 @@
 import "./logbook-export-v220.js?v=220";
+import "./senior-logbook-history-v224.js?v=226";
 import "./schedule-meetings-refresh-state-v193.js?v=194";
 import "./dual-role-bootstrap-v166.js?v=1.0.166";
 import "./dual-role-v163.js?v=1.0.166";
@@ -81,10 +82,6 @@ void import("./admin-push-center-v166.js?v=1.0.166").catch((error) => {
 
 void import("./senior-logbook-response-gate-v167.js?v=1.0.167").catch((error) => {
   console.warn("Senior logbook response gate could not load", error);
-});
-
-void import("./senior-logbook-history-v224.js?v=225").catch((error) => {
-  console.warn("Senior logbook request history could not load", error);
 });
 
 void import("./admin-logbook-authority-v206.js?v=218").catch((error) => {
