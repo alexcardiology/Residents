@@ -21,4 +21,5 @@ document.addEventListener('change',e=>{if(e.target?.id==='serviceDate')write({da
 document.getElementById('appLang')?.addEventListener('click',()=>setTimeout(installDrawerLabels,0));
 window.addEventListener('beforeunload',()=>{const active=document.querySelector('.page.on')?.id||'dashboard';const st={page:active,service:active==='service'?(typeof currentService!=='undefined'?currentService:null):null,date:document.getElementById('serviceDate')?.value||'',status:document.getElementById('serviceStatus')?.value||'',rangeFrom:document.getElementById('rangeFrom')?.value||'',rangeTo:document.getElementById('rangeTo')?.value||''};['cath','echo'].forEach(id=>{const el=document.getElementById(id);if(el)st[id+'Collapsed']=el.classList.contains('hidden')});write(st)});
 const filterFix=document.createElement('script');filterFix.src='./patient-hub-filter-fix.js?v=20260819-1';document.body.appendChild(filterFix);
+const bulk=document.createElement('script');bulk.src='./patient-hub-list-booking.js?v=20260819-1';document.body.appendChild(bulk);
 })();
