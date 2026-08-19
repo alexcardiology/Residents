@@ -91,7 +91,7 @@ void import("./admin-logbook-authority-v206.js?v=218").catch((error) => {
   console.warn("Admin logbook authority controls could not load", error);
 });
 
-void import("./admin-logbook-suspension-manual-v221.js?v=221").catch((error) => {
+void import("./admin-logbook-suspension-manual-v221.js?v=222").catch((error) => {
   console.warn("Manual logbook suspension controls could not load", error);
 });
 
