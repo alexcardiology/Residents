@@ -22,5 +22,21 @@
 #dashboard .emptyDash{color:var(--mut);padding:16px;text-align:center}
 #dashboard .sectionHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
 #dashboard .sectionHead h3{margin:0}
+
+/* Compact sidebar refinement */
+.nav{gap:4px!important;margin-top:9px!important}
+.nav button{padding:6px 9px!important;min-height:34px!important;border-radius:9px!important;line-height:1.35!important}
+.nav>button[data-page="new"]{margin-bottom:5px!important}
+.nav .parent{min-height:36px!important;margin-top:2px!important;padding:6px 9px!important}
+.sub{margin:-2px 4px 5px!important;padding:4px 6px!important;gap:2px!important;background:#4a140b!important;border-color:#68200f!important;border-top:0!important}
+.sub button{padding:4px 9px!important;min-height:29px!important;font-size:13px!important;line-height:1.35!important;color:#ffe7dc!important;background:#641d0d!important;border:1px solid #762711!important}
+.sub button:hover{background:#762711!important;color:#fff!important}
+.sub button.active{background:#8f2d11!important;color:#fff!important;border-color:#a64018!important}
+.nav>button[data-service="holter"],.nav>button[data-service="exercise_ecg"]{min-height:34px!important}
+.nav>button[data-page="inbox"]{margin-top:5px!important;padding-top:9px!important}
+.nav>button[data-page="settings"]{padding-top:9px!important}
+[dir=rtl] .nav button{line-height:1.4!important;font-size:14px!important}
+[dir=rtl] .sub button{font-size:13px!important;line-height:1.4!important;padding-top:4px!important;padding-bottom:4px!important}
+
 @media(max-width:1050px){#dashboard .opsGrid{grid-template-columns:1fr}#dashboard .dashTop{flex-wrap:wrap}#dashboard .dashSearch{order:3;max-width:none;flex-basis:100%;margin:0}}
 @media(max-width:620px){#dashboard .quickGrid{grid-template-columns:1fr 1fr}#dashboard .dashCase{grid-template-columns:1fr}#dashboard .dashActions{justify-content:flex-start}}
