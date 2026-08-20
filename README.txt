@@ -1,12 +1,14 @@
-Replace these 2 files in the ROOT of the GitHub repository:
+Replace these files in the ROOT of GitHub:
 
-1) patient-hub-admin.js
-2) patient-hub.html
+- patient-hub.html
+- patient-hub.css
+- patient-hub-sidebar-compact.css
+- patient-hub.js
 
-Changes:
-- Consultant degree dropdown now shows Arabic only: ا.د. / د.
-- Name field contains name only.
-- Cleaner compact consultant rows.
-- Added "عرض القوائم" button for every consultant.
-- Lists popup shows date, Miri/Smouha, patient, intervention, report status/ID, and Manage button.
-- patient-hub.html cache-busts the updated admin JS.
+Fixed behavior:
+- Opening "معمل القسطرة" does NOT make the parent title yellow.
+- The parent remains normal white/cream text on the same brown background.
+- Only the CURRENT child is yellow:
+  - قسطرة الميري
+  - قسطرة سموحة
+- Same rule applies to Echo subtopics.
