@@ -1,0 +1,4 @@
+-- Already applied to Supabase project dwkkhqmifmmxubtuaqbd.
+-- Kept here for repository history/documentation.
+-- Adds cath_cd_received, cath_outcome, cath_postponed_reason to reservations + extra cases,
+-- updates Cath portal save/list RPCs, and adds psh_cath_postponed_cases() for secretary/admin/head nurse.
