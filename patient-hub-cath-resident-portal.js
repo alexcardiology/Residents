@@ -14,18 +14,36 @@ function askResidentName(code){let m=q('cathResidentNameModal');if(m)m.remove();
 async function fetchList(code,residentName){const {data,error}=await sb.rpc('psh_cath_portal_list',{p_token:token(),p_service_code:code,p_resident_name:residentName});if(error){if(String(error.message||'').includes('Session expired')){setToken('');showLogin('انتهت الجلسة. سجل الدخول مرة أخرى.');return}const box=q('cathPortalRows');if(box)box.innerHTML=`<div style="padding:25px;color:#a40000">${esc(error.message)}</div>`;return}renderRows(code,data||[],residentName)}
 async function openList(code,residentName=currentResidentName){stopAutoRefresh();const t=token();if(!t)return showLogin();if(!residentName)return askResidentName(code);currentResidentName=residentName;currentCode=code;portalShell(`<div style="display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:20px"><div><button id="backCathPortal" style="border:1px solid #e8bda6;background:white;border-radius:11px;padding:9px 15px">← رجوع</button><h1 style="font-size:34px;margin:16px 0 0">${code==='cath_miri'?'قسطرة الميري':'قسطرة سموحة'}</h1><div style="margin-top:7px;color:#8d4a2e;font-weight:700">نائب القسطرة: ${esc(residentName)}</div></div><div style="display:flex;gap:10px"><button id="addCathExtraCase" style="border:0;background:#e95f0b;color:#fff;border-radius:11px;padding:10px 18px;font-weight:800">+ إضافة حالة</button><button id="refreshCathPortal" style="border:1px solid #e8bda6;background:white;border-radius:11px;padding:10px 18px;font-weight:700">تحديث</button></div></div><div style="background:#fff3e9;border:1px solid #efc3aa;border-radius:12px;padding:10px 14px;margin-bottom:12px;color:#75402b;font-size:14px">كل حالة يمكن أن يستلمها نائب واحد فقط لمدة 10 دقائق. التقارير المحفوظة لا يمكن تعديلها من حساب طبيب القسطرة.</div><div id="cathPortalRows" style="background:white;border:1px solid #efc3aa;border-radius:18px;overflow:auto"><div style="padding:30px;text-align:center">جاري التحميل...</div></div>`);q('backCathPortal').onclick=home;q('refreshCathPortal').onclick=()=>fetchList(code,residentName);q('addCathExtraCase').onclick=()=>showExtraCaseModal(code,residentName);await fetchList(code,residentName);refreshTimer=setInterval(()=>fetchList(code,residentName),15000)}
 function showExtraCaseModal(code,residentName){let m=q('cathExtraCaseModal');if(m)m.remove();m=document.createElement('div');m.id='cathExtraCaseModal';m.style.cssText='position:fixed;inset:0;background:#2a140d66;display:flex;align-items:center;justify-content:center;padding:20px;z-index:99999';m.innerHTML=`<div dir="rtl" style="width:min(540px,100%);background:white;border-radius:22px;padding:26px;border:1px solid #efc3aa"><h2 style="margin-top:0">إضافة حالة إلى قائمة اليوم</h2><label style="font-weight:700">اسم المريض</label><input id="extraPatientName" style="width:100%;box-sizing:border-box;margin:8px 0 16px;border:1px solid #e7b99f;border-radius:12px;padding:13px;font-size:18px" placeholder="اسم المريض"><label style="font-weight:700">رقم التقرير</label><input id="extraReportId" style="width:100%;box-sizing:border-box;margin:8px 0 16px;border:1px solid #e7b99f;border-radius:12px;padding:13px;font-size:18px" placeholder="يمكن إدخاله الآن أو لاحقاً"><div id="extraCaseError" style="color:#b42318;min-height:20px"></div><div style="display:flex;gap:10px"><button id="cancelExtraCase">إلغاء</button><button id="saveExtraCase" style="border:0;background:#e95f0b;color:white;border-radius:11px;padding:11px 22px;font-weight:800">إضافة إلى القائمة</button></div></div>`;document.body.appendChild(m);q('cancelExtraCase').onclick=()=>m.remove();q('saveExtraCase').onclick=async()=>{const name=q('extraPatientName').value.trim(),rid=q('extraReportId').value.trim();if(!name){q('extraCaseError').textContent='اكتب اسم المريض.';return}q('saveExtraCase').disabled=true;const {error}=await sb.rpc('psh_cath_portal_add_extra_case',{p_token:token(),p_service_code:code,p_patient_name:name,p_resident_name:residentName,p_report_id:rid||null});q('saveExtraCase').disabled=false;if(error){q('extraCaseError').textContent=error.message;return}m.remove();fetchList(code,residentName)}}
-function actionCell(r,code){const id=r.item_id,type=r.item_type;if(r.cath_filing_id){return `<div style="font-size:13px;color:#17813a;font-weight:800">تم كتابة التقرير ✓</div>`}if(r.locked_by&&!r.locked_by_me){return `<div style="background:#f1f1f1;border-radius:10px;padding:8px 10px;color:#555;min-width:175px">🔒 قيد الإدخال بواسطة<br><strong>${esc(r.locked_by)}</strong></div>`}if(r.locked_by_me){return `<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap"><button onclick="saveCathPortalReport('${id}','${type}','${code}')" style="border:0;border-radius:9px;background:#e95f0b;color:white;padding:9px 15px;font-weight:800">حفظ</button><button onclick="releaseCathPortalCase('${id}','${type}','${code}')" style="border:1px solid #d6a88f;border-radius:9px;background:#fff;padding:8px 11px;font-weight:700">ترك الحالة</button></div><div style="font-size:11px;color:#7c5c4d;margin-top:5px">🔒 الحالة مستلمة باسم ${esc(currentResidentName)}</div>`}return `<button onclick="claimCathPortalCase('${id}','${type}','${code}')" style="border:1px solid #df9f7b;border-radius:9px;background:#fff7f1;color:#91380f;padding:9px 14px;font-weight:800">استلام الحالة</button>`}
+function sameResidentName(a,b){return String(a||'').trim().toLowerCase()===String(b||'').trim().toLowerCase()}
+function actionCell(r,code){
+ const id=r.item_id,type=r.item_type;
+ if(r.cath_filing_id){
+   return `<div style="font-size:13px;color:#17813a;font-weight:800">تم كتابة التقرير ✓</div>`;
+ }
+ if(r.locked_by&&!r.locked_by_me&&!sameResidentName(r.locked_by,currentResidentName)){
+   return `<div style="background:#f1f1f1;border-radius:10px;padding:8px 10px;color:#555;min-width:175px">🔒 قيد الإدخال بواسطة<br><strong>${esc(r.locked_by)}</strong></div>`;
+ }
+ if(r.locked_by_me||sameResidentName(r.locked_by,currentResidentName)){
+   return `<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+     <button onclick="saveCathPortalReport('${id}','${type}','${code}')" style="border:0;border-radius:9px;background:#e95f0b;color:white;padding:9px 15px;font-weight:800">حفظ</button>
+     <button onclick="releaseCathPortalCase('${id}','${type}','${code}')" style="border:1px solid #d6a88f;border-radius:9px;background:#fff;padding:8px 11px;font-weight:700">ترك الحالة</button>
+   </div><div style="font-size:11px;color:#7c5c4d;margin-top:5px">🔒 الحالة مستلمة باسم ${esc(currentResidentName)}</div>`;
+ }
+ return `<button onclick="claimCathPortalCase('${id}','${type}','${code}')" style="border:1px solid #df9f7b;border-radius:9px;background:#fff7f1;color:#91380f;padding:9px 14px;font-weight:800">استلام الحالة</button>`;
+}
+
 function togglePostponedReason(id){
  const outcome=q('outcome_'+id)?.value||'';
  const reason=q('reason_'+id);
  if(!reason)return;
  reason.style.display=outcome==='postponed'?'block':'none';
+ reason.required=outcome==='postponed';
  if(outcome!=='postponed')reason.value='';
 }
 window.togglePostponedReason=togglePostponedReason;
 
 function outcomeLabel(v){
- if(v==='CA')return'CA';
+ if(v==='angio_only'||v==='CA')return'Angio only';
  if(v==='PCI')return'PCI';
  if(v==='postponed')return'تأجيل';
  return'—';
@@ -39,7 +57,8 @@ function renderRows(code,rows,residentName){
    box.innerHTML='<div style="padding:35px;text-align:center;color:#80695e">لا توجد حالات في قائمة اليوم.</div>';
    return;
  }
- box.innerHTML=`<table dir="rtl" style="width:100%;border-collapse:collapse;min-width:1650px">
+
+ box.innerHTML=`<table dir="rtl" style="width:100%;border-collapse:collapse;min-width:1420px">
  <thead><tr style="background:#fff0e7">
    <th style="padding:13px">التاريخ</th>
    <th style="padding:13px">المريض</th>
@@ -48,37 +67,40 @@ function renderRows(code,rows,residentName){
    <th style="padding:13px">الهاتف</th>
    <th style="padding:13px">رقم التقرير</th>
    <th style="padding:13px">نسخة CD</th>
-   <th style="padding:13px">النتيجة</th>
-   <th style="padding:13px;min-width:220px">سبب التأجيل</th>
-   <th style="padding:13px;min-width:180px">اسم نائب القسطرة</th>
+   <th style="padding:13px;min-width:210px">نتيجة القسطرة</th>
+   <th style="padding:13px;min-width:170px">اسم نائب القسطرة</th>
    <th style="padding:13px">التحكم</th>
  </tr></thead>
  <tbody>${rows.map(r=>{
    const id=r.item_id,finalName=r.cath_resident_name||r.locked_by||'';
-   const editable=!r.cath_filing_id&&r.locked_by_me;
+   const mine=r.locked_by_me||sameResidentName(r.locked_by,residentName);
+   const editable=!r.cath_filing_id&&mine;
    const disabled=editable?'':'disabled';
-   const bg=r.cath_filing_id?'#f5fff7':(r.locked_by&&!r.locked_by_me?'#f7f7f7':'white');
-   const reportInput=`<input id="rid_${id}" ${disabled} value="${esc(r.cath_filing_id||'')}" placeholder="${editable?'أدخل رقم التقرير':r.locked_by&&!r.locked_by_me?'الحالة مستلمة':'استلم الحالة أولاً'}" style="width:100%;min-width:160px;box-sizing:border-box;border:1px solid #e8bda6;border-radius:10px;padding:10px 12px;font-size:16px;${disabled?'background:#f3f3f3;color:#666':''}">`;
+   const bg=r.cath_filing_id?'#f5fff7':(r.locked_by&&!mine?'#f7f7f7':'white');
+
+   const reportInput=`<input id="rid_${id}" ${disabled} value="${esc(r.cath_filing_id||'')}"
+     placeholder="${editable?'أدخل رقم التقرير':r.locked_by&&!mine?'الحالة مستلمة':'استلم الحالة أولاً'}"
+     style="width:100%;min-width:160px;box-sizing:border-box;border:1px solid #e8bda6;border-radius:10px;padding:10px 12px;font-size:16px;${disabled?'background:#f3f3f3;color:#666':''}">`;
+
    const cdCell=r.cath_filing_id
      ?`<strong>${yesNo(r.cath_cd_received)}</strong>`
      :editable
        ?`<label style="display:flex;align-items:center;gap:7px;white-space:nowrap"><input id="cd_${id}" type="checkbox" style="width:18px;height:18px"> استلم نسخة CD</label>`
        :'—';
-   const outcomeCell=r.cath_filing_id
-     ?`<strong>${outcomeLabel(r.cath_outcome)}</strong>`
-     :editable
-       ?`<select id="outcome_${id}" onchange="togglePostponedReason('${id}')" style="min-width:120px;border:1px solid #e8bda6;border-radius:10px;padding:9px">
-           <option value="">اختر</option>
-           <option value="CA">CA</option>
-           <option value="PCI">PCI</option>
-           <option value="postponed">تأجيل</option>
-         </select>`
-       :'—';
-   const reasonCell=r.cath_filing_id
-     ?esc(r.cath_postponed_reason||'—')
-     :editable
-       ?`<input id="reason_${id}" placeholder="سبب التأجيل إجباري" style="display:none;width:100%;min-width:210px;box-sizing:border-box;border:1px solid #e8bda6;border-radius:10px;padding:9px">`
-       :'—';
+
+   let outcomeCell='—';
+   if(r.cath_filing_id){
+     outcomeCell=`<strong>${outcomeLabel(r.cath_outcome)}</strong>${r.cath_outcome==='postponed'&&r.cath_postponed_reason?`<div style="margin-top:6px;color:#a63a0a;font-size:12px;line-height:1.45">السبب: ${esc(r.cath_postponed_reason)}</div>`:''}`;
+   }else if(editable){
+     outcomeCell=`<select id="outcome_${id}" onchange="togglePostponedReason('${id}')" style="width:100%;min-width:160px;border:1px solid #e8bda6;border-radius:10px;padding:9px">
+       <option value="">اختر النتيجة</option>
+       <option value="angio_only">Angio only</option>
+       <option value="PCI">PCI</option>
+       <option value="postponed">تأجيل</option>
+     </select>
+     <input id="reason_${id}" placeholder="اكتب سبب التأجيل" style="display:none;margin-top:7px;width:100%;box-sizing:border-box;border:1px solid #e8bda6;border-radius:10px;padding:9px">`;
+   }
+
    return `<tr style="border-top:1px solid #f2d7c8;background:${bg}">
      <td style="padding:13px">${esc(arDate(r.scheduled_date))}</td>
      <td style="padding:13px;font-weight:700">${esc(r.patient_name)}</td>
@@ -88,21 +110,20 @@ function renderRows(code,rows,residentName){
      <td style="padding:10px">${reportInput}</td>
      <td style="padding:10px">${cdCell}</td>
      <td style="padding:10px">${outcomeCell}</td>
-     <td style="padding:10px">${reasonCell}</td>
      <td id="rname_${id}" style="padding:13px;font-weight:700;color:#713119">${esc(finalName)}</td>
      <td style="padding:10px">${actionCell(r,code)}</td>
    </tr>`;
  }).join('')}</tbody></table>`;
 }
 window.claimCathPortalCase=async(id,type,code)=>{const {data,error}=await sb.rpc('psh_cath_portal_claim_case',{p_token:token(),p_item_type:type,p_item_id:id,p_resident_name:currentResidentName});if(error){alert(error.message);return}const result=Array.isArray(data)?data[0]:data;if(!result?.ok){alert(result?.locked_by?`هذه الحالة مستلمة بالفعل بواسطة ${result.locked_by}`:'تم حفظ تقرير هذه الحالة بالفعل.');await fetchList(code,currentResidentName);return}await fetchList(code,currentResidentName);setTimeout(()=>q('rid_'+id)?.focus(),80)};
-window.releaseCathPortalCase=async(id,type,code)=>{const {error}=await sb.rpc('psh_cath_portal_release_case',{p_token:token(),p_item_type:type,p_item_id:id});if(error){alert(error.message);return}await fetchList(code,currentResidentName)};
+window.releaseCathPortalCase=async(id,type,code)=>{const {error}=await sb.rpc('psh_cath_portal_release_case',{p_token:token(),p_item_type:type,p_item_id:id,p_resident_name:currentResidentName});if(error){alert(error.message);return}await fetchList(code,currentResidentName)};
 window.saveCathPortalReport=async(id,type,code)=>{
  const input=q('rid_'+id),v=input?.value.trim()||'';
  if(!v){input?.focus();return}
  const cdReceived=!!q('cd_'+id)?.checked;
  const outcome=q('outcome_'+id)?.value||'';
  const reason=q('reason_'+id)?.value.trim()||'';
- if(!outcome){alert('اختر النتيجة: CA أو PCI أو تأجيل.');q('outcome_'+id)?.focus();return}
+ if(!outcome){alert('اختر نتيجة القسطرة: Angio only أو PCI أو تأجيل.');q('outcome_'+id)?.focus();return}
  if(outcome==='postponed'&&!reason){alert('سبب التأجيل إجباري.');q('reason_'+id)?.focus();return}
  const {error}=await sb.rpc('psh_cath_portal_save_item_report',{
    p_token:token(),
