@@ -3686,12 +3686,12 @@ async function P() {
       ) +
       priorExperienceBanner +
       minimumRequirementBanner +
-      ownerLogbookManager +
       submitCard +
       (pending.length
         ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
         : "") +
-      `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>`;
+      `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>` +
+      ownerLogbookManager;
   }
   window.logbookSeniorResidents = seniorResidents.map((person) => ({ ...person }));
   window.logbookAssessors = assessors.map((person) => ({ ...person }));
