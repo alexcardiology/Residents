@@ -6,6 +6,49 @@ export const SUPABASE_PUBLISHABLE_KEY='sb_publishable_5RESwwz-dpHp8Sv5eZ2qqQ_73V
 export const SUPABASE_LEGACY_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3a2hxbWlmbW14dWJ0dWFxYmQiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4NTkyMzU0MSwiZXhwIjoyMTAxNDk5NTQxfQ.6_aryJx9eA_tKwqm6GjMbM4i9LG_z99qL-uDZaHlRJg';
 export const SUPABASE_BROWSER_KEY=SUPABASE_LEGACY_ANON_KEY;
 
+const nativeFetch=globalThis.fetch.bind(globalThis);
+const supabaseOrigin=new URL(SUPABASE_URL).origin;
+const staleGatewayKeys=new Set([SUPABASE_PUBLISHABLE_KEY,SUPABASE_LEGACY_ANON_KEY,SUPABASE_BROWSER_KEY]);
+const copiedHeaders=['content-type','accept','prefer','range','content-profile','accept-profile','x-client-info'];
+
+async function portalFetch(input,init={}){
+  const request=input instanceof Request?input:null;
+  const rawUrl=typeof input==='string'?input:input instanceof URL?input.toString():request?.url;
+  if(!rawUrl)return nativeFetch(input,init);
+  const url=new URL(rawUrl,location.href);
+  if(url.origin!==supabaseOrigin||url.pathname.startsWith('/functions/v1/portal-api-proxy'))return nativeFetch(input,init);
+
+  const sourceHeaders=new Headers(request?.headers||undefined);
+  if(init.headers)new Headers(init.headers).forEach((value,key)=>sourceHeaders.set(key,value));
+  const proxyHeaders=new Headers();
+  for(const name of copiedHeaders){
+    const value=sourceHeaders.get(name);
+    if(value)proxyHeaders.set(name,value);
+  }
+
+  const authorization=String(sourceHeaders.get('authorization')||'').trim();
+  const token=authorization.replace(/^Bearer\s+/i,'').trim();
+  if(authorization&&token&&!staleGatewayKeys.has(token))proxyHeaders.set('x-portal-user-authorization',authorization);
+
+  const method=String(init.method||request?.method||'GET').toUpperCase();
+  let body;
+  if(!['GET','HEAD'].includes(method)){
+    if(Object.prototype.hasOwnProperty.call(init,'body'))body=init.body;
+    else if(request)body=await request.clone().arrayBuffer();
+  }
+
+  const target=`${url.pathname}${url.search}`;
+  const proxyUrl=`${SUPABASE_URL}/functions/v1/portal-api-proxy?target=${encodeURIComponent(target)}`;
+  return nativeFetch(proxyUrl,{
+    method,
+    headers:proxyHeaders,
+    body,
+    signal:init.signal||request?.signal,
+    cache:'no-store',
+    credentials:'omit',
+  });
+}
+
 const authStorage={
   getItem(key){
     const preference=window.localStorage.getItem(AUTH_PERSISTENCE_KEY);
@@ -29,11 +72,9 @@ const authStorage={
   }
 };
 
-// Normal REST/Auth/Realtime/Storage traffic goes directly to Supabase.
-// Do NOT install a global Edge proxy here: it turns ordinary database traffic
-// into Edge Function invocations.
 const options={
   auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:authStorage},
+  global:{fetch:portalFetch},
 };
 
 export const sb=window.__CARDIOLOGY_SUPABASE_CLIENT_V175__||(window.__CARDIOLOGY_SUPABASE_CLIENT_V175__=createClient(SUPABASE_URL,SUPABASE_BROWSER_KEY,options));
