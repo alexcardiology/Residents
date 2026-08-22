@@ -3063,7 +3063,7 @@ function renderAssessorLogbookTable(entries) {
       <td data-label="Participation">${o(participation || "—")}</td>
       <td data-label="Cases">${isConference ? "—" : logbookCaseCount(entry)}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
-      <td data-label="Senior">${isConference || !entry.senior_resident_id ? "—" : `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
+      <td data-label="Senior" style="text-align:center;vertical-align:middle">${isConference || !entry.senior_resident_id ? "—" : `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
       <td data-label="Decision">${myDecision === "—" ? "—" : logbookDecisionBadge(myDecision)}</td>
       <td data-label="Actions"><div class="table-row-actions">${canAct ? `<button class="btn small" data-logbook-table-review="${entry.id}" data-logbook-title="${o(entry.title)}">Review</button>` : ""}<button class="btn small secondary" data-logbook-detail="${entry.id}">Details</button></div></td>
     </tr>`;
@@ -3146,7 +3146,7 @@ function renderLogbookHistoryTable(entries, mode = "resident") {
       <td data-label="Cases">${conference ? "—" : logbookCaseCount(entry)}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
       <td data-label="Hospital">${conference ? "—" : o(entry.hospital || "—")}</td>
-      <td data-label="Senior">${conference || !entry.senior_resident_id ? "—" : `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
+      <td data-label="Senior" style="text-align:center;vertical-align:middle">${conference || !entry.senior_resident_id ? "—" : `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
       <td data-label="Assessor">${o(entry.assessor_name || "—")}<br>${logbookDecisionBadge(entry.assessor_status)}</td>
       <td data-label="Status">${logbookHistoryStatusBadge(entry)}</td>
       <td data-label="Actions"><button class="btn small secondary" data-logbook-detail="${o(entry.id)}">Details</button></td>
@@ -3707,12 +3707,12 @@ async function P() {
       ) +
       priorExperienceBanner +
       minimumRequirementBanner +
-      ownerLogbookManager +
       submitCard +
       (pending.length
         ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
         : "") +
-      `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>`;
+      `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>` +
+      ownerLogbookManager;
   }
   window.logbookSeniorResidents = seniorResidents.map((person) => ({ ...person }));
   window.logbookAssessors = assessors.map((person) => ({ ...person }));
