@@ -277,29 +277,72 @@ function countUnreadInboxThreads(messages = [], reviewActions = []) {
 }
 
 async function q() {
+  // Keep badges visually quiet while the authoritative counts are loading.
+  document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
+    badge.textContent = "0";
+    badge.hidden = true;
+  });
+
   // Fallback processor: pg_cron runs hourly when available; any active portal session also catches overdue reminders.
   void e.rpc("process_pending_requests_v1069");
-  const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
-  const [normalResult, logbookResult, reconsiderationResult, reviewActionResult, priorExperienceResult, minimumRequirementResult] = await Promise.all([
+
+  // Year 2 is a valid senior verifier for Year 1, so only Year 1 is treated as
+  // "junior-only" here. Year 2 must receive senior approval requests.
+  const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) === 1;
+
+  const [
+    normalResult,
+    logbookResult,
+    reconsiderationResult,
+    reviewActionResult,
+    priorExperienceResult,
+    minimumRequirementResult,
+    hiddenLogbookResult,
+  ] = await Promise.all([
     e.rpc("get_private_messages", { p_box: "inbox" }),
     e.rpc("get_logbook_messages", { p_view: juniorResident ? "updates" : "received" }),
     e.rpc("get_my_logbook_reconsiderations_v1044"),
     e.rpc("get_my_review_message_actions_v1051"),
     e.rpc("get_prior_experience_review_queue_v1069"),
-    s.p.role === "assessor" ? e.rpc("get_my_logbook_requirement_review_queue_v1084") : Promise.resolve({ data: [], error: null }),
+    s.p.role === "assessor"
+      ? e.rpc("get_my_logbook_requirement_review_queue_v1084")
+      : Promise.resolve({ data: [], error: null }),
+    e.rpc("get_hidden_logbook_message_ids"),
   ]);
+
   const count = countUnreadInboxThreads(normalResult.data || [], reviewActionResult.data || []);
   document.querySelectorAll("[data-inbox-badge]").forEach((badge) => {
     badge.textContent = count;
     badge.hidden = count === 0;
   });
-  const messageCount = (logbookResult.data || []).filter((message) => juniorResident ? !message.is_read : !message.logbook_action_taken).length;
-  const reconsiderationCount = (reconsiderationResult.data || []).filter((row) => String(row.reviewer_id) === String(s.p.id) && row.status === "requested").length;
+
+  // The navigation badge must use the same "visible" definition as the page itself.
+  // Hidden/deleted message copies must not cause a temporary phantom count.
+  const hiddenIds = new Set((hiddenLogbookResult.data || []).map((row) => String(row.message_id)));
+  const visibleLogbookMessages = (logbookResult.data || []).filter(
+    (message) => !hiddenIds.has(String(message.id)),
+  );
+
+  const messageCount = visibleLogbookMessages.filter((message) =>
+    juniorResident ? !message.is_read : !message.logbook_action_taken,
+  ).length;
+
+  const reconsiderationCount = (reconsiderationResult.data || []).filter(
+    (row) =>
+      String(row.reviewer_id) === String(s.p.id) &&
+      String(row.status) === "requested",
+  ).length;
+
   const priorExperienceCount = (priorExperienceResult.data || []).length;
   const minimumRequirementCount = (minimumRequirementResult.data || []).length;
-  const logbookCount = messageCount + reconsiderationCount + priorExperienceCount + minimumRequirementCount;
+  const logbookCount =
+    messageCount +
+    reconsiderationCount +
+    priorExperienceCount +
+    minimumRequirementCount;
+
   document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
-    badge.textContent = logbookCount;
+    badge.textContent = String(logbookCount);
     badge.hidden = logbookCount === 0;
   });
 }
@@ -2049,8 +2092,10 @@ async function logbookRequestsPage() {
     if (key && !latestReconsiderationByEntry.has(key)) latestReconsiderationByEntry.set(key, row);
   });
 
-  const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) <= 2;
-  const seniorResident = s.p.role === "resident" && Number(s.p.residency_year) >= 3;
+  // Year 2 residents may act as senior verifiers for Year 1.
+  // Therefore only Year 1 is restricted to the junior-only Updates view.
+  const juniorResident = s.p.role === "resident" && Number(s.p.residency_year) === 1;
+  const seniorResident = s.p.role === "resident" && Number(s.p.residency_year) >= 2;
   const assessor = s.p.role === "assessor";
   const views = juniorResident
     ? ["updates"]
@@ -2192,6 +2237,17 @@ async function logbookRequestsPage() {
       ${views.includes("trash") ? `<div class="mail-panel" data-mail-panel="trash" ${firstView === "trash" ? "" : "hidden"}><div class="message-list">${rows(trash, "trash")}</div></div>` : ""}
       <div id="messageSearchEmpty" class="mail-empty" hidden>No logbook items match your search.</div>
     </section>`;
+
+  // Once the page data is authoritative, make the sidebar badge match what can
+  // actually require attention on this page. This removes transient "1" badges.
+  const exactLogbookBadgeCount = juniorResident
+    ? updates.filter((item) => !item.is_read).length
+    : requestBadgeCount + priorExperienceQueue.length + minimumReviewQueue.length;
+  document.querySelectorAll("[data-logbook-badge]").forEach((badge) => {
+    badge.textContent = String(exactLogbookBadgeCount);
+    badge.hidden = exactLogbookBadgeCount === 0;
+  });
+
   filterLogbookRequestRows();
 }
 
@@ -3587,8 +3643,30 @@ async function P() {
       ? e.rpc("get_my_logbook_requirement_submission_v1084")
       : Promise.resolve({ data: null }),
   );
-  const [entriesResult, supervisorsResult, residentsResult, minimumProgressResult, minimumSubmissionResult] =
-    await Promise.all(requests);
+
+  // Compatibility fallback: Year 1 must always be able to choose an active Year 2
+  // resident as the senior verifier, even if an older logbook_approvers RPC is
+  // still deployed in production.
+  requests.push(
+    "resident" === s.p.role && Number(s.p.residency_year) === 1
+      ? e
+          .from("profiles")
+          .select("id,display_name,residency_year,role,is_active")
+          .eq("role", "resident")
+          .eq("is_active", true)
+          .eq("residency_year", 2)
+          .order("display_name")
+      : Promise.resolve({ data: [], error: null }),
+  );
+
+  const [
+    entriesResult,
+    supervisorsResult,
+    residentsResult,
+    minimumProgressResult,
+    minimumSubmissionResult,
+    yearTwoSeniorFallbackResult,
+  ] = await Promise.all(requests);
   if (entriesResult.error) throw entriesResult.error;
   const entries = entriesResult.data || [];
   const own = entries.filter((entry) => entry.resident_id === s.p.id);
@@ -3603,8 +3681,26 @@ async function P() {
   });
   s.logbookPrintEntries = visible;
   const approvers = supervisorsResult?.data || [];
-  const seniorResidents = approvers.filter(
+  const rpcSeniorResidents = approvers.filter(
     (person) => person.approver_group === "senior_resident",
+  );
+  const yearTwoFallback = (yearTwoSeniorFallbackResult?.data || []).map((person) => ({
+    ...person,
+    approver_group: "senior_resident",
+  }));
+  const seniorResidents = [
+    ...new Map(
+      [...rpcSeniorResidents, ...yearTwoFallback].map((person) => [
+        String(person.id),
+        person,
+      ]),
+    ).values(),
+  ].sort((left, right) =>
+    String(left.display_name || "").localeCompare(
+      String(right.display_name || ""),
+      undefined,
+      { sensitivity: "base" },
+    ),
   );
   const assessors = sortAssessorsAlphabetically(approvers.filter(
     (person) => person.approver_group === "assessor",
