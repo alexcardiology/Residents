@@ -19,6 +19,20 @@
 
   <link rel="stylesheet" href="assets/style.css?v=1.0.91">
   <link rel="stylesheet" href="assets/landing-access.css?v=1.0.92">
+  <style>
+    html.portal-session-check body.landing > main{visibility:hidden!important;opacity:0!important}
+    html.portal-session-check body.landing::before{content:"Opening your portal…";position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#081c35;color:#fff;font:600 14px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;letter-spacing:.02em}
+  </style>
+  <script>
+    (()=>{
+      try{
+        const key="cardiology-keep-signed-in";
+        if(localStorage.getItem(key)===null)localStorage.setItem(key,"1");
+        if(localStorage.getItem(key)!=="0")document.documentElement.classList.add("portal-session-check");
+        setTimeout(()=>document.documentElement.classList.remove("portal-session-check"),2200);
+      }catch(_){}
+    })();
+  </script>
 
   <script>
     (() => {
@@ -199,7 +213,7 @@
   </main>
 
   <script type="module" src="assets/app-install-tracker-v175.js?v=175"></script>
-  <script type="module" src="assets/login-v175.js?v=175"></script>
+  <script type="module" src="assets/login-v176.js?v=176"></script>
   <script type="module" src="assets/public-el-medico-v175.js?v=175"></script>
 
   <script>
