@@ -1,0 +1,113 @@
+RESIDENTS — EDGE FUNCTION INVOCATION AUDIT
+==========================================
+
+Project ref found in the uploaded package:
+  dwkkhqmifmmxubtuaqbd
+
+IMPORTANT
+---------
+The package can identify every Edge Function entry point present in the current
+frontend/source, but the Supabase project did not permit access to Edge Function
+logs from this session. Therefore this report does NOT invent per-function monthly
+counts. The 592,618 dashboard total cannot be truthfully split into exact function
+counts without Supabase log/usage access.
+
+CURRENT EDGE ENTRY POINTS FOUND
+-------------------------------
+Normal portal / authenticated UI:
+  duty-bot-v17
+    - Called when a user actively asks El Médico.
+    - Current schedule override calls it directly.
+
+Compatibility code still present:
+  duty-bot
+  duty-bot-fast
+  duty-bot-smart
+  duty-bot-v15
+    - Multiple compatibility wrappers exist.
+    - Some wrapper Edge Functions call another Edge Function internally.
+    - One user question can therefore become more than one Edge invocation on
+      older/fallback paths.
+
+Contact enrichment:
+  duty-contact
+    - Fallback contact lookup for duty-assignment cards.
+    - Read-only and suitable for client-side short-term caching.
+
+Public no-login El Médico:
+  duty-bot-public-v2
+    - Called only when a visitor submits a question.
+    - Source shows duty-bot-public-v2 can call duty-bot-public internally.
+    - For CCU/ER-type questions it can call the base function twice.
+    - Therefore one public question may consume 2–3 Edge invocations.
+
+Owner/admin/manual actions:
+  admin-users
+    - Account creation / activation changes. Manual and must NOT be cached.
+
+  generate-curriculum-from-guideline
+    - Manual AI curriculum generation. Must NOT be cached.
+
+Dynamically loaded admin/meeting code:
+  push-notify
+    - Manual notification sending. Must NOT be cached.
+
+  attendance-qr-v179
+    - Meeting attendance actions. Must NOT be cached.
+
+WHAT THIS REPLACEMENT CHANGES
+-----------------------------
+1. Adds assets/edge-invocation-optimizer-v234.js.
+2. Loads it before app.js and before the public El Médico UI.
+3. Canonicalizes old authenticated duty aliases to the already-used
+   duty-bot-v17 endpoint.
+4. De-duplicates identical concurrent read-only Edge requests.
+5. Caches successful identical El Médico schedule queries for 5 minutes.
+6. Caches duty-contact lookups for 30 minutes.
+7. Uses sessionStorage only, so caches disappear when the browser session ends.
+8. Does NOT cache or suppress:
+   - admin-users
+   - push-notify
+   - AI curriculum generation
+   - account writes
+   - attendance writes
+   - any other privileged/write function
+
+USER-FACING EFFECT
+------------------
+Normal use should look the same.
+
+Examples:
+- Asking the same El Médico question twice within 5 minutes:
+  first request = server call
+  repeated request = instant cached answer
+
+- Double-click / duplicate event handler:
+  only one identical request is allowed in flight.
+
+- Old compatibility code trying duty-bot-fast/smart:
+  it is routed to the current duty-bot-v17 endpoint instead of creating a
+  multi-function fallback chain.
+
+WHAT THIS CANNOT FIX BY ITSELF
+------------------------------
+If the 592k invocations are being caused by direct external traffic against a
+public Edge endpoint, browser-side caching cannot stop those callers.
+
+The strongest next step in that case is to inspect Supabase Edge Function logs
+by function name and then either:
+- protect/retire unused public endpoints, or
+- replace the public schedule bot with a database-backed/static schedule query
+  that does not require an Edge invocation per question.
+
+FILES CHANGED
+-------------
+  app.html
+  index.html
+
+FILE ADDED
+----------
+  assets/edge-invocation-optimizer-v234.js
+
+No logbook, approvals, persistent sign-in, push-registration logic, assessment
+logic, or database schema was modified.

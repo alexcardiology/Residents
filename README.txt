@@ -1,25 +1,19 @@
-CARDIOLOGY RESIDENTS — PERSISTENT SIGN-IN + AUTO-REPAIR PUSH
+RESIDENTS — FREE-PLAN EDGE QUOTA OPTIMIZATION
 
-Replace/add exactly:
-- index.html                  (replace)
-- app.html                    (replace)
-- assets/login-v176.js        (add)
-- assets/notifications-v232.js (add)
+Replace:
+  app.html
+  index.html
 
-DO NOT replace assets/app.js with an older copy. This package intentionally does not contain app.js, so your latest logbook fixes stay untouched.
+Add:
+  assets/edge-invocation-optimizer-v234.js
 
-BEHAVIOR
-1) Keep me signed in
-- Persistence defaults ON.
-- A valid saved Supabase session redirects directly to app.html before the sign-in UI is painted.
-- The login page is revealed only if no valid active session exists, the session is revoked/expired beyond refresh, the account is inactive, or the user explicitly chose session-only sign-in.
-- Explicit Log out still signs the user out.
+Read:
+  EDGE-INVOCATION-AUDIT-v234.txt
 
-2) Notifications
-- After the user has granted browser/app notification permission once, every authenticated app load silently checks and repairs the push subscription.
-- It also re-checks on focus, pageshow, returning online, and when the tab becomes visible.
-- Native app tokens are re-registered automatically after a later sign-in if OS permission remains granted.
-- No repeated permission popup is generated.
+This is intentionally a narrow optimization. It does NOT replace app.js and
+therefore does not undo your current logbook/workflow changes.
 
-BROWSER LIMIT
-A website cannot force notifications ON if the user later blocks them in Chrome/iOS/Android settings. In that case the bell correctly reports that notifications are blocked.
+Expected behavior remains the same, while duplicate/repeated El Médico Edge
+calls are reduced.
+
+After upload, hard-refresh once (Ctrl+F5).
