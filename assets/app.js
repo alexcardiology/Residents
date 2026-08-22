@@ -3063,7 +3063,7 @@ function renderAssessorLogbookTable(entries) {
       <td data-label="Participation">${o(participation || "—")}</td>
       <td data-label="Cases">${isConference ? "—" : logbookCaseCount(entry)}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
-      <td data-label="Senior">${isConference ? "—" : entry.senior_resident_id ? `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}` : '<span class="tag success">Not required</span>'}</td>
+      <td data-label="Senior">${isConference || !entry.senior_resident_id ? "—" : `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
       <td data-label="Decision">${myDecision === "—" ? "—" : logbookDecisionBadge(myDecision)}</td>
       <td data-label="Actions"><div class="table-row-actions">${canAct ? `<button class="btn small" data-logbook-table-review="${entry.id}" data-logbook-title="${o(entry.title)}">Review</button>` : ""}<button class="btn small secondary" data-logbook-detail="${entry.id}">Details</button></div></td>
     </tr>`;
@@ -3113,6 +3113,18 @@ function logbookHistoryStatusBadge(entry) {
   const reconsidered = value === "approved" && logbookWasApprovedAfterReconsideration(entry);
   return `<span class="tag ${cls}">${value === "approved" ? "✓ Approved" : value === "rejected" ? "× Rejected" : "Pending"}</span>${reconsidered ? '<span class="after-reconsideration-lamp" title="Approved after reconsideration" aria-label="Approved after reconsideration">💡</span>' : ""}`;
 }
+
+function normalizeBypassedSeniorDisplay(root = document) {
+  try {
+    root.querySelectorAll('td[data-label="Senior"]').forEach((cell) => {
+      const text = String(cell.textContent || "").trim();
+      if (/^—\s*(approved|pending|rejected)/i.test(text) || /^-\s*(approved|pending|rejected)/i.test(text)) {
+        cell.textContent = "—";
+      }
+    });
+  } catch (_) {}
+}
+
 function renderLogbookHistoryTable(entries, mode = "resident") {
   const rows = entries || [];
   const current = window.logbookEntryRows instanceof Map ? window.logbookEntryRows : new Map();
@@ -3134,7 +3146,7 @@ function renderLogbookHistoryTable(entries, mode = "resident") {
       <td data-label="Cases">${conference ? "—" : logbookCaseCount(entry)}</td>
       <td data-label="Date">${d(entry.activity_date)}</td>
       <td data-label="Hospital">${conference ? "—" : o(entry.hospital || "—")}</td>
-      <td data-label="Senior">${conference ? "—" : `${o(entry.senior_resident_name || "—")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
+      <td data-label="Senior">${conference || !entry.senior_resident_id ? "—" : `${o(entry.senior_resident_name || "Senior resident")}<br>${logbookDecisionBadge(entry.senior_status)}`}</td>
       <td data-label="Assessor">${o(entry.assessor_name || "—")}<br>${logbookDecisionBadge(entry.assessor_status)}</td>
       <td data-label="Status">${logbookHistoryStatusBadge(entry)}</td>
       <td data-label="Actions"><button class="btn small secondary" data-logbook-detail="${o(entry.id)}">Details</button></td>
@@ -3178,13 +3190,22 @@ function filterLogbookHistoryTable(card) {
   if (empty) empty.hidden = visible > 0;
 }
 
+
+if (!window.__bypassedSeniorDisplayGuardInstalled) {
+  window.__bypassedSeniorDisplayGuardInstalled = true;
+  const seniorDisplayObserver = new MutationObserver(() => {
+    queueMicrotask(() => normalizeBypassedSeniorDisplay(document));
+  });
+  seniorDisplayObserver.observe(document.documentElement, { childList: true, subtree: true });
+}
+
 function openLogbookEntryDetail(entry) {
   if (!entry) return;
   const isConference = entry.activity_category === "conference";
   const activity = isConference ? entry.title : (entry.procedure_name || entry.title);
   const participation = isConference ? (entry.conference_participation === "gave_speech" ? "Presenter" : "Attended") : participationLabel(entry.participation_mode);
   y(`<article class="modal"><div class="modal-head"><div><span class="eyebrow">${isConference ? "Conference" : "Intervention"}</span><h2>${o(activity || "Logbook activity")}</h2></div><button type="button" data-close>×</button></div>
-    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Total cases</span><b>${logbookCaseCount(entry)}</b></div><div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span>${entry.senior_resident_id ? `<b>${o(entry.senior_resident_name || "Senior resident")}</b> ${logbookDecisionBadge(entry.senior_status)}` : '<b>Not required</b>'}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
+    <div class="logbook-detail-grid"><div><span>Resident</span><b>${o(entry.resident_name || "Resident")}</b></div><div><span>Date</span><b>${d(entry.activity_date)}</b></div><div><span>Participation</span><b>${o(participation || "—")}</b></div>${isConference ? "" : `<div><span>Total cases</span><b>${logbookCaseCount(entry)}</b></div><div><span>Hospital</span><b>${o(entry.hospital || "—")}</b></div><div><span>Senior resident</span>${entry.senior_resident_id ? `<b>${o(entry.senior_resident_name || "Senior resident")}</b> ${logbookDecisionBadge(entry.senior_status)}` : '<b>—</b>'}</div>`}<div><span>Assessor</span><b>${o(entry.assessor_name || "—")}</b> ${logbookDecisionBadge(entry.assessor_status)}</div></div>
     ${!isConference ? logbookCaseDetailsHtml(entry) : ""}
     ${entry.senior_note ? `<div class="message-body"><b>Senior note</b><br>${o(entry.senior_note)}</div>` : ""}${entry.assessor_note ? `<div class="message-body"><b>Assessor note</b><br>${o(entry.assessor_note)}</div>` : ""}${entry.description ? `<div class="message-body"><b>Resident notes / evidence</b><br>${o(entry.description)}</div>` : ""}
     <div class="actions"><button class="btn secondary" type="button" data-close>Close</button></div></article>`);
@@ -3686,12 +3707,12 @@ async function P() {
       ) +
       priorExperienceBanner +
       minimumRequirementBanner +
+      ownerLogbookManager +
       submitCard +
       (pending.length
         ? ` <section class="top-gap"><h2>Approval requests</h2><div class="grid top-gap">${pending.map(B).join("")}</div></section>`
         : "") +
-      `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>` +
-      ownerLogbookManager;
+      `<section class="top-gap printable-logbook">${renderLogbookHistoryTable(visible, s.p.role === "resident" ? "resident" : s.p.role)}</section>`;
   }
   window.logbookSeniorResidents = seniorResidents.map((person) => ({ ...person }));
   window.logbookAssessors = assessors.map((person) => ({ ...person }));
